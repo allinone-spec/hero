@@ -3,7 +3,12 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import ScoringConfig from "@/lib/models/ScoringConfig";
 import { getSession } from "@/lib/auth";
-import { calculateScore, DEFAULT_SCORING_CONFIG, ScoringConfig as IScoringConfig } from "@/lib/scoring-engine";
+import {
+  calculateComparisonScore,
+  calculateScore,
+  DEFAULT_SCORING_CONFIG,
+  ScoringConfig as IScoringConfig,
+} from "@/lib/scoring-engine";
 
 export async function POST() {
   const session = await getSession();
@@ -71,7 +76,13 @@ export async function POST() {
       config
     );
 
-    await Hero.findByIdAndUpdate(hero._id, { score: result.total });
+    const comparisonScore = calculateComparisonScore(
+      result.total,
+      medalData.map((m: { count: number; hasValor: boolean }) => ({ count: m.count, hasValor: m.hasValor })),
+      hero.wars?.length ?? 0,
+      Boolean(hero.multiServiceOrMultiWar)
+    );
+    await Hero.findByIdAndUpdate(hero._id, { score: result.total, comparisonScore });
     count++;
   }
 

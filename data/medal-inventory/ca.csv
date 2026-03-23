@@ -1,0 +1,20 @@
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
+ca-victoria-cross,Victoria Cross (Canada),1,CA,Bar,FALSE,Valor
+ca-cross-of-valour,Cross of Valour,2,CA,Bar,FALSE,Valor
+ca-order-of-canada,Order of Canada (CC/OC/CM),3,CA,None,FALSE,Order
+ca-order-of-military-merit,Order of Military Merit (CMM/OMM/MMM),4,CA,None,FALSE,Order
+ca-star-of-military-valour,Star of Military Valour,5,CA,Bar,FALSE,Valor
+ca-star-of-courage,Star of Courage,6,CA,Bar,FALSE,Valor
+ca-meritorious-service-cross,Meritorious Service Cross (MSC),7,CA,Bar,FALSE,Merit
+ca-medal-of-military-valour,Medal of Military Valour,8,CA,Bar,FALSE,Valor
+ca-medal-of-bravery,Medal of Bravery,9,CA,Bar,FALSE,Valor
+ca-meritorious-service-medal,Meritorious Service Medal (MSM),10,CA,Bar,FALSE,Merit
+ca-sacrifice-medal,Sacrifice Medal,11,CA,Bar,FALSE,Achievement
+ca-gulf-kuwait-medal,Gulf and Kuwait Medal,100,CA,Bar,FALSE,Campaign
+ca-somalia-medal,Somalia Medal,110,CA,Bar,FALSE,Campaign
+ca-south-west-asia-service,South-West Asia Service Medal (Afghanistan),120,CA,Bar,FALSE,Campaign
+ca-general-campaign-star,General Campaign Star,130,CA,Bar,FALSE,Campaign
+ca-general-service-medal,General Service Medal,140,CA,Bar,FALSE,Campaign
+ca-canadian-peacekeeping-service,Canadian Peacekeeping Service Medal,150,CA,Bar,FALSE,Service
+ca-special-service-medal,Special Service Medal,160,CA,Bar,FALSE,Service
+ca-cd,Canadian Forces' Decoration (CD),170,CA,Rosette,FALSE,Service

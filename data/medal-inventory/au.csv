@@ -1,0 +1,18 @@
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
+au-victoria-cross,Victoria Cross for Australia,1,AU,Bar,FALSE,Valor
+au-cross-of-valour,Cross of Valour,2,AU,Bar,FALSE,Valor
+au-order-of-australia,Order of Australia (AK/AC/AO/AM/OAM),3,AU,None,FALSE,Order
+au-star-of-gallantry,Star of Gallantry,4,AU,Bar,FALSE,Valor
+au-star-of-courage,Star of Courage,5,AU,Bar,FALSE,Valor
+au-medal-for-gallantry,Medal for Gallantry,6,AU,Bar,FALSE,Valor
+au-bravery-medal,Bravery Medal,7,AU,Bar,FALSE,Valor
+au-distinguished-service-cross,Distinguished Service Cross,8,AU,Bar,FALSE,Merit
+au-nursing-service-cross,Nursing Service Cross,9,AU,Bar,FALSE,Merit
+au-conspicuous-service-cross,Conspicuous Service Cross,10,AU,Bar,FALSE,Merit
+au-australia-service-medal-1939-1945,Australia Service Medal 1939–1945,100,AU,None,FALSE,Service
+au-australian-active-service-medal,Australian Active Service Medal 1945-1975,110,AU,Clasp,FALSE,Campaign
+au-vietnam-medal,Vietnam Medal,120,AU,None,FALSE,Campaign
+au-australian-service-medal,Australian Service Medal,130,AU,Clasp,FALSE,Service
+au-humanitarian-service-medal,Humanitarian Service Medal,140,AU,Clasp,FALSE,Service
+au-national-medal,National Medal,150,AU,Clasp,FALSE,Service
+au-defence-force-service-medal,Defence Force Service Medal,160,AU,Rosette,FALSE,Service

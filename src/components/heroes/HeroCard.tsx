@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import WikiRibbonRackDisplay, { WikiRibbonCell } from "@/components/ribbon-rack/WikiRibbonRackDisplay";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 
 interface HeroCardProps {
@@ -16,6 +15,7 @@ interface HeroCardProps {
     avatarUrl?: string;
     medals: {
       medalType: {
+        _id?: string;
         name: string;
         precedenceOrder: number;
         ribbonColors: string[];
@@ -25,7 +25,6 @@ interface HeroCardProps {
       hasValor: boolean;
       deviceImages?: { url: string; deviceType: string; count: number }[];
     }[];
-    wikiRibbonRack?: WikiRibbonCell[];
     ribbonMaxPerRow?: number;
     rackGap?: number;
   };
@@ -34,25 +33,19 @@ interface HeroCardProps {
 }
 
 export default function HeroCard({ rank, hero, href, onClick }: HeroCardProps) {
-  const hasWikiRack = hero.wikiRibbonRack && hero.wikiRibbonRack.length > 0;
-
-  const ribbonMedals = hasWikiRack
-    ? []
-    : hero.medals
-        .filter((m) => m.medalType)
-        .map((m) => ({
-          name: m.medalType.name,
-          count: m.count,
-          precedenceOrder: m.medalType.precedenceOrder,
-          ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-          ribbonImageUrl: m.medalType.ribbonImageUrl,
-          hasValor: m.hasValor,
-          deviceImages: m.deviceImages,
-        }));
-
-  // For card view, use a compact scale (0.55x of detail page's 1.15)
-  const cardRibbonScale = 0.65;
-  const cardMaxPerRow = hero.ribbonMaxPerRow || 4;
+  const ribbonMedals = hero.medals
+    .filter((m) => m.medalType)
+    .map((m) => ({
+      medalId: m.medalType._id,
+      name: m.medalType.name,
+      count: m.count,
+      precedenceOrder: m.medalType.precedenceOrder,
+      ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
+      ribbonImageUrl: m.medalType.ribbonImageUrl,
+      hasValor: m.hasValor,
+      deviceImages: m.deviceImages,
+    }))
+    .sort((a, b) => a.precedenceOrder - b.precedenceOrder);
 
   return (
     <Link href={href || `/heroes/${hero.slug}`} onClick={onClick}>
@@ -81,15 +74,8 @@ export default function HeroCard({ rank, hero, href, onClick }: HeroCardProps) {
 
         {/* Ribbon preview */}
         <div className="hidden sm:block shrink-0">
-          {hasWikiRack ? (
-            <WikiRibbonRackDisplay
-              cells={hero.wikiRibbonRack!}
-              maxPerRow={cardMaxPerRow}
-              ribbonScale={cardRibbonScale}
-              rackGap={hero.rackGap ?? 4}
-            />
-          ) : (
-            <RibbonRack medals={ribbonMedals} maxPerRow={3} scale={1.5} />
+          {ribbonMedals.length > 0 && (
+            <RibbonRack medals={ribbonMedals} maxPerRow={3} scale={1.5} disableLinks />
           )}
         </div>
 

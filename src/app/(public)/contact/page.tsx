@@ -86,10 +86,10 @@ export default function ContactPage() {
           Sign in to send us a message or report an issue.
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
-          <Link href="/admin" className="btn-primary text-sm py-2 px-5">
+          <Link href="/login?role=admin" className="btn-primary text-sm py-2 px-5">
             Sign In
           </Link>
-          <Link href="/admin/register" className="btn-secondary text-sm py-2 px-5">
+          <Link href="/register?role=admin" className="btn-secondary text-sm py-2 px-5">
             Sign Up
           </Link>
         </div>

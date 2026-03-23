@@ -18,6 +18,12 @@ export interface IMedalTypeDoc extends Document {
   tier: number;
   branch: string;
   precedenceOrder: number;
+  /** Stable id from client CSV (e.g. us-silver-star) */
+  medalId?: string;
+  countryCode?: string;
+  deviceLogic?: string;
+  vDeviceAllowed?: boolean;
+  inventoryCategory?: string;
   ribbonColors: string[];
   description: string;
   imageUrl: string;
@@ -50,6 +56,11 @@ const MedalTypeSchema = new Schema<IMedalTypeDoc>(
     tier: { type: Number, default: 99 },
     branch: { type: String, default: "All" },
     precedenceOrder: { type: Number, required: true },
+    medalId: { type: String, unique: true, sparse: true },
+    countryCode: { type: String, default: "US" },
+    deviceLogic: { type: String, default: "None" },
+    vDeviceAllowed: { type: Boolean, default: false },
+    inventoryCategory: { type: String, default: "" },
     ribbonColors: { type: [String], default: [] },
     description: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
@@ -69,6 +80,8 @@ const MedalTypeSchema = new Schema<IMedalTypeDoc>(
   },
   { timestamps: true }
 );
+
+MedalTypeSchema.index({ countryCode: 1, precedenceOrder: 1 });
 
 export default mongoose.models.MedalType ||
   mongoose.model<IMedalTypeDoc>("MedalType", MedalTypeSchema);

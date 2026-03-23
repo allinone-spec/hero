@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "npx tsx src/lib/seed.ts",
+    "import-medals": "npx tsx scripts/import-medal-inventory.ts",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
     "worker": "npx tsx -r ./src/worker-env.cjs -r tsconfig-paths/register src/worker.ts"
   },
   "dependencies": {

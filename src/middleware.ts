@@ -12,10 +12,14 @@ export function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    // Block unauthenticated requests to protected admin pages
+    // Block unauthenticated requests to protected admin pages → unified login
     const token = req.cookies.get("auth-token")?.value;
     if (!token) {
-      return NextResponse.redirect(new URL("/admin", req.url));
+      const login = new URL("/login", req.url);
+      login.searchParams.set("role", "admin");
+      const dest = pathname + req.nextUrl.search;
+      login.searchParams.set("next", dest);
+      return NextResponse.redirect(login);
     }
   }
 

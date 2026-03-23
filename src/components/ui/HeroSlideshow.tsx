@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AvatarFallback from "./AvatarFallback";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import WikiRibbonRackDisplay, { WikiRibbonCell } from "@/components/ribbon-rack/WikiRibbonRackDisplay";
 
 interface SlideshowHero {
   _id: string;
@@ -17,6 +16,7 @@ interface SlideshowHero {
   wars: string[];
   medals: {
     medalType: {
+      _id?: string;
       name: string;
       precedenceOrder: number;
       ribbonColors: string[];
@@ -26,7 +26,6 @@ interface SlideshowHero {
     hasValor: boolean;
     deviceImages?: { url: string; deviceType: string; count: number }[];
   }[];
-  wikiRibbonRack?: WikiRibbonCell[];
   ribbonMaxPerRow?: number;
   rackGap?: number;
 }
@@ -64,6 +63,7 @@ export default function HeroSlideshow({ heroes }: { heroes: SlideshowHero[] }) {
   const ribbonMedals = hero.medals
     .filter((m) => m.medalType)
     .map((m) => ({
+      medalId: m.medalType._id,
       name: m.medalType.name,
       count: m.count,
       precedenceOrder: m.medalType.precedenceOrder,
@@ -71,7 +71,8 @@ export default function HeroSlideshow({ heroes }: { heroes: SlideshowHero[] }) {
       ribbonImageUrl: m.medalType.ribbonImageUrl,
       hasValor: m.hasValor,
       deviceImages: m.deviceImages,
-    }));
+    }))
+    .sort((a, b) => a.precedenceOrder - b.precedenceOrder);
 
   return (
     <div
@@ -141,18 +142,9 @@ export default function HeroSlideshow({ heroes }: { heroes: SlideshowHero[] }) {
             </p>
 
             {/* Ribbon rack */}
-            {hero.wikiRibbonRack && hero.wikiRibbonRack.length > 0 ? (
+            {ribbonMedals.length > 0 ? (
               <div className="mb-5 flex justify-center sm:justify-start">
-                <WikiRibbonRackDisplay
-                  cells={hero.wikiRibbonRack}
-                  maxPerRow={hero.ribbonMaxPerRow || 4}
-                  ribbonScale={0.85}
-                  rackGap={hero.rackGap ?? 6}
-                />
-              </div>
-            ) : ribbonMedals.length > 0 ? (
-              <div className="mb-5 flex justify-center sm:justify-start">
-                <RibbonRack medals={ribbonMedals} maxPerRow={7} scale={2} />
+                <RibbonRack medals={ribbonMedals} maxPerRow={7} scale={2} disableLinks />
               </div>
             ) : null}
 

@@ -1,25 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
+  const [adminSession, setAdminSession] = useState(false);
+  const [siteUserEmail, setSiteUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    setSignedIn(document.cookie.includes("auth-token="));
-  }, []);
+    let cancelled = false;
+    const sessionOpts: RequestInit = { cache: "no-store", credentials: "include" };
+    Promise.all([
+      fetch("/api/auth/me", sessionOpts)
+        .then((r) => r.ok)
+        .catch(() => false),
+      fetch("/api/site/me", sessionOpts)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([adminOk, siteData]) => {
+      if (cancelled) return;
+      setAdminSession(adminOk);
+      setSiteUserEmail(siteData?.email ? String(siteData.email) : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  const showAuthLinks = !siteUserEmail && !adminSession;
+
+  const handleSiteLogout = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    setSiteUserEmail(null);
+    setAdminSession(false);
+    setMobileOpen(false);
+    router.replace("/");
+    router.refresh();
+  }, [router]);
 
   const links = [
     { href: "/", label: "Home" },
     { href: "/rankings", label: "Heroes" },
     { href: "/medals", label: "Medals" },
     { href: "/scoring", label: "USM-25" },
-    ...(signedIn ? [{ href: "/suggestions", label: "Suggestions" }] : []),
+    ...(adminSession ? [{ href: "/suggestions", label: "Suggestions" }] : []),
   ];
 
   return (
@@ -46,29 +75,60 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2 ml-4 flex-wrap justify-end">
+            {siteUserEmail && (
+              <Link
+                href="/my-heroes"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--color-gold)] hover:underline max-w-[140px] truncate"
+                title={siteUserEmail}
+              >
+                My heroes
+              </Link>
+            )}
+            {adminSession && (
+              <Link
+                href="/admin"
+                className="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-gold)] transition-colors"
+              >
+                Dashboard
+              </Link>
+            )}
+            {siteUserEmail && (
+              <button
+                type="button"
+                onClick={() => void handleSiteLogout()}
+                className="btn-secondary text-xs sm:text-sm py-1.5 px-3 sm:px-4"
+              >
+                Logout
+              </button>
+            )}
             <button
+              type="button"
               onClick={() => alert("Please sign up or sign in to contact us.")}
               className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
             >
               Contact
             </button>
-            <Link
-              href="/admin"
-              className="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-gold)] transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/admin/register"
-              className="px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
-              style={{
-                background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
-                color: "var(--color-badge-text)",
-              }}
-            >
-              Sign Up
-            </Link>
+            {showAuthLinks && (
+              <>
+                <Link
+                  href="/login"
+                  className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/register"
+                  className="px-3 py-1.5 rounded-md text-sm font-semibold transition-colors"
+                  style={{
+                    background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
+                    color: "var(--color-badge-text)",
+                  }}
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
           <div className="ml-2">
             <ThemeToggle />
@@ -119,32 +179,65 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="border-t border-[var(--color-border)] pt-2 mt-2 space-y-2">
+              {siteUserEmail && (
+                <Link
+                  href="/my-heroes"
+                  onClick={() => setMobileOpen(false)}
+                  className="block text-center px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--color-gold)]"
+                >
+                  My heroes
+                </Link>
+              )}
+              {adminSession && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileOpen(false)}
+                  className="block text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)]"
+                >
+                  Dashboard
+                </Link>
+              )}
+              {siteUserEmail && (
+                <button
+                  type="button"
+                  onClick={() => void handleSiteLogout()}
+                  className="w-full btn-secondary text-sm py-2.5"
+                >
+                  Logout
+                </button>
+              )}
               <button
-                onClick={() => { setMobileOpen(false); alert("Please sign up or sign in to contact us."); }}
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  alert("Please sign up or sign in to contact us.");
+                }}
                 className="w-full text-center px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 Contact
               </button>
-              <div className="flex gap-2">
-              <Link
-                href="/admin"
-                onClick={() => setMobileOpen(false)}
-                className="flex-1 text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)]"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/admin/register"
-                onClick={() => setMobileOpen(false)}
-                className="flex-1 text-center px-3 py-2.5 rounded-lg text-sm font-semibold"
-                style={{
-                  background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
-                  color: "var(--color-badge-text)",
-                }}
-              >
-                Sign Up
-              </Link>
-              </div>
+              {showAuthLinks && (
+                <div className="flex gap-2">
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex-1 text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)]"
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex-1 text-center px-3 py-2.5 rounded-lg text-sm font-semibold"
+                    style={{
+                      background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
+                      color: "var(--color-badge-text)",
+                    }}
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

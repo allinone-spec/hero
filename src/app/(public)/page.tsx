@@ -84,7 +84,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href="/rankings"
+              href="/explore"
               className="px-6 py-3 rounded-lg text-sm font-bold transition-all hover:scale-105"
               style={{
                 background:
@@ -92,7 +92,17 @@ export default function LandingPage() {
                 color: "#1a1a2e",
               }}
             >
-              Explore Heroes
+              Explore by country
+            </Link>
+            <Link
+              href="/rankings"
+              className="px-6 py-3 rounded-lg text-sm font-bold transition-all border hover:scale-105"
+              style={{
+                borderColor: "rgba(255,255,255,0.35)",
+                color: "rgba(255,255,255,0.95)",
+              }}
+            >
+              Full rankings
             </Link>
             <Link
               href="/medals"

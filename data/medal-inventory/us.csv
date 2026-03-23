@@ -1,0 +1,43 @@
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
+us-medal-of-honor-army,Medal of Honor (Army),10,US,Star,FALSE,Valor
+us-medal-of-honor-navy,Medal of Honor (Navy/MC),11,US,Star,FALSE,Valor
+us-medal-of-honor-af,Medal of Honor (Air Force),12,US,Star,FALSE,Valor
+us-distinguished-service-cross,Distinguished Service Cross,20,US,OLC,FALSE,Valor
+us-navy-cross,Navy Cross,21,US,Star,FALSE,Valor
+us-air-force-cross,Air Force Cross,22,US,OLC,FALSE,Valor
+us-distinguished-service-medal-army,Distinguished Service Medal (Army),30,US,OLC,FALSE,Merit
+us-distinguished-service-medal-navy,Distinguished Service Medal (Navy),31,US,Star,FALSE,Merit
+us-silver-star,Silver Star,40,US,Mixed,FALSE,Valor
+us-defense-superior-service,Defense Superior Service Medal,50,US,OLC,FALSE,Merit
+us-legion-of-merit,Legion of Merit,60,US,Mixed,TRUE,Merit
+us-distinguished-flying-cross,Distinguished Flying Cross,70,US,Mixed,TRUE,Valor-Merit
+us-soldiers-medal,Soldier's Medal,80,US,OLC,FALSE,Heroism
+us-bronze-star,Bronze Star Medal,90,US,Mixed,TRUE,Valor-Merit
+us-purple-heart,Purple Heart,100,US,Mixed,FALSE,Achievement
+us-meritorious-service-medal,Meritorious Service Medal,110,US,Mixed,FALSE,Merit
+us-air-medal,Air Medal,120,US,Mixed,TRUE,Achievement
+us-army-commendation,Army Commendation Medal,130,US,OLC,TRUE,Merit
+us-navy-mc-commendation,Navy & Marine Corps Commendation Medal,131,US,Star,TRUE,Merit
+us-combat-action-ribbon,Combat Action Ribbon,140,US,Star,FALSE,Action
+us-presidential-unit-citation-army,Presidential Unit Citation (Army),150,US,OLC,FALSE,Unit
+us-presidential-unit-citation-navy,Presidential Unit Citation (Navy),151,US,Star,FALSE,Unit
+us-civil-war-campaign,Civil War Campaign Medal,500,US,None,FALSE,Service
+us-indian-campaign,Indian Campaign Medal,510,US,None,FALSE,Service
+us-spanish-campaign,Spanish Campaign Medal,520,US,None,FALSE,Service
+us-philippine-campaign,Philippine Campaign Medal,530,US,None,FALSE,Service
+us-mexican-service,Mexican Service Medal,540,US,None,FALSE,Service
+us-wwi-victory,World War I Victory Medal,550,US,Star,FALSE,Campaign
+us-american-defense-service,American Defense Service Medal,560,US,Star,FALSE,Service
+us-american-campaign,American Campaign Medal,570,US,Star,FALSE,Campaign
+us-asiatic-pacific-campaign,Asiatic–Pacific Campaign Medal,580,US,Star,FALSE,Campaign
+us-euro-africa-mid-east-campaign,European–African–Middle Eastern Campaign Medal,590,US,Star,FALSE,Campaign
+us-wwii-victory,World War II Victory Medal,600,US,None,FALSE,Service
+us-army-occupation-wwii,Army of Occupation Medal (WWII),610,US,None,FALSE,Service
+us-national-defense-service,National Defense Service Medal,620,US,Star,FALSE,Service
+us-korean-service,Korean Service Medal,630,US,Star,FALSE,Campaign
+us-vietnam-service,Vietnam Service Medal,640,US,Star,FALSE,Campaign
+us-sw-asia-service,Southwest Asia Service Medal,650,US,Star,FALSE,Campaign
+us-iraq-campaign,Iraq Campaign Medal,660,US,Star,FALSE,Campaign
+us-afghanistan-campaign,Afghanistan Campaign Medal,670,US,Star,FALSE,Campaign
+us-global-war-on-terrorism-service,GWOT Service Medal,680,US,None,FALSE,Service
+us-korean-defense-service,Korean Defense Service Medal,690,US,None,FALSE,Service

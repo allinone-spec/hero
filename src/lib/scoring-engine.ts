@@ -110,24 +110,43 @@ export function calculateScore(
   let subtotal = 0;
 
   // ── 1. WEIGHTED MEDAL VALUES (Heroism Matrix) ──
+  // Every medal on the hero appears here so Score Breakdown matches Awards / Ribbon Rack.
   for (const medal of hero.medals) {
     const ptsPerMedal = resolveMedalPoints(medal);
     const medalPoints = ptsPerMedal * medal.count;
+    const countInLabel = medal.count > 1 ? ` x${medal.count}` : "";
+    const vLabel = medal.requiresValorDevice && medal.hasValor ? " (V)" : "";
+
     if (medalPoints > 0) {
-      const vLabel = medal.requiresValorDevice && medal.hasValor ? " (V)" : "";
       breakdown.push({
-        label: `${medal.name}${vLabel}${medal.count > 1 ? ` x${medal.count}` : ""}`,
+        label: `${medal.name}${vLabel}${countInLabel}`,
         points: medalPoints,
         detail: `${ptsPerMedal} pts × ${medal.count}`,
       });
       subtotal += medalPoints;
-    } else if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints > 0) {
-      breakdown.push({
-        label: `${medal.name} (no V device)`,
-        points: 0,
-        detail: "Meritorious service — 0 pts on Heroism Leaderboard",
-      });
+      continue;
     }
+
+    let label: string;
+    let detail: string;
+    if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints > 0) {
+      label = `${medal.name} (no V device)${countInLabel}`;
+      detail = "Meritorious service — 0 pts on Heroism Leaderboard";
+    } else {
+      label = `${medal.name}${vLabel}${countInLabel}`;
+      if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints === 0) {
+        detail = "No V device and valor line is 0 in catalog — check medal type";
+      } else if (!medal.inherentlyValor && !medal.requiresValorDevice && medal.basePoints === 0) {
+        detail = "USM-25: not scored (non-heroism / decorative award)";
+      } else if (medal.inherentlyValor && medal.valorPoints === 0) {
+        detail = "Inherently-valor award has 0 pts in catalog — check medal type";
+      } else if (medal.requiresValorDevice && medal.hasValor && medal.valorPoints === 0) {
+        detail = "V device recorded but valor line is 0 in catalog";
+      } else {
+        detail = `0 pts on Heroism Leaderboard (${ptsPerMedal} × ${medal.count})`;
+      }
+    }
+    breakdown.push({ label, points: 0, detail });
   }
 
   // ── 2. ADDITIONAL VALOR DEVICE CLUSTERS ──
@@ -296,6 +315,27 @@ export function calculateScore(
   const total = Math.round(subtotal / config.roundingBase) * config.roundingBase;
 
   return { total, breakdown };
+}
+
+/**
+ * Heuristic 0–100 index for cross-country / browse comparisons.
+ * Independent use from USM-25 total but incorporates it so profiles stay comparable.
+ */
+export function calculateComparisonScore(
+  usm25Total: number,
+  medalRows: { count: number; hasValor: boolean }[],
+  warsLength: number,
+  multiServiceOrMultiWar: boolean
+): number {
+  const totalMedals = medalRows.reduce((s, m) => s + m.count, 0);
+  const valorMedals = medalRows.reduce((s, m) => s + (m.hasValor ? m.count : 0), 0);
+  const c =
+    usm25Total * 0.11 +
+    totalMedals * 2.4 +
+    valorMedals * 3.8 +
+    warsLength * 1.6 +
+    (multiServiceOrMultiWar ? 7 : 0);
+  return Math.max(0, Math.min(100, Math.round(c)));
 }
 
 // ─── TIE-BREAKER LOGIC ──────────────────────────────────────

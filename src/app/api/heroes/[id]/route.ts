@@ -3,8 +3,14 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import MedalTypeModel from "@/lib/models/MedalType";
 import ScoringConfig from "@/lib/models/ScoringConfig";
-import { getSession } from "@/lib/auth";
-import { calculateScore, DEFAULT_SCORING_CONFIG, ScoringConfig as IScoringConfig } from "@/lib/scoring-engine";
+import { getSession, requirePrivilege } from "@/lib/auth";
+import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
+import {
+  calculateComparisonScore,
+  calculateScore,
+  DEFAULT_SCORING_CONFIG,
+  ScoringConfig as IScoringConfig,
+} from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
 
 export async function GET(
@@ -26,14 +32,64 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const adminSession = await getSession();
+  const siteSession = await getSiteSession();
+  if (!adminSession && !siteSession) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   await dbConnect();
   const { id } = await params;
   const body = await req.json();
+
+  if (!adminSession && siteSession) {
+    const existing = await Hero.findById(id).select("ownerUserId name").lean();
+    if (!existing) {
+      return NextResponse.json({ error: "Hero not found" }, { status: 404 });
+    }
+    const ownerId = existing.ownerUserId?.toString();
+    if (!ownerId || ownerId !== siteSession.sub) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const patch: Record<string, string> = {};
+    for (const key of OWNER_HERO_PATCH_KEYS) {
+      if (key in body && typeof (body as Record<string, unknown>)[key] === "string") {
+        patch[key] = String((body as Record<string, unknown>)[key]);
+      }
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: "No allowed fields to update" }, { status: 400 });
+    }
+
+    try {
+      const hero = await Hero.findByIdAndUpdate(id, patch, {
+        new: true,
+        runValidators: true,
+      }).populate("medals.medalType");
+
+      if (!hero) {
+        return NextResponse.json({ error: "Hero not found" }, { status: 404 });
+      }
+
+      await logActivity({
+        action: "update",
+        category: "hero",
+        description: `Hero owner updated "${hero.name}" (${Object.keys(patch).join(", ")})`,
+        userEmail: siteSession.email,
+        targetId: hero._id.toString(),
+        targetName: hero.name,
+      });
+
+      return NextResponse.json(hero);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update hero";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  }
+
+  const session = adminSession!;
 
   // Recalculate score if medals changed
   if (body.recalculateScore) {
@@ -87,6 +143,12 @@ export async function PUT(
     );
 
     body.score = result.total;
+    body.comparisonScore = calculateComparisonScore(
+      result.total,
+      medalData.map((m) => ({ count: m.count, hasValor: m.hasValor })),
+      hero.wars?.length ?? 0,
+      Boolean(hero.multiServiceOrMultiWar)
+    );
   }
 
   try {
@@ -119,9 +181,13 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let session: { email: string; groupSlug: string };
+  try {
+    session = await requirePrivilege("/admin/heroes", "canDelete");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Forbidden";
+    const status = msg === "Unauthorized" ? 401 : 403;
+    return NextResponse.json({ error: msg }, { status });
   }
 
   await dbConnect();

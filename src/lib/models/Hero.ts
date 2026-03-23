@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import "@/lib/models/User";
 
 export type CombatSpecialty =
   | "none"
@@ -151,6 +152,14 @@ export interface IHeroDoc extends Document {
   }[];
   ribbonMaxPerRow: number;
   rackGap: number;
+  /** ISO country code for racks / filters (US, UK, CA, …) */
+  countryCode: string;
+  /** Browse / list tags (snake_case, see metadata-tags.ts) */
+  metadataTags: string[];
+  ownerUserId: mongoose.Types.ObjectId | null;
+  adoptionExpiry: Date | null;
+  /** Optional cross-country comparison index (separate from score) */
+  comparisonScore: number | null;
   score: number;
   orderOverride: number | null;
   published: boolean;
@@ -167,6 +176,11 @@ const HeroSchema = new Schema<IHeroDoc>(
     wikiRibbonRack: { type: [WikiRibbonCellSchema], default: [] },
     ribbonMaxPerRow: { type: Number, default: 0 },
     rackGap: { type: Number, default: 8 },
+    countryCode: { type: String, default: "US" },
+    metadataTags: { type: [String], default: [] },
+    ownerUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    adoptionExpiry: { type: Date, default: null },
+    comparisonScore: { type: Number, default: null },
     biography: { type: String, default: "" },
     wars: { type: [String], default: [] },
     combatTours: { type: Number, default: 0 },
@@ -186,6 +200,8 @@ HeroSchema.index({ published: 1, score: -1 });
 HeroSchema.index({ published: 1, branch: 1 });
 HeroSchema.index({ published: 1, name: 1 });
 HeroSchema.index({ slug: 1, published: 1 });
+HeroSchema.index({ published: 1, countryCode: 1, score: -1 });
+HeroSchema.index({ published: 1, metadataTags: 1, score: -1 });
 
 // Auto-generate slug from name
 HeroSchema.pre("validate", function () {

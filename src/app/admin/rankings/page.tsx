@@ -7,7 +7,6 @@ import HeroListClient from "./HeroListClient";
 import HeroSlideshow from "@/components/ui/HeroSlideshow";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import WikiRibbonRackDisplay from "@/components/ribbon-rack/WikiRibbonRackDisplay";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +54,7 @@ export default async function AdminRankingsPage() {
         .filter((m: any) => m.medalType)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((m: any) => ({
+          medalId: m.medalType._id,
           name: m.medalType.name,
           count: m.count,
           precedenceOrder: m.medalType.precedenceOrder,
@@ -63,6 +63,7 @@ export default async function AdminRankingsPage() {
           hasValor: m.hasValor,
           deviceImages: m.deviceImages,
         }))
+        .sort((a: any, b: any) => a.precedenceOrder - b.precedenceOrder)
     : [];
 
   return (
@@ -133,18 +134,9 @@ export default async function AdminRankingsPage() {
                   {topHero.wars?.length ? ` · ${(topHero.wars as string[]).join(", ")}` : ""}
                 </p>
 
-                {topHero.wikiRibbonRack?.length > 0 ? (
+                {topRibbons.length > 0 ? (
                   <div className="mb-4 flex justify-center sm:justify-start">
-                    <WikiRibbonRackDisplay
-                      cells={topHero.wikiRibbonRack}
-                      maxPerRow={topHero.ribbonMaxPerRow || 4}
-                      ribbonScale={0.85}
-                      rackGap={topHero.rackGap ?? 6}
-                    />
-                  </div>
-                ) : topRibbons.length > 0 ? (
-                  <div className="mb-4 flex justify-center sm:justify-start">
-                    <RibbonRack medals={topRibbons} maxPerRow={8} scale={2} />
+                    <RibbonRack medals={topRibbons} maxPerRow={8} scale={2} disableLinks />
                   </div>
                 ) : null}
 

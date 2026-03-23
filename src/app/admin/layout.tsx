@@ -187,6 +187,9 @@ interface AccessibleMenu {
   canDelete: boolean;
 }
 
+/** Routes that render without an admin session (login / register). */
+const PUBLIC_ADMIN_PATHS = ["/admin", "/admin/register"];
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed]             = useState<boolean | null>(null);
   const [userName, setUserName]         = useState("Admin");
@@ -259,6 +262,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMobileNav(false);
   }, [pathname]);
 
+  // Never call router.* during render — redirects unauthenticated users off protected admin routes
+  useEffect(() => {
+    if (authed !== false) return;
+    if (PUBLIC_ADMIN_PATHS.includes(pathname)) return;
+    router.replace("/admin");
+  }, [authed, pathname, router]);
+
   const privilegeCtx = useMemo(() => {
     const privileges: MenuPrivilege[] = accessibleMenus.map((m) => ({
       path: m.path,
@@ -278,15 +288,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [isSuperAdmin, accessibleMenus]);
 
-  const PUBLIC_ADMIN_PATHS = ["/admin", "/admin/register"];
-
-  if (authed === false && !PUBLIC_ADMIN_PATHS.includes(pathname)) {
-    router.push("/admin");
-    return null;
-  }
-
   if (authed === null) return <Loader3D />;
-  if (!authed)         return <>{children}</>;
+  if (!authed) {
+    if (PUBLIC_ADMIN_PATHS.includes(pathname)) return <>{children}</>;
+    // useEffect will router.replace("/admin"); don’t render protected children meanwhile
+    return <Loader3D />;
+  }
 
   const navLinks = accessibleMenus.map((m) => ({ href: m.path, label: m.label }));
 
@@ -414,8 +421,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <button
                 onClick={async () => {
                   await fetch("/api/auth/logout", { method: "POST" });
-                  setAuthed(false);
-                  router.push("/");
+                  router.replace("/");
                 }}
                 className="btn-secondary text-xs sm:text-sm py-1.5 px-3 sm:px-4"
               >

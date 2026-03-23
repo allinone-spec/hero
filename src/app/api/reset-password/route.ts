@@ -1,47 +1,56 @@
-import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import dbConnect from '../../../lib/mongodb';
-import { User } from '../../../lib/models/User';
-import AdminUser from '@/lib/models/AdminUser';
-import bcrypt from 'bcryptjs';
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import dbConnect from "@/lib/mongodb";
+import { User } from "@/lib/models/User";
+import AdminUser from "@/lib/models/AdminUser";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
     const { token, newPassword } = await req.json();
 
     if (!token || !newPassword) {
-      return NextResponse.json({ message: 'Token and new password are required' }, { status: 400 });
+      return NextResponse.json({ message: "Token and new password are required" }, { status: 400 });
     }
 
-    // Validate password strength
-    if (newPassword.length < 8) {
-      return NextResponse.json({ message: 'Password must be at least 8 characters long' }, { status: 400 });
+    if (typeof newPassword !== "string" || newPassword.length < 8) {
+      return NextResponse.json({ message: "Password must be at least 8 characters long" }, { status: 400 });
     }
 
     await dbConnect();
 
-    // Hash the token to compare with stored hash
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    console.log(hashedToken);
-    const user = await AdminUser.findOne({
+    const hashedToken = crypto.createHash("sha256").update(String(token)).digest("hex");
+    const now = new Date();
+
+    const admin = await AdminUser.findOne({
       resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: now },
     });
 
-    if (!user) {
-      return NextResponse.json({ message: 'Invalid or expired token' }, { status: 400 });
+    if (admin) {
+      admin.passwordHash = await bcrypt.hash(newPassword, 12);
+      admin.resetPasswordToken = undefined;
+      admin.resetPasswordExpires = undefined;
+      await admin.save();
+      return NextResponse.json({ message: "Password has been reset successfully" }, { status: 200 });
     }
 
-    // Update user with new password and clear reset token
-    // The pre-save hook in the User model will hash the password
-    const pwdhash = await bcrypt.hash(newPassword, 12);
-    user.passwordHash = pwdhash;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
+    const siteUser = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: now },
+    });
 
-    return NextResponse.json({ message: 'Password has been reset successfully' }, { status: 200 });
+    if (siteUser) {
+      siteUser.password = newPassword;
+      siteUser.resetPasswordToken = undefined;
+      siteUser.resetPasswordExpires = undefined;
+      await siteUser.save();
+      return NextResponse.json({ message: "Password has been reset successfully" }, { status: 200 });
+    }
+
+    return NextResponse.json({ message: "Invalid or expired token" }, { status: 400 });
   } catch (error) {
-    console.error('Reset password error:', error);
-    return NextResponse.json({ message: 'An error occurred. Please try again.' }, { status: 500 });
+    console.error("Reset password error:", error);
+    return NextResponse.json({ message: "An error occurred. Please try again." }, { status: 500 });
   }
 }

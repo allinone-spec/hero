@@ -25,6 +25,9 @@ export interface RibbonMedal {
   arrowheads?: number;
   isUnitCitation?: boolean;
   deviceImages?: DeviceImage[];
+  /** MedalType.deviceLogic — drives Bar / Rosette / Clasp style devices */
+  deviceLogic?: string;
+  wikiSummary?: string;
 }
 
 interface RibbonRackProps {
@@ -32,6 +35,8 @@ interface RibbonRackProps {
   maxPerRow?: number;
   scale?: number;
   disableLinks?: boolean;
+  /** When set, ribbon clicks open a quick view (e.g. modal) instead of navigating away */
+  onRibbonClick?: (medal: RibbonMedal) => void;
 }
 
 // ── Global SVG defs (gradients + filter) ─────────────────────────────────────
@@ -180,6 +185,58 @@ function DeviceGroup({ devices, x, y, w, h }: {
             );
           }
 
+          // ── Commonwealth-style devices (Bar / Rosette / Clasp) ──
+          if (d.kind === "rosette") {
+            return (
+              <g key={i}>
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={2.4}
+                  fill="#C9A227"
+                  stroke="#5c4a10"
+                  strokeWidth={0.35}
+                  filter="url(#rr-shadow)"
+                />
+                <circle cx={cx - 0.5} cy={cy - 0.6} r={0.55} fill="rgba(255,255,255,0.35)" />
+              </g>
+            );
+          }
+
+          if (d.kind === "clasp") {
+            const rw = 2.8;
+            const rh = 3.6;
+            return (
+              <g key={i} transform={`translate(${cx},${cy})`}>
+                <polygon
+                  points={`0,${-rh / 2} ${rw / 2},0 0,${rh / 2} ${-rw / 2},0`}
+                  fill="#D4AF37"
+                  stroke="#6a5a14"
+                  strokeWidth={0.35}
+                  filter="url(#rr-shadow)"
+                />
+              </g>
+            );
+          }
+
+          if (d.kind === "bar-device") {
+            return (
+              <g key={i}>
+                <rect
+                  x={cx - 3.2}
+                  y={cy - 0.85}
+                  width={6.4}
+                  height={1.7}
+                  rx={0.35}
+                  fill="#E8D28B"
+                  stroke="#6a5a14"
+                  strokeWidth={0.3}
+                  filter="url(#rr-shadow)"
+                />
+              </g>
+            );
+          }
+
           return null;
         })}
       </g>
@@ -313,6 +370,7 @@ export default function RibbonRack({
   maxPerRow = MAX_RIBBONS_PER_ROW,
   scale = 2,
   disableLinks = false,
+  onRibbonClick,
 }: RibbonRackProps) {
   // Ensure every medal has at least a fallback ribbon color
   const withColors = (medals || [])
@@ -356,7 +414,8 @@ export default function RibbonRack({
           const rawDevices = computeDevices(
             ribbon.count,
             ribbon.hasValor,
-            ribbon.arrowheads ?? 0
+            ribbon.arrowheads ?? 0,
+            ribbon.deviceLogic
           );
           const devices = layoutDevices(rawDevices, RIBBON_WIDTH, RIBBON_HEIGHT);
 
@@ -373,6 +432,27 @@ export default function RibbonRack({
               isUnitCitation={ribbon.isUnitCitation}
             />
           );
+
+          if (onRibbonClick) {
+            return (
+              <g
+                key={`${rowIdx}-${colIdx}`}
+                style={{ cursor: "pointer" }}
+                role="button"
+                tabIndex={0}
+                onClick={() => onRibbonClick(ribbon)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onRibbonClick(ribbon);
+                  }
+                }}
+              >
+                <title>{ribbon.name}</title>
+                {ribbonEl}
+              </g>
+            );
+          }
 
           if (ribbon.medalId && !disableLinks) {
             return (

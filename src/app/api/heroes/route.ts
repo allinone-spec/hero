@@ -3,7 +3,12 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import ScoringConfig from "@/lib/models/ScoringConfig";
 import { getSession } from "@/lib/auth";
-import { calculateScore, DEFAULT_SCORING_CONFIG, ScoringConfig as IScoringConfig } from "@/lib/scoring-engine";
+import {
+  calculateComparisonScore,
+  calculateScore,
+  DEFAULT_SCORING_CONFIG,
+  ScoringConfig as IScoringConfig,
+} from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
 
 export async function GET(req: NextRequest) {
@@ -14,6 +19,8 @@ export async function GET(req: NextRequest) {
   const medal = searchParams.get("medal");
   const branch = searchParams.get("branch");
   const war = searchParams.get("war");
+  const countryCode = searchParams.get("country");
+  const tag = searchParams.get("tag");
   const publishedOnly = searchParams.get("published") !== "false";
   const page = parseInt(searchParams.get("page") || "0");
   const limit = parseInt(searchParams.get("limit") || "0");
@@ -30,6 +37,8 @@ export async function GET(req: NextRequest) {
   }
   if (branch && branch !== "All") filter.branch = branch;
   if (war && war !== "All") filter.wars = war;
+  if (countryCode) filter.countryCode = countryCode.toUpperCase();
+  if (tag) filter.metadataTags = tag;
 
   let query = Hero.find(filter).populate("medals.medalType");
 
@@ -127,6 +136,12 @@ export async function POST(req: NextRequest) {
     );
 
     body.score = result.total;
+    body.comparisonScore = calculateComparisonScore(
+      result.total,
+      medalData.map((m: { count: number; hasValor: boolean }) => ({ count: m.count, hasValor: m.hasValor })),
+      (body.wars || []).length,
+      Boolean(body.multiServiceOrMultiWar)
+    );
   }
 
   try {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import ImageUpload from "@/components/ui/ImageUpload";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
 
 interface MedalTypeOption {
   _id: string;
@@ -50,6 +51,11 @@ interface HeroFormData {
   published: boolean;
   orderOverride: string;
   medals: MedalEntry[];
+  countryCode: string;
+  metadataTags: string[];
+  ownerUserId: string;
+  adoptionExpiry: string;
+  comparisonScore: string;
   combatAchievements: {
     type: string;
     confirmedKills: number;
@@ -102,6 +108,11 @@ interface HeroFormProps {
     }[];
     ribbonMaxPerRow?: number;
     rackGap?: number;
+    countryCode?: string;
+    metadataTags?: string[];
+    ownerUserId?: string;
+    adoptionExpiry?: string;
+    comparisonScore?: number | null;
   };
   isEdit?: boolean;
   importWikiUrl?: string;
@@ -662,6 +673,20 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
       majorEngagements: 0,
       definingMissions: 0,
     },
+    countryCode: initialData?.countryCode || "US",
+    metadataTags: Array.isArray(initialData?.metadataTags) ? [...initialData!.metadataTags!] : [],
+    ownerUserId: initialData?.ownerUserId
+      ? typeof initialData.ownerUserId === "object" && initialData.ownerUserId !== null && "_id" in initialData.ownerUserId
+        ? String((initialData.ownerUserId as { _id: string })._id)
+        : String(initialData.ownerUserId)
+      : "",
+    adoptionExpiry: initialData?.adoptionExpiry
+      ? new Date(initialData.adoptionExpiry).toISOString().slice(0, 10)
+      : "",
+    comparisonScore:
+      initialData?.comparisonScore != null && String(initialData.comparisonScore).trim() !== ""
+        ? String(initialData.comparisonScore)
+        : "",
   });
 
   const set = <K extends keyof HeroFormData>(key: K, value: HeroFormData[K]) =>
@@ -1004,6 +1029,20 @@ function normalizeCombatType(input: unknown): CombatType {
       },
 
       medals: Array.from(medalMap.values()),
+
+      metadataTags:
+        Array.isArray(data.metadataTags) && data.metadataTags.length > 0
+          ? normalizeMetadataTags([...prev.metadataTags, ...data.metadataTags])
+          : prev.metadataTags,
+
+      countryCode: (() => {
+        const cc =
+          data.countryCode && typeof data.countryCode === "string"
+            ? data.countryCode.toUpperCase()
+            : "";
+        const allowed = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+        return cc && allowed.has(cc) ? cc : prev.countryCode;
+      })(),
     }));
 
     // Store wiki medal names from medalCells for name selection dropdown
@@ -1140,6 +1179,23 @@ function normalizeCombatType(input: unknown): CombatType {
         if (newMedals.length > 0) {
           setForm((prev) => ({ ...prev, medals: [...prev.medals, ...newMedals] }));
         }
+      }
+
+      if (Array.isArray(data.metadataTags) && data.metadataTags.length > 0) {
+        const merged = normalizeMetadataTags([...form.metadataTags, ...data.metadataTags]);
+        setForm((prev) => ({ ...prev, metadataTags: merged }));
+      }
+      if (data.countryCode && typeof data.countryCode === "string") {
+        const cc = data.countryCode.toUpperCase();
+        const ok = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+        setForm((prev) => ({ ...prev, countryCode: ok.has(cc) ? cc : prev.countryCode }));
+      }
+      const cs = data.combatSpecialty;
+      if (cs && typeof cs === "string" && cs !== "none") {
+        setForm((prev) => ({
+          ...prev,
+          combatAchievements: { ...prev.combatAchievements, type: cs },
+        }));
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "AI analysis failed");
@@ -1304,6 +1360,12 @@ function normalizeCombatType(input: unknown): CombatType {
         wikiRibbonRack: savedWikiRibbonRack,
         ribbonMaxPerRow,
         rackGap,
+        countryCode: form.countryCode || "US",
+        metadataTags: form.metadataTags,
+        ownerUserId: form.ownerUserId.trim() || null,
+        adoptionExpiry: form.adoptionExpiry ? new Date(form.adoptionExpiry) : null,
+        comparisonScore:
+          form.comparisonScore.trim() === "" ? null : Number(form.comparisonScore),
       };
 
       const url = isEdit ? `/api/heroes/${initialData?._id}` : "/api/heroes";
@@ -2299,6 +2361,100 @@ function normalizeCombatType(input: unknown): CombatType {
             </div>
           </div>
         )}
+      </section>
+
+      {/* ── § 2b Classification & ownership ───────────────────── */}
+      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-5">
+        <SectionHeader
+          title="Classification & ownership"
+          sub="Country, browse tags (for Explore), optional adoption fields."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+              Country code
+            </label>
+            <select
+              value={form.countryCode}
+              onChange={(e) => set("countryCode", e.target.value)}
+              className="admin-input"
+            >
+              {["US", "UK", "CA", "AU", "NZ", "ZA", "IN"].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+              Comparison score (optional)
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.comparisonScore}
+              onChange={(e) => set("comparisonScore", e.target.value)}
+              className="admin-input"
+              placeholder="Cross-country index only"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2 block">
+              Metadata tags
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {HERO_METADATA_TAGS.map((t) => {
+                const on = form.metadataTags.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        metadataTags: on
+                          ? prev.metadataTags.filter((x) => x !== t.id)
+                          : [...prev.metadataTags, t.id],
+                      }))
+                    }
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      on ? "border-[var(--color-gold)] bg-[var(--color-gold)]/15" : "border-[var(--color-border)]"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+              AI import can suggest tags; always verify. Used by /explore filters.
+            </p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+              Owner user ID (MongoDB)
+            </label>
+            <input
+              type="text"
+              value={form.ownerUserId}
+              onChange={(e) => set("ownerUserId", e.target.value)}
+              className="admin-input font-mono text-sm"
+              placeholder="Empty = available for adoption"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+              Adoption expiry
+            </label>
+            <input
+              type="date"
+              value={form.adoptionExpiry}
+              onChange={(e) => set("adoptionExpiry", e.target.value)}
+              className="admin-input"
+            />
+          </div>
+        </div>
       </section>
 
       {/* ── § 3 Service Record ───────────────────────────────── */}

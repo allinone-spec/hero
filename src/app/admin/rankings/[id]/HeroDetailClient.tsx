@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import WikiRibbonRackDisplay from "@/components/ribbon-rack/WikiRibbonRackDisplay";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { ScoreBreakdownItem } from "@/types";
@@ -39,20 +38,6 @@ interface HeroDetail {
     deviceImages?: { url: string; deviceType: string; count: number }[];
     wikiRibbonUrl?: string;
     wikiDeviceText?: string;
-  }[];
-  wikiRibbonRack?: {
-    ribbonUrl: string;
-    deviceUrls: string[];
-    medalName: string;
-    medalType?: string;
-    count: number;
-    hasValor: boolean;
-    arrowheads: number;
-    cellType?: "ribbon" | "other";
-    imgWidth?: number;
-    imgHeight?: number;
-    scale?: number;
-    row?: number;
   }[];
   ribbonMaxPerRow?: number;
   rackGap?: number;
@@ -108,44 +93,20 @@ export default function HeroDetailClient({
     .filter((m) => m.medalType)
     .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
 
-  // Use saved wikiRibbonRack when available (mirrors the form ribbon rack exactly)
-  const hasWikiRack = hero.wikiRibbonRack && hero.wikiRibbonRack.length > 0;
-  const hasLayoutData = hasWikiRack && hero.wikiRibbonRack!.some((c) => c.cellType);
-
-  const hasWikiCells = hasLayoutData && hero.wikiRibbonRack!.length > 0;
-
-  const ribbonMedals = hasWikiRack && !hasLayoutData
-    ? hero.wikiRibbonRack!.map((cell, i) => ({
-        medalId: cell.medalType,
-        name: cell.medalName || `Ribbon ${i + 1}`,
-        count: cell.count || 1,
-        precedenceOrder: i + 1,
-        ribbonColors: ["#808080"] as string[],
-        ribbonImageUrl: cell.ribbonUrl,
-        hasValor: cell.hasValor || false,
-        arrowheads: cell.arrowheads || 0,
-        isUnitCitation: isUnitCitation(cell.medalName || ""),
-        deviceImages: cell.deviceUrls?.map((url) => ({
-          url,
-          deviceType: "wiki-device",
-          count: 1,
-        })),
-      }))
-    : sortedMedals.map((m) => ({
-        medalId: m.medalType._id,
-        name: m.medalType.name,
-        count: m.count,
-        precedenceOrder: m.medalType.precedenceOrder,
-        ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-        ribbonImageUrl: m.wikiRibbonUrl || m.medalType.ribbonImageUrl,
-        hasValor: m.hasValor,
-        arrowheads: m.arrowheads ?? 0,
-        isUnitCitation: isUnitCitation(m.medalType.name),
-        deviceImages: m.deviceImages,
-      }));
+  const ribbonMedals = sortedMedals.map((m) => ({
+    medalId: m.medalType._id,
+    name: m.medalType.name,
+    count: m.count,
+    precedenceOrder: m.medalType.precedenceOrder,
+    ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
+    ribbonImageUrl: m.wikiRibbonUrl || m.medalType.ribbonImageUrl,
+    hasValor: m.hasValor,
+    arrowheads: m.arrowheads ?? 0,
+    isUnitCitation: isUnitCitation(m.medalType.name),
+    deviceImages: m.deviceImages,
+  }));
 
   const rackMaxPerRow = hero.ribbonMaxPerRow || 3;
-  const rackGap = hero.rackGap ?? 8;
 
   // Split biography into paragraphs
   const bioParas = hero.biography
@@ -289,22 +250,7 @@ export default function HeroDetailClient({
           {/* Right Column — Ribbon Rack + Biography (2/3) */}
           <div className="md:col-span-2 px-5 py-5">
             {/* Ribbon Rack */}
-            {hasLayoutData ? (
-              hasWikiCells && (
-                <div className="mb-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-gold)] mb-3">
-                    Ribbon Rack
-                  </h2>
-                  <div className="flex justify-center">
-                    <WikiRibbonRackDisplay
-                      cells={hero.wikiRibbonRack!}
-                      maxPerRow={rackMaxPerRow}
-                      rackGap={rackGap}
-                    />
-                  </div>
-                </div>
-              )
-            ) : ribbonMedals.length > 0 && (
+            {ribbonMedals.length > 0 && (
               <div className="mb-6">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-gold)] mb-3">
                   Ribbon Rack

@@ -1,0 +1,34 @@
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
+uk-victoria-cross,Victoria Cross,1,UK,Bar,FALSE,Valor
+uk-george-cross,George Cross,2,UK,Bar,FALSE,Valor
+uk-order-of-the-garter,Order of the Garter,3,UK,None,FALSE,Order
+uk-order-of-the-thistle,Order of the Thistle,4,UK,None,FALSE,Order
+uk-order-of-the-bath,Order of the Bath,5,UK,None,FALSE,Order
+uk-order-of-merit,Order of Merit,6,UK,None,FALSE,Order
+uk-order-of-st-michael-st-george,Order of St Michael and St George,7,UK,None,FALSE,Order
+uk-order-of-the-british-empire,Order of the British Empire (CBE/OBE/MBE),8,UK,None,FALSE,Order
+uk-distinguished-service-order,Distinguished Service Order (DSO),9,UK,Bar,FALSE,Valor-Merit
+uk-conspicuous-gallantry-cross,Conspicuous Gallantry Cross,10,UK,Bar,FALSE,Valor
+uk-distinguished-service-cross,Distinguished Service Cross (DSC),11,UK,Bar,FALSE,Valor
+uk-military-cross,Military Cross (MC),12,UK,Bar,FALSE,Valor
+uk-distinguished-flying-cross,Distinguished Flying Cross (DFC),13,UK,Bar,FALSE,Valor
+uk-air-force-cross,Air Force Cross (AFC),14,UK,Bar,FALSE,Valor
+uk-distinguished-service-medal,Distinguished Service Medal (DSM),15,UK,Bar,FALSE,Valor
+uk-military-medal,Military Medal (MM),16,UK,Bar,FALSE,Valor
+uk-distinguished-flying-medal,Distinguished Flying Medal (DFM),17,UK,Bar,FALSE,Valor
+uk-air-force-medal,Air Force Medal (AFM),18,UK,Bar,FALSE,Valor
+uk-1939-1945-star,1939–1945 Star,100,UK,Rosette,FALSE,Campaign
+uk-atlantic-star,Atlantic Star,110,UK,Rosette,FALSE,Campaign
+uk-air-crew-europe-star,Air Crew Europe Star,120,UK,Rosette,FALSE,Campaign
+uk-africa-star,Africa Star,130,UK,Rosette,FALSE,Campaign
+uk-pacific-star,Pacific Star,140,UK,Rosette,FALSE,Campaign
+uk-burma-star,Burma Star,150,UK,Rosette,FALSE,Campaign
+uk-italy-star,Italy Star,160,UK,Rosette,FALSE,Campaign
+uk-france-germany-star,France and Germany Star,170,UK,Rosette,FALSE,Campaign
+uk-defence-medal,Defence Medal,180,UK,None,FALSE,Service
+uk-war-medal-1939-1945,War Medal 1939–1945,190,UK,None,FALSE,Service
+uk-korea-medal,Korea Medal,200,UK,None,FALSE,Campaign
+uk-south-atlantic-medal,South Atlantic Medal (Falklands),210,UK,Rosette,FALSE,Campaign
+uk-gulf-medal,Gulf Medal,220,UK,Rosette,FALSE,Campaign
+uk-iraq-medal,Iraq Medal,230,UK,Rosette,FALSE,Campaign
+uk-afghanistan-osm,Operational Service Medal for Afghanistan,240,UK,Rosette,FALSE,Campaign

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import WikiRibbonRackDisplay from "@/components/ribbon-rack/WikiRibbonRackDisplay";
+import type { RibbonMedal } from "@/components/ribbon-rack/RibbonRack";
+import MedalWikiModal from "@/components/medals/MedalWikiModal";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { ScoreBreakdownItem } from "@/types";
@@ -20,6 +22,7 @@ interface HeroDetail {
   biography: string;
   wars: string[];
   combatTours: number;
+  ownerUserId?: string | null;
   medals: {
     medalType: {
       _id: string;
@@ -30,6 +33,8 @@ interface HeroDetail {
       basePoints: number;
       imageUrl?: string;
       ribbonImageUrl?: string;
+      deviceLogic?: string;
+      wikiSummary?: string;
     };
     count: number;
     hasValor: boolean;
@@ -38,20 +43,6 @@ interface HeroDetail {
     deviceImages?: { url: string; deviceType: string; count: number }[];
     wikiRibbonUrl?: string;
     wikiDeviceText?: string;
-  }[];
-  wikiRibbonRack?: {
-    ribbonUrl: string;
-    deviceUrls: string[];
-    medalName: string;
-    medalType?: string;
-    count: number;
-    hasValor: boolean;
-    arrowheads: number;
-    cellType?: "ribbon" | "other";
-    imgWidth?: number;
-    imgHeight?: number;
-    scale?: number;
-    row?: number;
   }[];
   ribbonMaxPerRow?: number;
   rackGap?: number;
@@ -95,6 +86,91 @@ function isUnitCitation(name: string): boolean {
   return /\bunit\b/i.test(name) || /\bpresidential.*citation\b/i.test(name);
 }
 
+function AdoptHeroCta({ heroId, hasOwner }: { heroId: string; hasOwner: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState("");
+  const [memberSignedIn, setMemberSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site/me", { cache: "no-store", credentials: "include" })
+      .then((r) => {
+        if (!cancelled) setMemberSignedIn(r.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setMemberSignedIn(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (hasOwner) return null;
+
+  async function startCheckout() {
+    setBusy(true);
+    setHint("");
+    try {
+      const res = await fetch("/api/stripe/create-adoption-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ heroId }),
+      });
+      let data: { url?: string; error?: string } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setHint(res.ok ? "Checkout unavailable" : `Request failed (${res.status})`);
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setHint(data.error || "Checkout unavailable");
+    } catch {
+      setHint("Network error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-4 mt-6">
+      <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--color-gold)] mb-2">
+        Support & adopt
+      </h3>
+      <p className="text-sm text-[var(--color-text-muted)] mb-3">
+        Become the named supporter for this profile and edit the tribute biography and portrait (member account
+        required). Proceeds help keep the archive online.
+      </p>
+      <button
+        type="button"
+        onClick={startCheckout}
+        disabled={busy}
+        className="btn-secondary text-sm disabled:opacity-60"
+      >
+        {busy ? "Redirecting…" : "Adopt this hero"}
+      </button>
+      {hint && <p className="text-xs text-red-300 mt-2">{hint}</p>}
+      {memberSignedIn === true && (
+        <p className="text-xs text-[var(--color-text-muted)] mt-2">
+          You&apos;re signed in as a site member — use the button above to open secure checkout.
+        </p>
+      )}
+      {memberSignedIn === false && (
+        <p className="text-xs text-[var(--color-text-muted)] mt-2">
+          <Link href="/login?role=member" className="text-[var(--color-gold)] hover:underline">
+            Sign in
+          </Link>{" "}
+          as a site member before adopting; checkout is tied to your member account.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ── Component ──────────────────────────────────────────────────────────────── */
 
 export default function HeroDetailClient({
@@ -103,55 +179,35 @@ export default function HeroDetailClient({
   scoreTotal,
   rankPosition,
 }: Props) {
+  const [ribbonModalMedal, setRibbonModalMedal] = useState<RibbonMedal | null>(null);
+
   const sortedMedals = [...hero.medals]
     .filter((m) => m.medalType)
     .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
 
-  // Use saved wikiRibbonRack when available (mirrors the form ribbon rack exactly)
-  const hasWikiRack = hero.wikiRibbonRack && hero.wikiRibbonRack.length > 0;
-  // Check if saved rack has cellType info (new format with layout data)
-  const hasLayoutData = hasWikiRack && hero.wikiRibbonRack!.some((c) => c.cellType);
-
-  // Check if there are any wiki cells to render in layout mode
-  const hasWikiCells = hasLayoutData && hero.wikiRibbonRack!.length > 0;
-
-  const ribbonMedals = hasWikiRack && !hasLayoutData
-    ? hero.wikiRibbonRack!.map((cell, i) => ({
-        medalId: cell.medalType,
-        name: cell.medalName || `Ribbon ${i + 1}`,
-        count: cell.count || 1,
-        precedenceOrder: i + 1,
-        ribbonColors: ["#808080"] as string[],
-        ribbonImageUrl: cell.ribbonUrl,
-        hasValor: cell.hasValor || false,
-        arrowheads: cell.arrowheads || 0,
-        isUnitCitation: isUnitCitation(cell.medalName || ""),
-        deviceImages: cell.deviceUrls?.map((url) => ({
-          url,
-          deviceType: "wiki-device",
-          count: 1,
-        })),
-      }))
-    : sortedMedals.map((m) => ({
-        medalId: m.medalType._id,
-        name: m.medalType.name,
-        count: m.count,
-        precedenceOrder: m.medalType.precedenceOrder,
-        ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-        ribbonImageUrl: m.wikiRibbonUrl || m.medalType.ribbonImageUrl,
-        hasValor: m.hasValor,
-        arrowheads: m.arrowheads ?? 0,
-        isUnitCitation: isUnitCitation(m.medalType.name),
-        deviceImages: m.deviceImages,
-      }));
+  const ribbonMedals = sortedMedals.map((m) => ({
+    medalId: m.medalType._id,
+    name: m.medalType.name,
+    count: m.count,
+    precedenceOrder: m.medalType.precedenceOrder,
+    ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
+    ribbonImageUrl: m.wikiRibbonUrl || m.medalType.ribbonImageUrl,
+    hasValor: m.hasValor,
+    arrowheads: m.arrowheads ?? 0,
+    isUnitCitation: isUnitCitation(m.medalType.name),
+    deviceImages: m.deviceImages,
+    deviceLogic: m.medalType.deviceLogic,
+    wikiSummary: m.medalType.wikiSummary,
+  }));
 
   const rackMaxPerRow = hero.ribbonMaxPerRow || 3;
-  const rackGap = hero.rackGap ?? 8;
 
   // Split biography into paragraphs
   const bioParas = hero.biography
     ? hero.biography.split(/\n\n+/).filter((p) => p.trim())
     : [];
+
+  const hasOwner = Boolean(hero.ownerUserId);
 
   return (
     <div className="animate-fade-in-up">
@@ -273,28 +329,18 @@ export default function HeroDetailClient({
           {/* Right Column — Ribbon Rack + Biography (2/3) */}
           <div className="md:col-span-2 px-5 py-5">
             {/* Ribbon Rack */}
-            {hasLayoutData ? (
-              hasWikiCells && (
-                <div className="mb-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-gold)] mb-3">
-                    Ribbon Rack
-                  </h2>
-                  <div className="flex justify-center">
-                    <WikiRibbonRackDisplay
-                      cells={hero.wikiRibbonRack!}
-                      maxPerRow={rackMaxPerRow}
-                      rackGap={rackGap}
-                    />
-                  </div>
-                </div>
-              )
-            ) : ribbonMedals.length > 0 && (
+            {ribbonMedals.length > 0 && (
               <div className="mb-6">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-gold)] mb-3">
                   Ribbon Rack
                 </h2>
                 <div className="flex justify-center">
-                  <RibbonRack medals={ribbonMedals} maxPerRow={rackMaxPerRow} scale={3} />
+                  <RibbonRack
+                    medals={ribbonMedals}
+                    maxPerRow={rackMaxPerRow}
+                    scale={3}
+                    onRibbonClick={(m) => setRibbonModalMedal(m)}
+                  />
                 </div>
               </div>
             )}
@@ -318,8 +364,22 @@ export default function HeroDetailClient({
 
       {/* ── Score Breakdown (web only) ──────────────────────────────────────── */}
       <div className="no-print mt-8">
+        <AdoptHeroCta heroId={hero._id} hasOwner={hasOwner} />
         <ScoreBreakdown breakdown={scoreBreakdown} total={scoreTotal} />
       </div>
+
+      <MedalWikiModal
+        medal={
+          ribbonModalMedal
+            ? {
+                medalId: ribbonModalMedal.medalId,
+                name: ribbonModalMedal.name,
+                wikiSummary: ribbonModalMedal.wikiSummary,
+              }
+            : null
+        }
+        onClose={() => setRibbonModalMedal(null)}
+      />
     </div>
   );
 }

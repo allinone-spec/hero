@@ -538,6 +538,14 @@ export default function AdminHeroesPage() {
             </svg>
             Import
           </button>
+          {can("/admin/heroes", "canCreate") && (
+            <Link
+              href="/admin/heroes/import"
+              className="btn-secondary shrink-0 text-center text-sm"
+            >
+              CSV bulk
+            </Link>
+          )}
           {can("/admin/heroes", "canCreate") ? (
             <Link href="/admin/heroes/new" className="btn-primary shrink-0 text-center">
               + Add Hero

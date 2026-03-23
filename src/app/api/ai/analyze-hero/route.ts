@@ -4,6 +4,8 @@ import AIUsage from "@/lib/models/AIUsage";
 import MedalTypeModel from "@/lib/models/MedalType";
 import { getSession } from "@/lib/auth";
 import { analyzeHero } from "@/lib/openai";
+import { normalizeMetadataTags } from "@/lib/metadata-tags";
+import { matchAiMedalsToDatabase } from "@/lib/match-ai-medals";
 
 interface MedalTypeDoc {
   _id: { toString(): string };
@@ -56,7 +58,15 @@ export async function POST(req: NextRequest) {
     rawContent = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
 
     interface AIMedal { name: string; count?: number; hasValor?: boolean }
-    let parsed: { description?: string; wars?: string[]; medals?: (string | AIMedal)[]; combatSpecialty?: string } = {};
+    let parsed: {
+      description?: string;
+      wars?: string[];
+      medals?: (string | AIMedal)[];
+      combatSpecialty?: string;
+      gender?: string;
+      metadataTags?: string[];
+      countryCode?: string;
+    } = {};
     try {
       parsed = JSON.parse(rawContent);
     } catch {
@@ -69,86 +79,15 @@ export async function POST(req: NextRequest) {
       ? parsed.wars.filter((w) => typeof w === "string" && !medalNameSet.has(w.toLowerCase().trim()))
       : [];
 
-    // Match AI-returned medals to DB medal types
-    // AI now returns objects { name, count, hasValor } but we also handle plain strings
-    const matchedMedals: {
-      medalTypeId: string;
-      name: string;
-      shortName: string;
-      count: number;
-      hasValor: boolean;
-      valorDevices: number;
-    }[] = [];
+    const { matched: matchedMedals } = matchAiMedalsToDatabase(parsed.medals, medalTypes);
 
-    if (Array.isArray(parsed.medals)) {
-      for (const entry of parsed.medals) {
-        let medalName: string;
-        let count = 1;
-        let hasValor = false;
+    const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+    const ccRaw = String(parsed.countryCode || "US").toUpperCase();
+    const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
 
-        if (typeof entry === "object" && entry !== null && "name" in entry) {
-          medalName = String(entry.name);
-          count = Math.max(1, Number(entry.count) || 1);
-          hasValor = Boolean(entry.hasValor);
-        } else if (typeof entry === "string") {
-          medalName = entry;
-        } else {
-          continue;
-        }
-
-        const lower = medalName.toLowerCase().trim();
-
-        if (!hasValor) {
-          hasValor = /with\s+valor|with\s+"?v"?\s*device|combat\s+"?v"?|\(v\)|\bvalor\b/i.test(lower);
-        }
-
-        const cleanLower = lower
-          .replace(/\s*with\s+valor\b/i, "")
-          .replace(/\s*with\s+"?v"?\s*device\b/i, "")
-          .replace(/\s*combat\s+"?v"?\b/i, "")
-          .replace(/\s*\(v\)\s*/i, "")
-          .trim();
-
-        let mt = medalTypes.find((t) => t.name.toLowerCase() === cleanLower);
-        if (!mt) mt = medalTypes.find((t) => t.name.toLowerCase() === lower);
-        if (!mt) {
-          mt = medalTypes.find((t) =>
-            t.otherNames?.some((alt) => alt.toLowerCase() === cleanLower)
-          );
-        }
-        if (!mt && cleanLower.length > 6) {
-          mt = medalTypes.find(
-            (t) =>
-              t.name.toLowerCase().includes(cleanLower) ||
-              cleanLower.includes(t.name.toLowerCase()) ||
-              t.otherNames?.some((alt) => alt.toLowerCase().includes(cleanLower) || cleanLower.includes(alt.toLowerCase()))
-          );
-        }
-        if (!mt) {
-          mt = medalTypes.find((t) => t.shortName.toLowerCase() === cleanLower);
-        }
-
-        if (mt) {
-          const mtId = mt._id.toString();
-          const existing = matchedMedals.find((m) => m.medalTypeId === mtId);
-          if (existing) {
-            if (count > existing.count) existing.count = count;
-            if (hasValor && !existing.hasValor) {
-              existing.hasValor = true;
-              existing.valorDevices = 1;
-            }
-          } else {
-            matchedMedals.push({
-              medalTypeId: mtId,
-              name: mt.name,
-              shortName: mt.shortName,
-              count,
-              hasValor,
-              valorDevices: hasValor ? 1 : 0,
-            });
-          }
-        }
-      }
+    let metadataTags = normalizeMetadataTags(parsed.metadataTags);
+    if (parsed.gender && String(parsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
+      metadataTags = [...metadataTags, "female"];
     }
 
     return NextResponse.json({
@@ -156,6 +95,9 @@ export async function POST(req: NextRequest) {
       wars: filteredWars,
       medals: matchedMedals,
       combatSpecialty: parsed.combatSpecialty || "",
+      metadataTags,
+      countryCode,
+      gender: parsed.gender || "",
       tokens: result.totalTokens,
       cost: result.estimatedCost,
     });

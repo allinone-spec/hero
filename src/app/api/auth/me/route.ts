@@ -7,10 +7,12 @@ import Group from "@/lib/models/Group";
 import GroupPrivilege from "@/lib/models/GroupPrivilege";
 import type { IMenu } from "@/lib/models/Menu";
 
+const noStore = { "Cache-Control": "private, no-store, max-age=0" };
+
 export async function GET() {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: noStore });
   }
 
   await dbConnect();
@@ -25,7 +27,7 @@ export async function GET() {
 
   const group = await Group.findOne({ slug: session.groupSlug }).lean();
   if (!group) {
-    return NextResponse.json({ error: "Group not found" }, { status: 403 });
+    return NextResponse.json({ error: "Group not found" }, { status: 403, headers: noStore });
   }
 
   const privileges = await GroupPrivilege.find({ group: group._id, canView: true })
@@ -53,11 +55,14 @@ export async function GET() {
       };
     });
 
-  return NextResponse.json({
-    email: session.email,
-    name: (user as { name?: string } | null)?.name || "Admin",
-    groupSlug: session.groupSlug,
-    isSuperAdmin,
-    accessibleMenus,
-  });
+  return NextResponse.json(
+    {
+      email: session.email,
+      name: (user as { name?: string } | null)?.name || "Admin",
+      groupSlug: session.groupSlug,
+      isSuperAdmin,
+      accessibleMenus,
+    },
+    { headers: noStore },
+  );
 }

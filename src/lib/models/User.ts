@@ -2,16 +2,26 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
+  name: string;
   email: string;
   password: string;
+  role: "user" | "owner";
+  stripeCustomerId?: string;
+  subscriptionStatus?: string;
+  agreedToTermsAt?: Date;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
 const UserSchema: Schema<IUser> = new Schema({
+  name: { type: String, default: "", trim: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  role: { type: String, enum: ["user", "owner"], default: "user" },
+  stripeCustomerId: { type: String },
+  subscriptionStatus: { type: String },
+  agreedToTermsAt: { type: Date },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 });

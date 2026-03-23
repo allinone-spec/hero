@@ -177,14 +177,17 @@ export async function analyzeHero(
   const medalList = dbMedalNames.map((n) => `- ${n}`).join("\n");
 
   const systemPrompt = `You are a US military history and decorations expert.
-Given scraped data about a military hero, return a JSON object with EXACTLY these 5 fields:
+Given scraped data about a military hero, return a JSON object with EXACTLY these 8 fields:
 
 {
   "description": "A concise factual biography (3-5 paragraphs).",
   "wars": ["War Name 1", "War Name 2"],
   "medals": [{"name": "Medal Name", "count": 1, "hasValor": false}],
   "otherMedals": [{"name": "Full Medal Name", "count": 1, "hasValor": false}],
-  "combatSpecialty": "infantry"
+  "combatSpecialty": "infantry",
+  "gender": "male",
+  "metadataTags": ["submariner", "female"],
+  "countryCode": "US"
 }
 
 FIELD RULES:
@@ -193,6 +196,9 @@ FIELD RULES:
 - "medals": Array of objects for medals that match the ALLOWED list below. Each object has "name" (exact medal name from the list), "count" (number of times awarded, usually 1), and "hasValor" (true if awarded with "V" device or valor distinction).
 - "otherMedals": Array of objects for medals/decorations NOT in the ALLOWED list. Same format as "medals" with "name", "count", "hasValor". Use the full official name. This captures foreign decorations, campaign medals, unit citations, or any award not in the list below. Return an empty array if none.
 - "combatSpecialty": The hero's primary combat specialty. Must be EXACTLY one of: "infantry", "armor", "artillery", "aviation", "airborne", "special_operations", "submarine", "surface", "amphibious", "reconnaissance", "air_defense", "engineering", "signal", "intelligence", "medical", "logistics", "chemical", "electronic_warfare", "cyber", "military_police", "ordnance", "sniper", "marine", "none". Pick the single best match based on their primary role and service record.
+- "gender": "male" or "female" based on the source text. If unknown, use "male".
+- "metadataTags": Array of zero or more tags from this CLOSED LIST ONLY (use exact ids): "female", "submariner", "surface_commander", "aviator", "ace", "astronaut", "paratrooper", "double_moh", "multiple_purple_hearts", "ground_combat", "foreign_awards". Include "female" when gender is female. Include "double_moh" only when two Medals of Honor are explicit. Include "multiple_purple_hearts" when multiple Purple Hearts or severe wounding is explicit. Include "submariner", "aviator", "astronaut", etc. only when clearly supported by the text.
+- "countryCode": ISO-style code for primary service: "US", "UK", "CA", "AU", "NZ", "ZA", or "IN". Default "US" for United States military.
 
 IMPORTANT: ONLY extract medals and decorations that are EXPLICITLY mentioned in the provided data. The awards section text is the primary source for medal data. Do NOT add medals from your own knowledge — if a medal is not listed in the provided text, do NOT include it. Extract counts (Oak Leaf Clusters, service stars) and valor distinctions (V device) only when explicitly stated.
 

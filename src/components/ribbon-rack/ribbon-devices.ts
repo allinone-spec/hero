@@ -1,7 +1,15 @@
 // ── Ribbon Device Computation Engine ─────────────────────────────────────────
 // Handles silver/bronze compaction, V-device, and arrowhead layout logic.
 
-export type DeviceKind = "silver-star" | "bronze-star" | "valor-v" | "arrowhead";
+export type DeviceKind =
+  | "silver-star"
+  | "bronze-star"
+  | "valor-v"
+  | "arrowhead"
+  /** Commonwealth / UK-style campaign devices (from MedalType.deviceLogic) */
+  | "bar-device"
+  | "rosette"
+  | "clasp";
 
 export interface Device {
   kind: DeviceKind;
@@ -24,11 +32,30 @@ export interface PositionedDevice extends Device {
 export function computeDevices(
   count: number,
   hasValor: boolean,
-  arrowheads: number
+  arrowheads: number,
+  deviceLogic?: string
 ): Device[] {
   const devices: Device[] = [];
-
   const additional = Math.max(0, count - 1);
+  const logic = (deviceLogic || "").toLowerCase();
+
+  if (
+    additional > 0 &&
+    (logic.includes("bar") || logic.includes("rosette") || logic.includes("clasp"))
+  ) {
+    const n = Math.min(additional, 6);
+    if (logic.includes("rosette")) {
+      for (let i = 0; i < n; i++) devices.push({ kind: "rosette" });
+    } else if (logic.includes("clasp")) {
+      for (let i = 0; i < n; i++) devices.push({ kind: "clasp" });
+    } else {
+      for (let i = 0; i < n; i++) devices.push({ kind: "bar-device" });
+    }
+    if (hasValor) devices.push({ kind: "valor-v" });
+    if (arrowheads > 0) devices.push({ kind: "arrowhead" });
+    return devices;
+  }
+
   const silver = Math.floor(additional / 5);
   const bronze = additional % 5;
 
@@ -61,7 +88,14 @@ export function layoutDevices(
   const center = ribbonW / 2;
   const vGap   = 4; // clearance on each side of the V-device
 
-  const stars     = devices.filter(d => d.kind === "silver-star" || d.kind === "bronze-star");
+  const stars = devices.filter(
+    (d) =>
+      d.kind === "silver-star" ||
+      d.kind === "bronze-star" ||
+      d.kind === "bar-device" ||
+      d.kind === "rosette" ||
+      d.kind === "clasp"
+  );
   const valorV    = devices.find(d => d.kind === "valor-v");
   const arrowhead = devices.find(d => d.kind === "arrowhead");
 

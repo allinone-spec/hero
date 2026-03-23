@@ -28,8 +28,10 @@ export default function ScoreBreakdown({ breakdown, total }: ScoreBreakdownProps
                 </span>
               )}
             </div>
-            <span className="text-sm font-semibold text-[var(--color-gold)]">
-              +{item.points}
+            <span
+              className={`text-sm font-semibold ${item.points > 0 ? "text-[var(--color-gold)]" : "text-[var(--color-text-muted)]"}`}
+            >
+              {item.points > 0 ? `+${item.points}` : "0"}
             </span>
           </div>
         ))}

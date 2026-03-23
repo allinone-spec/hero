@@ -4,6 +4,8 @@ import MedalTypeModel from "@/lib/models/MedalType";
 import AIUsage from "@/lib/models/AIUsage";
 import { analyzeHero, fetchHeroFromAI } from "@/lib/openai";
 import { scrapeWikipediaHero } from "@/lib/wikipedia-scraper";
+import { normalizeMetadataTags } from "@/lib/metadata-tags";
+import { matchAiMedalsToDatabase } from "@/lib/match-ai-medals";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -16,6 +18,7 @@ cloudinary.config({
 interface MedalTypeDoc {
   _id: { toString(): string };
   name: string;
+  shortName: string;
   otherNames?: string[];
   ribbonImageUrl?: string;
 }
@@ -37,7 +40,27 @@ export interface HeroImportResult {
   newMedalTypesCreated: number;
   ribbonMaxPerRow: number;
   wikiMedalNames: { name: string; devices: string }[];
+  /** Deprecated for public rack — kept empty; medals come from AI clerk only */
   wikiRibbonRack: { ribbonUrl: string; deviceUrls: string[]; name: string; _id: string; type: "ribbon" | "other"; width?: number; height?: number }[];
+  aiMedals: {
+    medalTypeId: string;
+    count: number;
+    hasValor: boolean;
+    valorDevices: number;
+    arrowheads: number;
+    ribbonUrl?: string;
+    wikiOrder: number;
+    deviceImages: { url: string; deviceType: string; count: number }[];
+  }[];
+  unmatchedMedals: {
+    rawName: string;
+    count: number;
+    hasValor: boolean;
+    arrowheads: number;
+    devices: string;
+  }[];
+  metadataTags: string[];
+  countryCode: string;
 }
 
 type ProgressCallback = (step: string, percent: number) => void | Promise<void>;
@@ -132,7 +155,6 @@ export async function runHeroImportPipeline(
   if (scraperEmpty || !scraped) {
     return await aiFallbackPipeline(heroName, medalTypes, userEmail, onProgress);
   }
-  console.log(scraped.medalCells);
   // ════════════════════════════════════════════════════════════════════════
   // Phase 2: Upload avatar + AI validation (parallel)
   // ════════════════════════════════════════════════════════════════════════
@@ -180,6 +202,11 @@ export async function runHeroImportPipeline(
     description?: string;
     wars?: string[];
     combatSpecialty?: string;
+    medals?: unknown;
+    otherMedals?: unknown;
+    metadataTags?: string[];
+    countryCode?: string;
+    gender?: string;
   } = {};
 
   if (aiResult) {
@@ -207,69 +234,42 @@ export async function runHeroImportPipeline(
     ? scraped.combatType
     : (aiParsed.combatSpecialty || "none");
 
+  const { matched: matchedMain, unmatched: unmatchedMain } = matchAiMedalsToDatabase(
+    aiParsed.medals,
+    medalTypes
+  );
+  const mtById = new Map(medalTypes.map((m) => [m._id.toString(), m]));
+  const aiMedals = matchedMain.map((m) => ({
+    medalTypeId: m.medalTypeId,
+    count: m.count,
+    hasValor: m.hasValor,
+    valorDevices: m.valorDevices,
+    arrowheads: 0,
+    ribbonUrl: mtById.get(m.medalTypeId)?.ribbonImageUrl,
+    wikiOrder: 0,
+    deviceImages: [] as { url: string; deviceType: string; count: number }[],
+  }));
+  const unmatchedMedals = unmatchedMain.map((u) => ({
+    rawName: u.rawName,
+    count: u.count,
+    hasValor: u.hasValor,
+    arrowheads: 0,
+    devices: "",
+  }));
+
+  let metadataTags = normalizeMetadataTags(aiParsed.metadataTags);
+  if (aiParsed.gender && String(aiParsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
+    metadataTags = [...metadataTags, "female"];
+  }
+  const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+  const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
+  const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
+
   await progress("Done!", 100);
 
-  // Extract base filename from a URL for fuzzy matching.
-  // Handles Wikipedia thumbnails (e.g. "/thumb/.../106px-Silver_Star_ribbon.svg.png")
-  // and Cloudinary URLs (e.g. ".../Silver_Star_ribbon.svg").
-  const extractRibbonFilename = (url: string): string => {
-    const decoded = decodeURIComponent(url);
-    // Get the last path segment
-    const lastSegment = decoded.split("/").pop() || "";
-    // Strip Wikipedia thumbnail prefix like "106px-"
-    const stripped = lastSegment.replace(/^\d+px-/, "");
-    // Strip trailing render extension (.png added to .svg thumbnails)
-    return stripped.replace(/\.(svg|png|jpg|jpeg|gif)\.png$/i, ".$1").toLowerCase();
-  };
-
-  // Match ribbon rack cells to DB medal types by ribbon filename (fuzzy)
-  const ribbonFilenameToMedal = new Map<string, MedalTypeDoc>();
-  const ribbonUrlToMedal = new Map<string, MedalTypeDoc>();
-  for (const mt of medalTypes) {
-    if (mt.ribbonImageUrl) {
-      ribbonUrlToMedal.set(mt.ribbonImageUrl, mt);
-      ribbonFilenameToMedal.set(extractRibbonFilename(mt.ribbonImageUrl), mt);
-    }
-  }
-
-  // Also build a name-based lookup for "other" items (badges, tabs, insignia)
-  const nameToMedal = new Map<string, MedalTypeDoc>();
-  for (const mt of medalTypes) {
-    nameToMedal.set(mt.name.toLowerCase(), mt);
-    if (mt.otherNames) {
-      for (const alias of mt.otherNames) {
-        nameToMedal.set(alias.toLowerCase(), mt);
-      }
-    }
-  }
-
-  // Extract medal names + device info from medalCells
   const wikiMedalNames = (scraped.medalCells || [])
     .filter((c) => c.links.length > 0 && c.links[0].length >= 3)
     .map((c) => ({ name: c.links[0], devices: c.devices || "" }));
-
-  // Build a name→devices lookup from wikiMedalNames for ribbon rack items
-  const nameToDevices = new Map<string, string>();
-  for (const m of wikiMedalNames) {
-    if (m.devices && !nameToDevices.has(m.name.toLowerCase())) {
-      nameToDevices.set(m.name.toLowerCase(), m.devices);
-    }
-  }
-
-  const wikiRibbonRack = (scraped.ribbonRackCells || []).map((cell) => {
-    // Try exact URL match first, then fuzzy filename match
-    const match = ribbonUrlToMedal.get(cell.ribbonUrl)
-      || ribbonFilenameToMedal.get(extractRibbonFilename(cell.ribbonUrl));
-    return {
-      ribbonUrl: cell.ribbonUrl,
-      deviceUrls: cell.deviceUrls,
-      name: match?.name || "",
-      _id: match?._id.toString() || "",
-      type: cell.type,
-      ...(cell.width ? { width: cell.width } : {}),
-      ...(cell.height ? { height: cell.height } : {}),
-    };
-  });
 
   return {
     name: scraped.name || heroName,
@@ -288,7 +288,11 @@ export async function runHeroImportPipeline(
     newMedalTypesCreated: 0,
     ribbonMaxPerRow: scraped.ribbonMaxPerRow || 4,
     wikiMedalNames,
-    wikiRibbonRack,
+    wikiRibbonRack: [],
+    aiMedals,
+    unmatchedMedals,
+    metadataTags,
+    countryCode,
   };
 }
 
@@ -339,6 +343,11 @@ async function aiFallbackPipeline(
     description?: string;
     wars?: string[];
     combatSpecialty?: string;
+    medals?: unknown;
+    otherMedals?: unknown;
+    metadataTags?: string[];
+    countryCode?: string;
+    gender?: string;
   } = {};
   try {
     aiParsed = JSON.parse(rawContent);
@@ -350,6 +359,57 @@ async function aiFallbackPipeline(
   const aiWars = Array.isArray(aiParsed.wars)
     ? aiParsed.wars.filter((w) => typeof w === "string" && !medalNameSet.has(w.toLowerCase().trim()))
     : [];
+
+  const { matched: fbMatched, unmatched: fbUnmatched } = matchAiMedalsToDatabase(
+    aiParsed.medals,
+    medalTypes
+  );
+  const mtByIdFb = new Map(medalTypes.map((m) => [m._id.toString(), m]));
+  const aiMedals = fbMatched.map((m) => ({
+    medalTypeId: m.medalTypeId,
+    count: m.count,
+    hasValor: m.hasValor,
+    valorDevices: m.valorDevices,
+    arrowheads: 0,
+    ribbonUrl: mtByIdFb.get(m.medalTypeId)?.ribbonImageUrl,
+    wikiOrder: 0,
+    deviceImages: [] as { url: string; deviceType: string; count: number }[],
+  }));
+  const unmatchedMedals = fbUnmatched.map((u) => ({
+    rawName: u.rawName,
+    count: u.count,
+    hasValor: u.hasValor,
+    arrowheads: 0,
+    devices: "",
+  }));
+  if (Array.isArray(aiParsed.otherMedals)) {
+    for (const e of aiParsed.otherMedals) {
+      const raw =
+        typeof e === "string"
+          ? e
+          : typeof e === "object" && e !== null && "name" in e
+            ? String((e as { name: string }).name)
+            : "";
+      const t = raw.trim();
+      if (t.length >= 2) {
+        unmatchedMedals.push({
+          rawName: t,
+          count: 1,
+          hasValor: false,
+          arrowheads: 0,
+          devices: "",
+        });
+      }
+    }
+  }
+
+  let metadataTags = normalizeMetadataTags(aiParsed.metadataTags);
+  if (aiParsed.gender && String(aiParsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
+    metadataTags = [...metadataTags, "female"];
+  }
+  const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+  const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
+  const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
 
   await progress("Done!", 100);
 
@@ -371,5 +431,9 @@ async function aiFallbackPipeline(
     ribbonMaxPerRow: 4,
     wikiMedalNames: [],
     wikiRibbonRack: [],
+    aiMedals,
+    unmatchedMedals,
+    metadataTags,
+    countryCode,
   };
 }
