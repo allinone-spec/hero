@@ -1,0 +1,444 @@
+@import "tailwindcss";
+
+/* ── Dark theme (default) ────────────────────────────────── */
+:root {
+  --color-bg: #0a0f1a;
+  --color-surface: #111827;
+  --color-surface-hover: #1a2332;
+  --color-border: #1f2937;
+  --color-gold: #d4a843;
+  --color-gold-light: #f0d078;
+  --color-text: #e5e7eb;
+  --color-text-muted: #9ca3af;
+  --color-accent: #3b82f6;
+  --color-badge-text: #1a1a2e;
+}
+
+/* ── Light theme ─────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-bg: #eef2f7;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f5f7fc;
+  --color-border: #c9d3e0;
+  --color-gold: #c07b08;
+  --color-gold-light: #e09522;
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+  --color-accent: #2563eb;
+  --color-badge-text: #ffffff;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(22px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.animate-fade-in-up   { animation: fadeInUp     0.4s  ease both; }
+.animate-fade-in      { animation: fadeIn       0.3s  ease both; }
+.animate-scale-in     { animation: scaleIn      0.25s ease both; }
+.animate-slide-right  { animation: slideInRight 0.35s ease both; }
+.animate-spin         { animation: spin 1s linear infinite; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.7; }
+  50%       { transform: scale(1.4); opacity: 1;   }
+}
+@keyframes ring3d {
+  0%   { transform: perspective(240px) rotateX(66deg) rotateZ(0deg);   }
+  100% { transform: perspective(240px) rotateX(66deg) rotateZ(360deg); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px);  }
+  50%       { transform: translateY(-6px); }
+}
+
+/* Stagger helpers */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* ── Score badge ─────────────────────────────────────────── */
+.score-badge {
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+  color: var(--color-badge-text);
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+}
+
+/* ── Hero card ───────────────────────────────────────────── */
+.hero-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: border-color 0.2s ease, background-color 0.2s ease,
+              transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hero-card:hover {
+  border-color: var(--color-gold);
+  background-color: var(--color-surface-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(192, 123, 8, 0.14);
+}
+
+/* ── Rank number ─────────────────────────────────────────── */
+.rank-number {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-gold);
+  min-width: 48px;
+  text-align: center;
+}
+
+/* ── Admin inputs ────────────────────────────────────────── */
+.admin-input {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--color-text);
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+              background-color 0.15s ease;
+}
+.admin-input:focus {
+  outline: none;
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 20%, transparent);
+}
+.admin-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
+  color: var(--color-badge-text);
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(192, 123, 8, 0.4);
+  filter: brightness(1.08);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease,
+              box-shadow 0.15s ease;
+}
+.btn-secondary:hover {
+  border-color: var(--color-gold);
+  background-color: var(--color-surface-hover);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+  transform: translateY(-1px);
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Theme toggle button ─────────────────────────────────── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+.theme-toggle:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  background-color: var(--color-surface-hover);
+}
+
+/* ── Select element appearance ───────────────────────────── */
+select.admin-input {
+  appearance: auto;
+}
+
+/* ── Scrollbar (dark mode) ───────────────────────────────── */
+:root {
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
+
+/* ── Landing page ──────────────────────────────────────────── */
+
+.landing-hero {
+  position: relative;
+  background: linear-gradient(175deg, #001845 0%, #002868 40%, #001233 100%);
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  padding: 5rem 1.5rem 6rem;
+}
+
+/* White star pattern overlay */
+.landing-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ctext x='5' y='15' font-size='12' fill='rgba(255,255,255,0.07)'%3E%E2%98%85%3C/text%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ctext x='5' y='15' font-size='8' fill='rgba(255,255,255,0.05)'%3E%E2%98%85%3C/text%3E%3C/svg%3E");
+  background-size: 60px 60px, 90px 90px;
+  background-position: 0 0, 30px 30px;
+  pointer-events: none;
+  z-index: 0;
+  animation: starDrift 120s linear infinite;
+}
+
+@keyframes starDrift {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-60px); }
+}
+
+/* Gradient fade at bottom */
+.landing-hero::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 140px;
+  background: linear-gradient(to top, var(--color-bg), transparent);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.landing-hero > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* How it works section */
+.landing-section-alt {
+  background-color: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Bottom CTA with star background */
+.landing-cta {
+  position: relative;
+  background: linear-gradient(175deg, #001233 0%, #002868 50%, #001845 100%);
+  overflow: hidden;
+  padding: 5rem 1.5rem;
+  text-align: center;
+}
+
+.landing-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ctext x='5' y='15' font-size='10' fill='rgba(255,255,255,0.06)'%3E%E2%98%85%3C/text%3E%3C/svg%3E");
+  background-size: 70px 70px;
+  pointer-events: none;
+}
+
+.landing-cta::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to bottom, var(--color-bg), transparent);
+  pointer-events: none;
+}
+
+.landing-cta > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Medal Showcase Page ───────────────────────────────────── */
+
+.medal-showcase-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.medal-showcase-name {
+  font-family: Georgia, "Times New Roman", Times, serif;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+/* ── Hero Profile Page ─────────────────────────────────────── */
+
+.profile-name {
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.profile-bio {
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* ── Print Styles ──────────────────────────────────────────── */
+
+@media print {
+  @page {
+    size: 8.5in 11in;
+    margin: 0.5in;
+  }
+
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide navigation, footer, buttons, score breakdown */
+  nav,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Profile page — fill the print area */
+  .hero-profile-page {
+    background: white !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Override dark theme colors for print */
+  .hero-profile-page,
+  .hero-profile-page * {
+    color: #111 !important;
+    border-color: #ccc !important;
+    background-color: transparent !important;
+  }
+
+  .hero-profile-page h1 {
+    color: #000 !important;
+    font-size: 18pt !important;
+  }
+
+  .hero-profile-page h2 {
+    color: #333 !important;
+  }
+
+  .hero-profile-page .text-\[var\(--color-gold\)\] {
+    color: #8B6914 !important;
+  }
+
+  /* War badges */
+  .hero-profile-page span[class*="rounded-full"] {
+    border: 1px solid #999 !important;
+    background: #f5f5f5 !important;
+  }
+
+  /* Medal links — no underline in print */
+  .print-link {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+
+  /* Ensure ribbon SVG colors print */
+  .ribbon-rack {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Force 2-column layout even on narrow print */
+  .hero-profile-page .grid {
+    display: grid !important;
+    grid-template-columns: 1fr 2fr !important;
+  }
+
+  /* Biography justified */
+  .profile-bio p {
+    text-indent: 1.5em;
+    margin-bottom: 0.8em;
+  }
+
+  /* Portrait border in print */
+  .hero-profile-page img {
+    border: 2px solid #8B6914 !important;
+  }
+
+  /* Page break control */
+  .hero-profile-page {
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,294 @@
+// ── Wikipedia Medal Scraper ───────────────────────────────────────────────────
+// Fetches and parses a Wikipedia article for a military medal/decoration,
+// extracting summary, history, award criteria, appearance, images, and infobox data.
+
+const WIKI_HEADERS = { "User-Agent": "HeroesArchive/1.0 (educational research)" };
+const MAX_SECTION_LENGTH = 3000;
+
+export interface ScrapedMedalImage {
+  url: string;
+  caption: string;
+}
+
+export interface ScrapedMedalData {
+  wikipediaUrl: string;
+  wikiSummary: string;
+  history: string;
+  awardCriteria: string;
+  appearance: string;
+  established: string;
+  images: ScrapedMedalImage[];
+}
+
+/* ── Helpers ──────────────────────────────────────────── */
+
+async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { headers: WIKI_HEADERS, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>\s*<p[^>]*>/gi, "\n\n")
+    .replace(/<\/li>\s*<li[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/\[[\d\w]+\]/g, "") // strip footnote refs [1], [a]
+    .replace(/\[\s*edit\s*\]/gi, "") // strip [edit] links
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function truncateText(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const cut = text.lastIndexOf("\n", maxLen);
+  return (cut > maxLen * 0.5 ? text.slice(0, cut) : text.slice(0, maxLen)) + "...";
+}
+
+/* ── Find Wikipedia article title ─────────────────────── */
+
+async function findWikiTitle(medalName: string): Promise<string | null> {
+  const baseName = medalName.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const variants = [medalName, baseName, `${baseName} (United States)`, `${baseName} (medal)`];
+
+  for (const term of variants) {
+    try {
+      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(term)}&format=json&redirects=1`;
+      const res = await fetchWithTimeout(url);
+      const data = await res.json();
+      const pages = data?.query?.pages;
+      if (!pages) continue;
+      const page = Object.values(pages)[0] as { pageid?: number; title?: string; missing?: boolean };
+      if (page?.pageid && !page.missing) return page.title!;
+    } catch { /* try next variant */ }
+  }
+
+  // Fallback: search API
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(medalName)}&limit=3&format=json`;
+    const res = await fetchWithTimeout(searchUrl);
+    const [, titles] = await res.json();
+    if (Array.isArray(titles) && titles.length > 0) {
+      // Verify the first result actually exists
+      const verifyUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&format=json&redirects=1`;
+      const verifyRes = await fetchWithTimeout(verifyUrl);
+      const verifyData = await verifyRes.json();
+      const pages = verifyData?.query?.pages;
+      if (pages) {
+        const page = Object.values(pages)[0] as { pageid?: number; title?: string; missing?: boolean };
+        if (page?.pageid && !page.missing) return page.title!;
+      }
+    }
+  } catch { /* give up */ }
+
+  return null;
+}
+
+/* ── Fetch article sections list ──────────────────────── */
+
+interface WikiSection {
+  index: string;
+  line: string;
+  level: string;
+}
+
+async function fetchSections(title: string): Promise<WikiSection[]> {
+  const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=sections&format=json`;
+  const res = await fetchWithTimeout(url);
+  const data = await res.json();
+  return data?.parse?.sections || [];
+}
+
+/* ── Fetch a single section's HTML and clean it ───────── */
+
+async function fetchSectionText(title: string, sectionIndex: string): Promise<string> {
+  const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&section=${sectionIndex}&format=json`;
+  const res = await fetchWithTimeout(url);
+  const data = await res.json();
+  const html: string = data?.parse?.text?.["*"] || "";
+  // Remove the heading itself (first <h2>/<h3> tag)
+  const cleaned = html.replace(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/i, "");
+  return stripHtml(cleaned);
+}
+
+/* ── Fetch intro summary ──────────────────────────────── */
+
+async function fetchSummary(title: string): Promise<string> {
+  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) return "";
+  const data = await res.json();
+  return data?.extract || "";
+}
+
+/* ── Extract infobox "established" field from wikitext ── */
+
+async function fetchEstablished(title: string): Promise<string> {
+  const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=wikitext&section=0&format=json`;
+  const res = await fetchWithTimeout(url);
+  const data = await res.json();
+  const wikitext: string = data?.parse?.wikitext?.["*"] || "";
+
+  // Look for established/created/date fields in infobox
+  const patterns = [
+    /\|\s*established\s*=\s*(.+)/i,
+    /\|\s*created\s*=\s*(.+)/i,
+    /\|\s*first_awarded\s*=\s*(.+)/i,
+    /\|\s*date\s*=\s*(.+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = wikitext.match(pattern);
+    if (match) {
+      // Clean wikitext markup from the value
+      let val = match[1]
+        .replace(/\[\[([^\]|]+\|)?([^\]]+)\]\]/g, "$2") // [[link|text]] → text
+        .replace(/\{\{[^}]+\}\}/g, "") // remove templates
+        .replace(/<[^>]+>/g, "")
+        .trim();
+      // Extract just a year if the full date is too complex
+      const yearMatch = val.match(/\b(1[7-9]\d{2}|20\d{2})\b/);
+      if (yearMatch) return yearMatch[1];
+      if (val.length < 60) return val;
+    }
+  }
+
+  return "";
+}
+
+/* ── Collect article images ───────────────────────────── */
+
+const SKIP_IMAGE_PATTERNS = /commons-logo|wiki|flag_of|seal_of|coat_of_arms|portrait|photo_of|ceremony|wearing|logo|emblem_of|insignia_of|patch_of|shoulder|collar|sleeve|badge_of|map|icon/i;
+
+interface WikiImageInfo {
+  url: string;
+  descriptionurl: string;
+}
+
+async function fetchArticleImages(title: string, medalName: string): Promise<ScrapedMedalImage[]> {
+  const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=images&format=json&imlimit=50`;
+  const res = await fetchWithTimeout(url);
+  const data = await res.json();
+  const pages = data?.query?.pages;
+  if (!pages) return [];
+
+  const page = Object.values(pages)[0] as { images?: { title: string }[] };
+  const imageFiles = page?.images || [];
+
+  const medalLower = medalName.toLowerCase();
+  const medalWords = medalLower.split(/\s+/).filter((w) => w.length > 3);
+
+  const results: ScrapedMedalImage[] = [];
+
+  for (const img of imageFiles) {
+    const filename = img.title;
+    const lower = filename.toLowerCase();
+
+    // Skip SVGs and junk
+    if (lower.endsWith(".svg")) continue;
+    if (SKIP_IMAGE_PATTERNS.test(lower)) continue;
+
+    // Score relevance
+    let score = 0;
+    for (const word of medalWords) {
+      if (lower.includes(word)) score++;
+    }
+    if (/medal|cross|heart|decoration|award|star|obverse|reverse|front|back/i.test(lower)) score += 2;
+    if (/ribbon/i.test(lower)) score -= 1; // Slight downrank for ribbon-only images
+
+    if (score < 1) continue;
+
+    // Resolve to actual URL
+    try {
+      const infoUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(filename)}&prop=imageinfo&iiprop=url|extmetadata&format=json`;
+      const infoRes = await fetchWithTimeout(infoUrl);
+      const infoData = await infoRes.json();
+      const infoPages = infoData?.query?.pages;
+      if (!infoPages) continue;
+      const infoPage = Object.values(infoPages)[0] as { imageinfo?: (WikiImageInfo & { extmetadata?: Record<string, { value: string }> })[] };
+      const info = infoPage?.imageinfo?.[0];
+      if (!info?.url) continue;
+
+      // Skip SVG URLs
+      if (/\.svg($|\?)/i.test(info.url)) continue;
+
+      const caption = info.extmetadata?.ObjectName?.value
+        || info.extmetadata?.ImageDescription?.value
+        || filename.replace(/^File:/i, "").replace(/_/g, " ").replace(/\.\w+$/, "");
+
+      results.push({
+        url: info.url,
+        caption: stripHtml(caption).slice(0, 200),
+      });
+    } catch { /* skip this image */ }
+
+    // Limit to 6 images max
+    if (results.length >= 6) break;
+  }
+
+  return results;
+}
+
+/* ── Section matching helpers ─────────────────────────── */
+
+const HISTORY_PATTERNS = /^(history|background|origin)/i;
+const CRITERIA_PATTERNS = /^(award criteria|criteria|eligibility|qualification|requirements)/i;
+const APPEARANCE_PATTERNS = /^(appearance|design|description|physical description|medal design)/i;
+
+function findSectionIndex(sections: WikiSection[], pattern: RegExp): string | null {
+  for (const s of sections) {
+    if (pattern.test(s.line)) return s.index;
+  }
+  return null;
+}
+
+/* ── Main scraper function ────────────────────────────── */
+
+export async function scrapeMedalWikipedia(medalName: string): Promise<ScrapedMedalData | null> {
+  const title = await findWikiTitle(medalName);
+  if (!title) return null;
+
+  const wikipediaUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;
+
+  // Fetch sections and summary in parallel
+  const [sections, summary, established] = await Promise.all([
+    fetchSections(title),
+    fetchSummary(title),
+    fetchEstablished(title),
+  ]);
+
+  // Find relevant section indices
+  const historyIdx = findSectionIndex(sections, HISTORY_PATTERNS);
+  const criteriaIdx = findSectionIndex(sections, CRITERIA_PATTERNS);
+  const appearanceIdx = findSectionIndex(sections, APPEARANCE_PATTERNS);
+
+  // Fetch section content in parallel
+  const [historyRaw, criteriaRaw, appearanceRaw, images] = await Promise.all([
+    historyIdx ? fetchSectionText(title, historyIdx) : Promise.resolve(""),
+    criteriaIdx ? fetchSectionText(title, criteriaIdx) : Promise.resolve(""),
+    appearanceIdx ? fetchSectionText(title, appearanceIdx) : Promise.resolve(""),
+    fetchArticleImages(title, medalName),
+  ]);
+
+  return {
+    wikipediaUrl,
+    wikiSummary: truncateText(summary, MAX_SECTION_LENGTH),
+    history: truncateText(historyRaw, MAX_SECTION_LENGTH),
+    awardCriteria: truncateText(criteriaRaw, MAX_SECTION_LENGTH),
+    appearance: truncateText(appearanceRaw, MAX_SECTION_LENGTH),
+    established,
+    images,
+  };
+}
