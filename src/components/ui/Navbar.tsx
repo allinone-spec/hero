@@ -23,6 +23,8 @@ type AdminMe = {
 type SiteMe = {
   email: string;
   role: string;
+  /** Display name / username from profile (not email local-part). */
+  name: string;
 };
 
 const SESSION_FETCH: RequestInit = { cache: "no-store", credentials: "include" };
@@ -32,13 +34,21 @@ async function parseSiteMeResponse(res: Response): Promise<SiteMe | null> {
   try {
     const j = await res.json();
     if (!j?.email) return null;
+    const nameRaw = j.name;
     return {
       email: String(j.email),
       role: j.role === "owner" ? "owner" : "user",
+      name: typeof nameRaw === "string" ? nameRaw.trim() : "",
     };
   } catch {
     return null;
   }
+}
+
+function siteMemberDisplayName(p: SiteMe): string {
+  const n = p.name?.trim();
+  if (n) return n;
+  return p.email || "Account";
 }
 
 async function parseAdminMeResponse(res: Response): Promise<AdminMe | null> {
@@ -58,14 +68,15 @@ async function parseAdminMeResponse(res: Response): Promise<AdminMe | null> {
 }
 
 function SiteMemberAccountPanelBody({ siteProfile }: { siteProfile: SiteMe }) {
-  const roleLabel = siteProfile.role === "owner" ? "Owner" : "Member";
+  const roleLabel = siteProfile.role === "owner" ? "Hero owner" : "Owner";
+  const username = siteMemberDisplayName(siteProfile);
   return (
     <div className="px-3 py-2 space-y-3 text-left">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
-          Site member
+        <p className="text-sm font-medium text-[var(--color-text)] truncate" title={username}>
+          {username}
         </p>
-        <p className="text-sm font-medium text-[var(--color-text)] truncate" title={siteProfile.email}>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate" title={siteProfile.email}>
           {siteProfile.email}
         </p>
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
@@ -78,29 +89,68 @@ function SiteMemberAccountPanelBody({ siteProfile }: { siteProfile: SiteMe }) {
 
 const SITE_MEMBER_GUIDE_SECTIONS = [
   {
-    page: "My heroes",
+    page: "My Heroes",
     icon: "⭐",
     items: [
-      { button: "Adopted heroes", desc: "Profiles you support appear here after checkout." },
-      { button: "View profile", desc: "Open the public hero page from your list." },
-      { button: "Edit tribute", desc: "Update your tribute text where editing is enabled." },
+      {
+        button: "Your list",
+        desc: "After adoption checkout, supported heroes show here with renewal dates when applicable.",
+      },
+      {
+        button: "View profile",
+        desc: "Open the public hero page from a row.",
+      },
+      {
+        button: "Edit tribute",
+        desc: "Hero owners (role on your account) can edit tribute text and media where the site allows it.",
+      },
+      {
+        button: "Nav link",
+        desc: "“My Heroes” in the bar when you’re signed in — same destination as this list.",
+      },
     ],
   },
   {
-    page: "Browse the site",
+    page: "Browse",
     icon: "🎖️",
     items: [
-      { button: "Heroes", desc: "Ranked archive of decorated service members (USM-25 scores)." },
-      { button: "Medals", desc: "Decoration catalog, ribbons, and how awards count toward scores." },
-      { button: "USM-25", desc: "Scoring methodology and matrix rules." },
+      { button: "Home", desc: "Landing page for the public archive." },
+      {
+        button: "Heroes",
+        desc: "Ranked published profiles (USM-25 scores), filters, and categories — same as /rankings.",
+      },
+      { button: "Medals", desc: "Decoration catalog, ribbons, and how awards contribute to scores." },
+      { button: "USM-25", desc: "Scoring methodology and matrix rules on the public site." },
     ],
   },
   {
-    page: "Account",
+    page: "Account & roles",
     icon: "👤",
     items: [
-      { button: "Log out", desc: "Account menu (avatar) — ends your session on this device." },
-      { button: "Contact", desc: "Mail icon — send a message to the team." },
+      {
+        button: "Avatar menu",
+        desc: "Your display name (profile name, not email prefix), email, and Role: Owner (standard) or Hero owner (can edit adopted-hero tributes).",
+      },
+      {
+        button: "Switch role",
+        desc: "Goes to /go/admin: opens the Admin console if you’re already signed in as Admin, otherwise Admin sign-in (with return path).",
+      },
+      {
+        button: "Log out",
+        desc: "Ends your Owner session in this browser only.",
+      },
+      {
+        button: "Contact",
+        desc: "Mail icon in the bar — message the team; form prefers your Owner name/email when signed in.",
+      },
+      {
+        button: "Owner guide",
+        desc: "This panel (?): quick reference while browsing as an Owner.",
+      },
+      {
+        button: "Theme",
+        desc: "Light/dark toggle next to the bar controls.",
+      },
     ],
   },
 ];
@@ -123,7 +173,7 @@ function SiteMemberGuide({ open, onClose }: { open: boolean; onClose: () => void
       <div className="fixed inset-0 z-[60] bg-black/40" onClick={onClose} />
       <div className="fixed right-4 top-16 z-[70] w-[min(100vw-2rem,24rem)] sm:max-w-md sm:w-96 max-h-[80vh] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl animate-fade-in">
         <div className="sticky top-0 bg-[var(--color-surface)] border-b border-[var(--color-border)] px-4 py-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-[var(--color-gold)]">Member Guide</h3>
+          <h3 className="text-sm font-bold text-[var(--color-gold)]">Owner guide</h3>
           <button
             type="button"
             onClick={onClose}
@@ -185,18 +235,138 @@ function ChevronDown({ open }: { open: boolean }) {
   );
 }
 
-function PublicAccountDropdown({
-  siteProfile,
+function StaffAccountPanelBody({ adminProfile }: { adminProfile: AdminMe }) {
+  const groupLabel =
+    adminProfile.isSuperAdmin ? "Super Admin" : adminProfile.groupSlug || "Admin";
+  return (
+    <div className="px-3 py-2 space-y-3 text-left">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+          Admin
+        </p>
+        <p className="text-sm font-medium text-[var(--color-text)] truncate" title={adminProfile.email}>
+          {adminProfile.email}
+        </p>
+        {adminProfile.name && adminProfile.name !== adminProfile.email.split("@")[0] && (
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate" title={adminProfile.name}>
+            {adminProfile.name}
+          </p>
+        )}
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          <span className="text-[var(--color-gold)] font-semibold">{groupLabel}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PublicStaffAccountDropdown({
+  adminProfile,
   onLogout,
+  onSwitchRole,
 }: {
-  siteProfile: SiteMe;
+  adminProfile: AdminMe;
   onLogout: () => void;
+  /** Open Owner context (/go/member: my-heroes if signed in, else sign-in). */
+  onSwitchRole: () => void;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const displayName = siteProfile.email?.split("@")[0] || siteProfile.email || "Account";
+  const displayName =
+    adminProfile.name?.trim() ||
+    adminProfile.email?.split("@")[0] ||
+    adminProfile.email ||
+    "Admin";
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-gold)]/50 transition-colors max-w-[220px]"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <AvatarFallback name={displayName} size={28} shape="rounded" />
+        <span className="truncate text-xs font-medium text-[var(--color-text)] hidden lg:inline max-w-[6.5rem]">
+          {displayName}
+        </span>
+        <ChevronDown open={open} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 w-72 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl z-[60] py-1 animate-fade-in"
+          role="menu"
+        >
+          <StaffAccountPanelBody adminProfile={adminProfile} />
+          <div className="border-t border-[var(--color-border)] p-2 space-y-2">
+            <Link
+              href="/admin"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="btn-primary text-sm w-full py-2 text-center block"
+            >
+              Admin console
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSwitchRole();
+              }}
+              className="btn-secondary text-sm w-full py-2"
+            >
+              Switch role
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
+              className="btn-secondary text-sm w-full py-2"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PublicAccountDropdown({
+  siteProfile,
+  onLogout,
+  onSwitchRole,
+}: {
+  siteProfile: SiteMe;
+  onLogout: () => void;
+  /** Open Admin context (/go/admin: console if signed in, else admin sign-in). */
+  onSwitchRole: () => void;
+}) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const displayName = siteMemberDisplayName(siteProfile);
 
   useEffect(() => {
     if (!open) return;
@@ -232,7 +402,18 @@ function PublicAccountDropdown({
           role="menu"
         >
           <SiteMemberAccountPanelBody siteProfile={siteProfile} />
-          <div className="border-t border-[var(--color-border)] p-2">
+          <div className="border-t border-[var(--color-border)] p-2 space-y-2">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSwitchRole();
+              }}
+              className="btn-secondary text-sm w-full py-2"
+            >
+              Switch role
+            </button>
             <button
               type="button"
               role="menuitem"
@@ -280,7 +461,11 @@ export default function Navbar() {
   useLayoutEffect(() => {
     const siteHint = readSiteMemberHint();
     if (siteHint) {
-      setSiteProfile({ email: siteHint.email, role: siteHint.role });
+      setSiteProfile({
+        email: siteHint.email,
+        role: siteHint.role,
+        name: typeof siteHint.name === "string" ? siteHint.name.trim() : "",
+      });
     }
     const adminHint = readAdminHint();
     if (adminHint) {
@@ -310,14 +495,22 @@ export default function Navbar() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [syncSessionFromNetwork]);
 
-  /** Member sign-in/up: this chrome is site-member context; staff uses "As Admin/Staff" in another tab. */
-  const showAuthLinks = !siteProfile;
+  /** Hide Owner sign-in/up when an Owner or staff session exists (staff-only still needs header identity). */
+  const showAuthLinks = !siteProfile && !adminProfile;
   const showMemberHeaderTools = Boolean(siteProfile);
   const showAccountMenu = Boolean(siteProfile);
-  /** Open staff area only when logged in as site member but not as admin/staff in this browser. */
-  const showAsAdminStaffLink = Boolean(siteProfile && !adminProfile);
+  /** On public pages, staff chrome only when not in an Owner session — Owner nav hides staff identity even if both cookies exist. */
+  const showStaffAccountMenu = Boolean(adminProfile && !siteProfile);
 
   const myHeroesActive = pathname === "/my-heroes" || pathname.startsWith("/my-heroes/");
+
+  const switchToStaffContext = useCallback(() => {
+    router.push("/go/admin");
+  }, [router]);
+
+  const switchToMemberContext = useCallback(() => {
+    router.push("/go/member");
+  }, [router]);
 
   const handleLogout = useCallback(async () => {
     await fetch("/api/site/logout", { method: "POST", credentials: "include" });
@@ -325,6 +518,14 @@ export default function Navbar() {
     setSiteProfile(null);
     setMobileOpen(false);
     router.replace("/");
+    router.refresh();
+  }, [router]);
+
+  const handleStaffLogout = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    clearAdminHint();
+    setAdminProfile(null);
+    setMobileOpen(false);
     router.refresh();
   }, [router]);
 
@@ -389,7 +590,7 @@ export default function Navbar() {
                   type="button"
                   onClick={() => setShowMemberGuide(true)}
                   className={memberHeaderIconBtn}
-                  title="Member guide"
+                  title="Owner guide"
                 >
                   ?
                 </button>
@@ -427,18 +628,19 @@ export default function Navbar() {
           </div>
           <div className="flex items-center gap-2 ml-2 shrink-0">
             <ThemeToggle />
-            {showAsAdminStaffLink && (
-              <a
-                href="/go/admin"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:inline-block text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors px-2 whitespace-nowrap"
-              >
-                As Admin/Staff
-              </a>
-            )}
             {showAccountMenu && siteProfile && (
-              <PublicAccountDropdown siteProfile={siteProfile} onLogout={() => void handleLogout()} />
+              <PublicAccountDropdown
+                siteProfile={siteProfile}
+                onLogout={() => void handleLogout()}
+                onSwitchRole={switchToStaffContext}
+              />
+            )}
+            {showStaffAccountMenu && adminProfile && (
+              <PublicStaffAccountDropdown
+                adminProfile={adminProfile}
+                onLogout={() => void handleStaffLogout()}
+                onSwitchRole={switchToMemberContext}
+              />
             )}
           </div>
         </div>
@@ -459,25 +661,25 @@ export default function Navbar() {
                 type="button"
                 onClick={() => setShowMemberGuide(true)}
                 className={memberHeaderIconBtn}
-                title="Member guide"
+                title="Owner guide"
               >
                 ?
               </button>
             </>
           )}
           {showAccountMenu && siteProfile && (
-            <PublicAccountDropdown siteProfile={siteProfile} onLogout={() => void handleLogout()} />
+            <PublicAccountDropdown
+              siteProfile={siteProfile}
+              onLogout={() => void handleLogout()}
+              onSwitchRole={switchToStaffContext}
+            />
           )}
-          {showAsAdminStaffLink && (
-            <a
-              href="/go/admin"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sm:hidden text-[10px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-1 max-w-[4.25rem] leading-tight text-center"
-              title="As Admin/Staff (new tab)"
-            >
-              Admin
-            </a>
+          {showStaffAccountMenu && adminProfile && (
+            <PublicStaffAccountDropdown
+              adminProfile={adminProfile}
+              onLogout={() => void handleStaffLogout()}
+              onSwitchRole={switchToMemberContext}
+            />
           )}
           <ThemeToggle />
           <button
@@ -534,16 +736,52 @@ export default function Navbar() {
                   My Heroes
                 </Link>
               )}
-              {showAsAdminStaffLink && (
-                <a
-                  href="/go/admin"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              {showStaffAccountMenu && adminProfile && (
+                <>
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="block text-center px-3 py-2.5 rounded-lg text-sm font-semibold"
+                    style={{
+                      background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
+                      color: "var(--color-badge-text)",
+                    }}
+                  >
+                    Admin console
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      switchToMemberContext();
+                    }}
+                    className="w-full text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  >
+                    Switch role
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      void handleStaffLogout();
+                    }}
+                    className="w-full text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  >
+                    Log out
+                  </button>
+                </>
+              )}
+              {showAccountMenu && siteProfile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    switchToStaffContext();
+                  }}
+                  className="w-full text-center px-3 py-2.5 rounded-lg text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                 >
-                  As Admin/Staff
-                </a>
+                  Switch role
+                </button>
               )}
               {!showMemberHeaderTools && (
                 <button

@@ -33,11 +33,27 @@ export async function GET() {
 
   const countMap = new Map(agg.map((a) => [String(a._id), a.n]));
 
-  const payload = users.map((u) => ({
-    ...u,
-    _id: String(u._id),
-    adoptedHeroCount: countMap.get(String(u._id)) ?? 0,
-  }));
+  const payload = users.map((u) => {
+    const plain = u as Record<string, unknown> & { _id: unknown };
+    return {
+      ...plain,
+      _id: String(u._id),
+      adoptedHeroCount: countMap.get(String(u._id)) ?? 0,
+      emailVerified: plain.emailVerified === true ? true : plain.emailVerified === false ? false : undefined,
+      createdAt:
+        plain.createdAt instanceof Date
+          ? plain.createdAt.toISOString()
+          : typeof plain.createdAt === "string"
+            ? plain.createdAt
+            : undefined,
+      updatedAt:
+        plain.updatedAt instanceof Date
+          ? plain.updatedAt.toISOString()
+          : typeof plain.updatedAt === "string"
+            ? plain.updatedAt
+            : undefined,
+    };
+  });
 
   return NextResponse.json(payload, { headers: noStore });
 }

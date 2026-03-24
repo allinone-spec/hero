@@ -1,12 +1,14 @@
 "use client";
 
+import { AdminLoaderOrbit } from "@/components/ui/AdminLoader";
+
 type SpinnerSize = "xs" | "sm" | "md" | "lg";
 
-const sizeClass: Record<SpinnerSize, string> = {
-  xs: "w-3 h-3 border-2",
-  sm: "w-3.5 h-3.5 border-2",
-  md: "w-4 h-4 border-2",
-  lg: "w-8 h-8 border-[3px]",
+const pixel: Record<SpinnerSize, number> = {
+  xs: 14,
+  sm: 18,
+  md: 26,
+  lg: 44,
 };
 
 type LoadingSpinnerProps = {
@@ -16,13 +18,20 @@ type LoadingSpinnerProps = {
   label?: string;
 };
 
-export default function LoadingSpinner({ size = "sm", className = "", label }: LoadingSpinnerProps) {
+/** Same orbit animation as {@link AdminLoader}, scaled for inline / button use. */
+export default function LoadingSpinner({
+  size = "sm",
+  className = "",
+  label,
+}: LoadingSpinnerProps) {
   return (
     <span
-      className={`inline-block shrink-0 rounded-full border-current border-t-transparent animate-spin ${sizeClass[size]} ${className}`}
+      className={`inline-flex items-center justify-center shrink-0 text-[var(--color-gold)] ${className}`}
       role={label ? "status" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
-    />
+    >
+      <AdminLoaderOrbit size={pixel[size]} variant="inherit" />
+    </span>
   );
 }

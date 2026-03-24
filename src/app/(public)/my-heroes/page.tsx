@@ -74,7 +74,7 @@ export default function MyHeroesPage() {
       <div className="mx-auto max-w-6xl px-4 py-16">
         <SectionHeader
           title="My Heroes"
-          sub="Sign in with your site member account to see heroes you support through adoption."
+          sub="Sign in with your Owner account to see heroes you support through adoption."
         />
         <Link
           href="/login?role=member"
@@ -83,7 +83,7 @@ export default function MyHeroesPage() {
             background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
           }}
         >
-          Member sign in
+          Owner sign in
         </Link>
       </div>
     );

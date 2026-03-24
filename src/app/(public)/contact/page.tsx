@@ -16,19 +16,27 @@ export default function ContactPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Check if user is signed in
-    fetch("/api/auth/me")
-      .then((res) => {
-        if (res.ok) {
+    const opts: RequestInit = { cache: "no-store", credentials: "include" };
+    Promise.all([
+      fetch("/api/site/me", opts).then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/auth/me", opts).then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([site, admin]) => {
+        const siteEmail = site?.email != null ? String(site.email) : "";
+        const adminEmail = admin?.email != null ? String(admin.email) : "";
+        if (siteEmail || adminEmail) {
           setLoggedIn(true);
-          return res.json();
+          if (siteEmail) {
+            setEmail(siteEmail);
+            const siteName = site?.name != null ? String(site.name).trim() : "";
+            setName(siteName || siteEmail.split("@")[0] || "");
+          } else {
+            setEmail(adminEmail);
+            if (admin?.name) setName(String(admin.name));
+          }
+        } else {
+          setLoggedIn(false);
         }
-        setLoggedIn(false);
-        return null;
-      })
-      .then((data) => {
-        if (data?.email) setEmail(data.email);
-        if (data?.name) setName(data.name);
       })
       .catch(() => setLoggedIn(false));
   }, []);

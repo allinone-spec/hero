@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
@@ -22,6 +22,9 @@ export default function SuggestionsPage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [sSearch, setSSearch] = useState("");
+  const [statusOnly, setStatusOnly] = useState<"all" | "new" | "reviewed" | "denied">("all");
+  const [sSort, setSSort] = useState<"date-desc" | "date-asc" | "url" | "submitter">("date-desc");
 
   const fetchSuggestions = async () => {
     try {
@@ -80,6 +83,33 @@ export default function SuggestionsPage() {
 
   if (loading) return <AdminLoader />;
 
+  const filteredSuggestions = useMemo(() => {
+    let r = suggestions;
+    if (sSearch.trim()) {
+      const q = sSearch.toLowerCase();
+      r = r.filter(
+        (s) =>
+          s.wikipediaUrl.toLowerCase().includes(q) ||
+          s.submittedBy.toLowerCase().includes(q)
+      );
+    }
+    if (statusOnly !== "all") {
+      r = r.filter((s) => s.status === statusOnly);
+    }
+    return [...r].sort((a, b) => {
+      switch (sSort) {
+        case "date-asc":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "url":
+          return a.wikipediaUrl.localeCompare(b.wikipediaUrl);
+        case "submitter":
+          return a.submittedBy.localeCompare(b.submittedBy);
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+  }, [suggestions, sSearch, statusOnly, sSort]);
+
   const statusBadge = (status: string) => {
     if (status === "reviewed") {
       return (
@@ -113,9 +143,45 @@ export default function SuggestionsPage() {
           </p>
         </div>
         <span className="text-sm text-[var(--color-text-muted)]">
-          {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""}
+          {filteredSuggestions.length}
+          {filteredSuggestions.length !== suggestions.length
+            ? ` / ${suggestions.length}`
+            : ""}{" "}
+          suggestion{filteredSuggestions.length !== 1 ? "s" : ""}
         </span>
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <input
+            type="text"
+            value={sSearch}
+            onChange={(e) => setSSearch(e.target.value)}
+            placeholder="Search URL or submitter…"
+            className="admin-input text-sm lg:col-span-2"
+          />
+          <select
+            value={statusOnly}
+            onChange={(e) => setStatusOnly(e.target.value as typeof statusOnly)}
+            className="admin-input text-sm"
+          >
+            <option value="all">All statuses</option>
+            <option value="new">New only</option>
+            <option value="reviewed">Accepted</option>
+            <option value="denied">Denied</option>
+          </select>
+          <select
+            value={sSort}
+            onChange={(e) => setSSort(e.target.value as typeof sSort)}
+            className="admin-input text-sm"
+          >
+            <option value="date-desc">Sort: Newest first</option>
+            <option value="date-asc">Sort: Oldest first</option>
+            <option value="url">Sort: URL A–Z</option>
+            <option value="submitter">Sort: Submitter A–Z</option>
+          </select>
+        </div>
+      )}
 
       {/* List */}
       {suggestions.length === 0 ? (
@@ -124,9 +190,13 @@ export default function SuggestionsPage() {
           <p className="text-sm">No suggestions yet.</p>
           <p className="text-xs mt-1">Visitors can submit hero suggestions from the Suggestions page.</p>
         </div>
+      ) : filteredSuggestions.length === 0 ? (
+        <div className="text-center py-12 text-sm text-[var(--color-text-muted)]">
+          No suggestions match your filters.
+        </div>
       ) : (
         <div className="space-y-2">
-          {suggestions.map((s) => (
+          {filteredSuggestions.map((s) => (
             <div
               key={s._id}
               className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"

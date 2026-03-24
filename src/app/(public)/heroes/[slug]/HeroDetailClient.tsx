@@ -211,7 +211,7 @@ function SupportAdoptPanel({
         Support & adopt
       </h3>
       <p className="text-sm text-[var(--color-text-muted)] mb-3">
-        Become the named supporter for this profile and edit the tribute biography and portrait (member account
+        Become the named supporter for this profile and edit the tribute biography and portrait (Owner account
         required). Proceeds help keep the archive online.
       </p>
       <button
@@ -225,7 +225,7 @@ function SupportAdoptPanel({
       {hint && <p className="text-xs text-red-300 mt-2">{hint}</p>}
       {me?.signedIn && (
         <p className="text-xs text-[var(--color-text-muted)] mt-2">
-          You&apos;re signed in as a site member — use the button above to open secure checkout.
+          You&apos;re signed in as an Owner — use the button above to open secure checkout.
         </p>
       )}
       {me && !me.signedIn && (
@@ -233,7 +233,7 @@ function SupportAdoptPanel({
           <Link href="/login?role=member" className="text-[var(--color-gold)] hover:underline">
             Sign in
           </Link>{" "}
-          as a site member before adopting; checkout is tied to your member account.
+          as an Owner before adopting; checkout is tied to your Owner account.
         </p>
       )}
     </div>

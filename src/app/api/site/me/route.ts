@@ -12,7 +12,7 @@ export async function GET() {
   }
 
   await dbConnect();
-  const user = await User.findById(session.sub).select("email role").lean();
+  const user = await User.findById(session.sub).select("email role name").lean();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: noStore });
   }
@@ -22,6 +22,7 @@ export async function GET() {
       id: session.sub,
       email: user.email,
       role: user.role,
+      name: typeof user.name === "string" ? user.name.trim() : "",
     },
     { headers: noStore },
   );

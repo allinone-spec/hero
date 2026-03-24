@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 const SAMPLE = `name,rank,branch,biography,wars,countryCode,published
 John Example,Captain,U.S. Army,Short bio here,Vietnam|GWOT,US,false`;
@@ -74,7 +75,14 @@ export default function AdminHeroCsvImportPage() {
             background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
           }}
         >
-          {loading ? "Importing…" : "Run import"}
+          {loading ? (
+            <span className="inline-flex items-center gap-2">
+              <LoadingSpinner size="sm" className="text-[var(--color-badge-text)]" label="Importing" />
+              Importing…
+            </span>
+          ) : (
+            "Run import"
+          )}
         </button>
       </form>
 

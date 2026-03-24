@@ -13,10 +13,10 @@ export default function GoMemberPage() {
       .then((r) => {
         if (cancelled) return;
         if (r.ok) router.replace("/my-heroes");
-        else router.replace("/login?role=member");
+        else router.replace("/login?role=member&next=" + encodeURIComponent("/my-heroes"));
       })
       .catch(() => {
-        if (!cancelled) router.replace("/login?role=member");
+        if (!cancelled) router.replace("/login?role=member&next=" + encodeURIComponent("/my-heroes"));
       });
     return () => {
       cancelled = true;
@@ -28,7 +28,7 @@ export default function GoMemberPage() {
       className="min-h-screen flex flex-col items-center justify-center gap-4"
       style={{ backgroundColor: "var(--color-bg)" }}
     >
-      <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading member session" />
+      <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading Owner session" />
       <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
     </div>
   );

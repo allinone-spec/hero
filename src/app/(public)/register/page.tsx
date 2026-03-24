@@ -139,7 +139,7 @@ export default function UnifiedRegisterPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Site member
+          Owner
         </button>
         <button
           type="button"
@@ -150,7 +150,7 @@ export default function UnifiedRegisterPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Admin / Staff
+          Admin
         </button>
       </div>
 
@@ -458,8 +458,8 @@ export default function UnifiedRegisterPage() {
           <div>
             <h2 className="text-xl font-bold text-green-500">Request submitted</h2>
             <p className="text-sm text-[var(--color-text-muted)] mt-2 leading-relaxed">
-              Your account request is pending admin approval. You will be able to sign in under &quot;Admin / staff&quot;
-              once an administrator activates your account.
+              Your account request is pending admin approval. You will be able to sign in under &quot;Admin&quot; once an
+              administrator activates your account.
             </p>
           </div>
           <Link

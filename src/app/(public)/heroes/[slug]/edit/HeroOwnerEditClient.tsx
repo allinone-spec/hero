@@ -104,7 +104,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           href={`/login?role=member&next=${encodeURIComponent(`/heroes/${slug}/edit`)}`}
           className="text-[var(--color-gold)] font-medium hover:underline"
         >
-          Member sign in
+          Owner sign in
         </Link>
       </div>
     );

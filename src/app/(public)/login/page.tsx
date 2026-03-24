@@ -93,11 +93,12 @@ export default function UnifiedLoginPage() {
           setNeedsEmailVerifyResend(data.code === "EMAIL_NOT_VERIFIED");
           return;
         }
-        const u = data.user as { email?: string; role?: string } | undefined;
+        const u = data.user as { email?: string; role?: string; name?: string } | undefined;
         if (u?.email) {
           writeSiteMemberHint({
             email: String(u.email),
             role: u.role === "owner" ? "owner" : "user",
+            ...(typeof u.name === "string" && u.name.trim() ? { name: u.name.trim() } : {}),
           });
         }
         window.location.assign(memberNext);
@@ -161,7 +162,7 @@ export default function UnifiedLoginPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Site member
+          Owner
         </button>
         <button
           type="button"
@@ -172,21 +173,21 @@ export default function UnifiedLoginPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Admin / Staff
+          Admin
         </button>
       </div>
 
       <p className="text-xs text-[var(--color-text-muted)] mb-4 leading-relaxed">
         {role === "member"
-          ? "For supporters and adopted-hero editing. New accounts must verify email first (link in your inbox signs you in). Same password as your member account — not your admin request."
+          ? "For supporters and adopted-hero editing. New accounts must verify email first (link in your inbox signs you in). Same password as your Owner account — not your admin request."
           : "For approved archive editors. Use the email and password from your admin account."}
       </p>
 
       {existingSameRoleEmail && (
         <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-sm text-[var(--color-text)] mb-4 leading-relaxed">
-          You’re already signed in{role === "member" ? " as a site member" : " to the admin console"} as{" "}
+          You’re already signed in{role === "member" ? " as an Owner" : " to the admin console"} as{" "}
           <span className="font-semibold text-[var(--color-gold)]">{existingSameRoleEmail}</span>. Submitting this form
-          signs you in as the account below and replaces that session (only one {role === "member" ? "member" : "staff"}{" "}
+          signs you in as the account below and replaces that session (only one {role === "member" ? "Owner" : "Admin"}{" "}
           session can be active in this browser).
         </div>
       )}

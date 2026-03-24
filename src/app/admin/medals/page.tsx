@@ -3,12 +3,13 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { AdminLoader } from "@/components/ui/AdminLoader";
+import { AdminLoader, AdminLoaderOrbit } from "@/components/ui/AdminLoader";
 import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { countryOptionLabel } from "@/lib/country-display";
 
 interface MedalTypeItem {
   _id: string;
@@ -26,11 +27,22 @@ interface MedalTypeItem {
   description: string;
   imageUrl: string;
   ribbonImageUrl: string;
+  countryCode?: string;
 }
 
 const ITEMS_PER_PAGE = 10;
 const CATEGORIES = ["All", "valor", "service", "foreign", "other"];
-type SortOption = "precedence" | "points_desc" | "points_asc" | "name";
+type SortOption =
+  | "precedence"
+  | "points_desc"
+  | "points_asc"
+  | "name"
+  | "tier_asc"
+  | "branch"
+  | "country"
+  | "shortName"
+  | "valor_points_desc"
+  | "category";
 
 /* ── Standard US military decorations reference list ───── */
 interface MedalRef { name: string; imageUrl: string }
@@ -353,7 +365,7 @@ function AutoPopulateModal({
 
   const handleRun = async () => {
     setStatus("loading");
-    setProgress("Asking AI for complete U.S. military medal catalog...");
+    setProgress("Asking AI for this site’s medal catalog (U.S. core, foreign/NATO/UN, scoring fields)...");
     try {
       const res = await fetch("/api/medal-types/auto-populate", { method: "POST" });
       const data = await res.json();
@@ -379,7 +391,10 @@ function AutoPopulateModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in"
-      onClick={(e) => { if (e.target === e.currentTarget && status !== "loading") onClose(); }}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget || status === "loading" || status === "done") return;
+        onClose();
+      }}
     >
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-2xl w-full max-w-md animate-scale-in p-6 space-y-4">
         <div className="flex items-center gap-3">
@@ -391,16 +406,19 @@ function AutoPopulateModal({
           </div>
           <div>
             <h2 className="text-lg font-bold">Auto-Populate Medals</h2>
-            <p className="text-xs text-[var(--color-text-muted)]">Uses Gemini to retrieve medal data</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Uses Gemini for U.S. decorations plus common foreign, NATO, and UN awards
+            </p>
           </div>
         </div>
 
         {status === "confirm" && (
           <>
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
-              This will use the Gemini API to retrieve a complete catalog of U.S. military medals
-              with names, descriptions, scoring data, branch, and precedence order.
-              New medals will be created and existing medals (matched by name) will be updated.
+              Gemini fills this site&apos;s medal catalog with U.S. awards in correct precedence, then a
+              limited set of common foreign, NATO, and UN decorations. Heroism points still follow the
+              U.S. valor table; non-U.S. rows are mainly for display/catalog (typically 0 points). New
+              medals are created and existing ones (matched by name) are updated.
             </p>
             <div className="flex gap-2">
               <button onClick={handleRun} className="btn-primary flex-1">
@@ -413,8 +431,8 @@ function AutoPopulateModal({
 
         {status === "loading" && (
           <div className="text-center py-4 space-y-3">
-            <div className="flex justify-center">
-              <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
+            <div className="flex justify-center text-[var(--color-gold)]">
+              <AdminLoaderOrbit size={48} variant="brand" />
             </div>
             <p className="text-sm text-[var(--color-text-muted)]">{progress}</p>
           </div>
@@ -472,6 +490,11 @@ export default function AdminMedalsPage() {
   // Filters
   const [search, setSearch]         = useState("");
   const [category, setCategory]     = useState("All");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
+  const [valorFilter, setValorFilter] = useState<"all" | "valor" | "nonvalor">("all");
+  const [vDeviceFilter, setVDeviceFilter] = useState<"all" | "requires" | "inherent">("all");
   const [sort, setSort]             = useState<SortOption>("precedence");
   const [page, setPage]             = useState(1);
   const pageRef = useRef(page);
@@ -494,23 +517,91 @@ export default function AdminMedalsPage() {
       });
   }, []);
 
+  const medalBranches = useMemo(() => {
+    const s = new Set<string>();
+    medalTypes.forEach((m) => {
+      if (m.branch) s.add(m.branch);
+    });
+    return Array.from(s).sort();
+  }, [medalTypes]);
+
+  const medalCountries = useMemo(() => {
+    const s = new Set<string>();
+    medalTypes.forEach((m) => s.add((m.countryCode || "US").toUpperCase()));
+    return Array.from(s).sort();
+  }, [medalTypes]);
+
   const filtered = useMemo(() => {
     return medalTypes
       .filter((m) => category === "All" || m.category === category)
-      .filter((m) =>
-        !search ||
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
-        m.shortName.toLowerCase().includes(search.toLowerCase())
+      .filter((m) => branchFilter === "all" || m.branch === branchFilter)
+      .filter(
+        (m) =>
+          countryFilter === "all" ||
+          (m.countryCode || "US").toUpperCase() === countryFilter
       )
+      .filter((m) => {
+        if (tierFilter === "all") return true;
+        if (tierFilter === "4+") return (m.tier ?? 99) >= 4;
+        const t = parseInt(tierFilter, 10);
+        if (Number.isNaN(t)) return true;
+        return (m.tier ?? 99) === t;
+      })
+      .filter((m) => {
+        if (valorFilter === "all") return true;
+        const hasValorPts = (m.basePoints ?? 0) > 0 || (m.valorPoints ?? 0) > 0;
+        return valorFilter === "valor" ? hasValorPts : !hasValorPts;
+      })
+      .filter((m) => {
+        if (vDeviceFilter === "all") return true;
+        if (vDeviceFilter === "requires") return m.requiresValorDevice;
+        return m.inherentlyValor;
+      })
+      .filter((m) => {
+        if (!search) return true;
+        const q = search.toLowerCase();
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.shortName.toLowerCase().includes(q) ||
+          (m.description || "").toLowerCase().includes(q) ||
+          (m.branch || "").toLowerCase().includes(q)
+        );
+      })
       .sort((a, b) => {
         switch (sort) {
-          case "points_desc": return b.basePoints - a.basePoints;
-          case "points_asc":  return a.basePoints - b.basePoints;
-          case "name":        return a.name.localeCompare(b.name);
-          default:            return a.precedenceOrder - b.precedenceOrder;
+          case "points_desc":
+            return b.basePoints - a.basePoints;
+          case "points_asc":
+            return a.basePoints - b.basePoints;
+          case "name":
+            return a.name.localeCompare(b.name);
+          case "tier_asc":
+            return (a.tier ?? 99) - (b.tier ?? 99);
+          case "valor_points_desc":
+            return (b.valorPoints ?? 0) - (a.valorPoints ?? 0);
+          case "branch":
+            return (a.branch || "").localeCompare(b.branch || "");
+          case "country":
+            return (a.countryCode || "US").localeCompare(b.countryCode || "US");
+          case "shortName":
+            return a.shortName.localeCompare(b.shortName);
+          case "category":
+            return a.category.localeCompare(b.category);
+          default:
+            return a.precedenceOrder - b.precedenceOrder;
         }
       });
-  }, [medalTypes, category, search, sort]);
+  }, [
+    medalTypes,
+    category,
+    search,
+    sort,
+    branchFilter,
+    countryFilter,
+    tierFilter,
+    valorFilter,
+    vDeviceFilter,
+  ]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated  = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -605,7 +696,6 @@ export default function AdminMedalsPage() {
       </div>
 
       {/* Add medal picker */}
-      {/* Add medal picker */}
       <div className="flex gap-2 items-center mb-6">
         <MedalPickerDropdown
           value={selectedMedalToAdd}
@@ -631,8 +721,8 @@ export default function AdminMedalsPage() {
 
       {/* Filters */}
       <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 mb-5 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative w-full sm:w-1/2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="relative sm:col-span-2 lg:col-span-2">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]"
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -644,38 +734,118 @@ export default function AdminMedalsPage() {
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search medals..."
-              className="admin-input !pl-10 text-sm"
+              placeholder="Search name, short name, description, branch…"
+              className="admin-input !pl-10 text-sm w-full"
             />
           </div>
           <select
             value={category}
             onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-            className="admin-input w-full sm:w-auto text-sm"
+            className="admin-input text-sm"
           >
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c === "All" ? "All Categories" : c.charAt(0).toUpperCase() + c.slice(1)}</option>
+              <option key={c} value={c}>{c === "All" ? "All categories" : c.charAt(0).toUpperCase() + c.slice(1)}</option>
             ))}
+          </select>
+          <select
+            value={branchFilter}
+            onChange={(e) => { setBranchFilter(e.target.value); setPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All branches</option>
+            {medalBranches.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+          <select
+            value={countryFilter}
+            onChange={(e) => { setCountryFilter(e.target.value); setPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All countries</option>
+            {medalCountries.map((c) => (
+              <option key={c} value={c}>{countryOptionLabel(c)}</option>
+            ))}
+          </select>
+          <select
+            value={tierFilter}
+            onChange={(e) => { setTierFilter(e.target.value); setPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All tiers</option>
+            <option value="1">Tier 1</option>
+            <option value="2">Tier 2</option>
+            <option value="3">Tier 3</option>
+            <option value="4+">Tier 4+</option>
+          </select>
+          <select
+            value={valorFilter}
+            onChange={(e) => {
+              setValorFilter(e.target.value as "all" | "valor" | "nonvalor");
+              setPage(1);
+            }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All point values</option>
+            <option value="valor">Has base/valor points</option>
+            <option value="nonvalor">Zero base &amp; valor points</option>
+          </select>
+          <select
+            value={vDeviceFilter}
+            onChange={(e) => {
+              setVDeviceFilter(e.target.value as "all" | "requires" | "inherent");
+              setPage(1);
+            }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All V-device rules</option>
+            <option value="requires">Requires V for valor</option>
+            <option value="inherent">Inherently valor</option>
           </select>
           <select
             value={sort}
             onChange={(e) => { setSort(e.target.value as SortOption); setPage(1); }}
-            className="admin-input w-full sm:w-auto text-sm"
+            className="admin-input text-sm lg:col-span-2"
           >
-            <option value="precedence">Precedence Order</option>
-            <option value="points_desc">Points: High to Low</option>
-            <option value="points_asc">Points: Low to High</option>
-            <option value="name">Name A-Z</option>
+            <option value="precedence">Sort: Precedence</option>
+            <option value="points_desc">Sort: Base points high → low</option>
+            <option value="points_asc">Sort: Base points low → high</option>
+            <option value="valor_points_desc">Sort: Valor points high → low</option>
+            <option value="tier_asc">Sort: Tier 1 first</option>
+            <option value="category">Sort: Category A–Z</option>
+            <option value="name">Sort: Name A–Z</option>
+            <option value="shortName">Sort: Short name A–Z</option>
+            <option value="branch">Sort: Branch A–Z</option>
+            <option value="country">Sort: Country code A–Z</option>
           </select>
         </div>
 
-        {(search || category !== "All") && (
+        {(
+          search ||
+          category !== "All" ||
+          branchFilter !== "all" ||
+          countryFilter !== "all" ||
+          tierFilter !== "all" ||
+          valorFilter !== "all" ||
+          vDeviceFilter !== "all"
+        ) && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-[var(--color-text-muted)]">
               {filtered.length} of {medalTypes.length} medals
             </p>
             <button
-              onClick={() => { setSearch(""); setCategory("All"); setSort("precedence"); setPage(1); }}
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setCategory("All");
+                setBranchFilter("all");
+                setCountryFilter("all");
+                setTierFilter("all");
+                setValorFilter("all");
+                setVDeviceFilter("all");
+                setSort("precedence");
+                setPage(1);
+              }}
               className="text-xs text-[var(--color-gold)] hover:underline"
             >
               Clear filters
@@ -814,7 +984,6 @@ export default function AdminMedalsPage() {
           onClose={() => setShowAutoPopulate(false)}
           onComplete={(medals) => {
             setMedalTypes(medals);
-            setShowAutoPopulate(false);
           }}
         />
       )}

@@ -39,7 +39,7 @@ export async function sendSiteMemberVerificationEmail(
   <div style="padding:36px 28px;text-align:center;color:#e5e5e5">
     <h1 style="font-size:20px;margin:0 0 16px;color:#f5f5f5">Confirm your email</h1>
     <p style="font-size:15px;color:#a3a3a3;line-height:1.6;margin:0 0 24px">
-      Thanks for signing up as a site member. Open the link below, then click <strong>Verify email and sign in</strong> on the next page. You&apos;ll be signed in automatically — no password needed.
+      Thanks for signing up as an Owner. Open the link below, then click <strong>Verify email and sign in</strong> on the next page. You&apos;ll be signed in automatically — no password needed.
     </p>
     <div style="margin:28px 0">
       <a href="${verifyUrl}" style="background:linear-gradient(135deg,#c07b08,#e3a826);color:#1a1000;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block">

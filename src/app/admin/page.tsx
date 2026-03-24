@@ -111,15 +111,6 @@ function AdminDashboard() {
     { _id: string; name: string; rank: string; branch: string; score: number; published: boolean; avatarUrl?: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
-  /** false = staff-only in this browser — show "As Site Member" card; true/null = hide */
-  const [hasSiteMemberSession, setHasSiteMemberSession] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    fetch("/api/site/me", { cache: "no-store", credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => setHasSiteMemberSession(Boolean(j?.email)))
-      .catch(() => setHasSiteMemberSession(false));
-  }, []);
 
   useEffect(() => {
     const safeFetch = (url: string) =>
@@ -273,21 +264,6 @@ function AdminDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ── Open member area in new tab (staff-only session) ───────── */}
-      {hasSiteMemberSession !== true && (
-        <div className="hero-card p-4 flex items-center justify-between">
-          <div>
-            <p className="font-medium">Public Archive</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              Open the site as a member (new tab)
-            </p>
-          </div>
-          <Link href="/go/member" target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm shrink-0">
-            As Site Member →
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

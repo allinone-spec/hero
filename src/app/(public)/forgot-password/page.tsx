@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Site member
+          Owner
         </button>
         <button
           type="button"
@@ -87,7 +87,7 @@ export default function ForgotPasswordPage() {
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           }`}
         >
-          Admin / staff
+          Admin
         </button>
       </div>
 

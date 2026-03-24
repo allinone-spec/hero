@@ -6,7 +6,9 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: "user" | "owner";
-  /** When explicitly false, member must verify email before login. Omitted/undefined = legacy accounts treated as verified. */
+  createdAt?: Date;
+  updatedAt?: Date;
+  /** When explicitly false, Owner must verify email before login. Omitted/undefined = legacy accounts treated as verified. */
   emailVerified?: boolean;
   emailVerifyTokenHash?: string;
   emailVerifyExpires?: Date;
@@ -31,7 +33,7 @@ const UserSchema: Schema<IUser> = new Schema({
   emailVerifyExpires: { type: Date },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
-});
+}, { timestamps: true });
 
 UserSchema.pre<IUser>('save', async function () {
   if (!this.isModified('password')) {

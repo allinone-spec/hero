@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import { useAlert, useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
@@ -41,6 +41,10 @@ export default function AdminWarsPage() {
   const [showForm, setShowForm]   = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError]         = useState("");
+  const [warSearch, setWarSearch] = useState("");
+  const [theaterFilter, setTheaterFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  const [sortWars, setSortWars] = useState<"start-desc" | "start-asc" | "name" | "theater" | "end-desc">("start-desc");
 
   /* ── Fetch wars ──────────────────────────────────────────── */
 
@@ -59,6 +63,51 @@ export default function AdminWarsPage() {
   }, []);
 
   useEffect(() => { fetchWars(); }, [fetchWars]);
+
+  const theatersInUse = useMemo(() => {
+    const s = new Set<string>();
+    wars.forEach((w) => {
+      const t = (w.theater || "").trim();
+      if (t) s.add(t);
+    });
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [wars]);
+
+  const filteredWars = useMemo(() => {
+    let r = wars;
+    if (warSearch.trim()) {
+      const q = warSearch.toLowerCase();
+      r = r.filter(
+        (w) =>
+          w.name.toLowerCase().includes(q) ||
+          (w.theater || "").toLowerCase().includes(q) ||
+          (w.description || "").toLowerCase().includes(q) ||
+          String(w.startYear).includes(q)
+      );
+    }
+    if (theaterFilter !== "all") {
+      r = r.filter((w) => (w.theater || "").trim() === theaterFilter);
+    }
+    if (activeFilter === "active") r = r.filter((w) => w.active);
+    if (activeFilter === "inactive") r = r.filter((w) => !w.active);
+    return [...r].sort((a, b) => {
+      switch (sortWars) {
+        case "start-asc":
+          return a.startYear - b.startYear;
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "theater":
+          return (a.theater || "").localeCompare(b.theater || "");
+        case "end-desc": {
+          const ae = a.endYear ?? 9999;
+          const be = b.endYear ?? 9999;
+          return be - ae;
+        }
+        default:
+          return b.startYear - a.startYear;
+      }
+    });
+  }, [wars, warSearch, theaterFilter, activeFilter, sortWars]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -233,6 +282,48 @@ export default function AdminWarsPage() {
         </div>
       )}
 
+      {!loading && wars.length > 0 && (
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <input
+            type="text"
+            value={warSearch}
+            onChange={(e) => setWarSearch(e.target.value)}
+            placeholder="Search name, theater, year, description…"
+            className="admin-input text-sm lg:col-span-2"
+          />
+          <select
+            value={theaterFilter}
+            onChange={(e) => setTheaterFilter(e.target.value)}
+            className="admin-input text-sm"
+          >
+            <option value="all">All theaters</option>
+            {theatersInUse.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as "all" | "active" | "inactive")}
+            className="admin-input text-sm"
+          >
+            <option value="all">Active + inactive</option>
+            <option value="active">Active only</option>
+            <option value="inactive">Inactive only</option>
+          </select>
+          <select
+            value={sortWars}
+            onChange={(e) => setSortWars(e.target.value as typeof sortWars)}
+            className="admin-input text-sm"
+          >
+            <option value="start-desc">Sort: Start year (newest)</option>
+            <option value="start-asc">Sort: Start year (oldest)</option>
+            <option value="end-desc">Sort: End year</option>
+            <option value="name">Sort: Name A–Z</option>
+            <option value="theater">Sort: Theater A–Z</option>
+          </select>
+        </div>
+      )}
+
       {/* Form modal */}
       {showForm && (
         <>
@@ -349,7 +440,12 @@ export default function AdminWarsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {wars.map((war, idx) => (
+          {filteredWars.length === 0 && wars.length > 0 && (
+            <p className="text-center text-sm text-[var(--color-text-muted)] py-8">
+              No wars match your filters.
+            </p>
+          )}
+          {filteredWars.map((war, idx) => (
             <div
               key={war._id}
               className="hero-card p-4 flex items-center gap-4 animate-fade-in-up"
@@ -408,7 +504,8 @@ export default function AdminWarsPage() {
       {/* Stats */}
       {!loading && wars.length > 0 && (
         <p className="text-xs text-[var(--color-text-muted)] text-center">
-          {wars.length} war{wars.length !== 1 ? "s" : ""} &middot; {wars.filter(w => w.active).length} active
+          Showing {filteredWars.length} of {wars.length} war{wars.length !== 1 ? "s" : ""}
+          {" "}&middot; {wars.filter((w) => w.active).length} active total
         </p>
       )}
     </div>

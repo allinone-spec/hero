@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   try {
     checkout = await stripe.checkout.sessions.create({
       mode: "payment",
-      /** Prefill email so Link / Checkout can match the member account and send receipts. */
+      /** Prefill email so Link / Checkout can match the Owner account and send receipts. */
       ...(session.email ? { customer_email: session.email } : {}),
       line_items: [
         {

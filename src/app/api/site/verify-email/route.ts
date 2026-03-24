@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   await logActivity({
     action: "login",
     category: "auth",
-    description: "Site member verified email (auto sign-in)",
+    description: "Owner verified email (auto sign-in)",
     userEmail: user.email,
   });
 

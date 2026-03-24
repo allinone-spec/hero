@@ -42,13 +42,18 @@ export async function POST(req: NextRequest) {
     await logActivity({
       action: "login",
       category: "auth",
-      description: "Site member logged in",
+      description: "Owner signed in",
       userEmail: user.email,
     });
 
     const response = NextResponse.json({
       success: true,
-      user: { id: user._id.toString(), email: user.email, role: user.role },
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role,
+        name: typeof user.name === "string" ? user.name.trim() : "",
+      },
     });
     setSiteUserCookie(response, token);
     return response;

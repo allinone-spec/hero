@@ -1,12 +1,12 @@
 # Medals N Bongs — Heroes Archive
 
-Next.js app for a public military honors archive (USM-25 scoring, medals, hero profiles), site-member accounts, Stripe hero adoption, and an admin/staff console.
+Next.js app for a public military honors archive (USM-25 scoring, medals, hero profiles), site-member accounts, Stripe hero adoption, and an admin console.
 
 ## Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript  
 - **Data:** MongoDB (Mongoose)  
-- **Auth:** JWT cookies — separate sessions for **admin/staff** and **site members**  
+- **Auth:** JWT cookies — separate sessions for **Admins** and **Owners** (public accounts)  
 - **Email:** [Resend](https://resend.com) (verification, password reset)  
 - **Media:** Cloudinary  
 - **Payments:** Stripe (adoptions, optional “coffee” flow)  
@@ -285,7 +285,7 @@ npm run seed
 ## Project layout (high level)
 
 - `src/app/(public)/` — Public site (rankings, medals, member login/register, verify email, my heroes)  
-- `src/app/admin/` — Staff console (heroes, medals, scoring, users, site members, etc.)  
+- `src/app/admin/` — Staff console (heroes, medals, scoring, users, Owners, etc.)  
 - `src/app/api/` — API routes (auth, site auth, Stripe, admin, etc.)  
 - `src/lib/` — DB models, auth, email, public URL helpers, session hints, etc.
 

@@ -9,6 +9,8 @@ import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { HERO_METADATA_TAGS } from "@/lib/metadata-tags";
+import { countryOptionLabel } from "@/lib/country-display";
 
 /* ── Types ────────────────────────────────────────────────── */
 
@@ -21,6 +23,15 @@ interface HeroItem {
   published: boolean;
   slug: string;
   avatarUrl?: string;
+  countryCode?: string;
+  comparisonScore?: number | null;
+  wars?: string[];
+  combatAchievements?: { type?: string };
+  metadataTags?: string[];
+  medals?: unknown[];
+  ownerUserId?: string | null;
+  orderOverride?: number | null;
+  updatedAt?: string;
 }
 
 interface MedalTypeOption {
@@ -72,8 +83,53 @@ interface ImportFormData {
 }
 
 type StatusFilter = "all" | "published" | "draft";
-type SortOption = "name-asc" | "name-desc" | "score-desc" | "score-asc" | "branch-asc";
+type SortOption =
+  | "name-asc"
+  | "name-desc"
+  | "score-desc"
+  | "score-asc"
+  | "branch-asc"
+  | "rank-asc"
+  | "country-asc"
+  | "comparison-desc"
+  | "comparison-asc"
+  | "medals-desc"
+  | "medals-asc"
+  | "updated-desc"
+  | "updated-asc"
+  | "display-order";
 type ImportStep = "url" | "review";
+
+const COMBAT_TYPE_LABELS: Record<string, string> = {
+  none: "No combat specialty",
+  infantry: "Infantry",
+  armor: "Armor",
+  artillery: "Artillery",
+  aviation: "Aviation",
+  airborne: "Airborne",
+  special_operations: "Special operations",
+  submarine: "Submarine",
+  surface: "Surface / naval",
+  amphibious: "Amphibious",
+  reconnaissance: "Reconnaissance",
+  air_defense: "Air defense",
+  engineering: "Engineering",
+  signal: "Signal",
+  intelligence: "Intelligence",
+  medical: "Medical",
+  logistics: "Logistics",
+  chemical: "Chemical",
+  electronic_warfare: "Electronic warfare",
+  cyber: "Cyber",
+  military_police: "Military police",
+  ordnance: "Ordnance",
+  sniper: "Sniper",
+  marine: "Marine",
+};
+
+function heroMedalCount(h: HeroItem): number {
+  return Array.isArray(h.medals) ? h.medals.length : 0;
+}
 
 const ITEMS_PER_PAGE = 15;
 
@@ -133,6 +189,12 @@ export default function AdminHeroesPage() {
   const [branchFilter, setBranchFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("score-desc");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [warFilter, setWarFilter] = useState("all");
+  const [combatFilter, setCombatFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [medalMinFilter, setMedalMinFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState<"all" | "claimed" | "unclaimed">("all");
 
   // Import modal state
   const [showImport, setShowImport] = useState(false);
@@ -176,6 +238,38 @@ export default function AdminHeroesPage() {
     return Array.from(set).sort();
   }, [heroes]);
 
+  const countries = useMemo(() => {
+    const set = new Set<string>();
+    heroes.forEach((h) => {
+      const c = (h.countryCode || "US").toUpperCase();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort();
+  }, [heroes]);
+
+  const warsInUse = useMemo(() => {
+    const set = new Set<string>();
+    heroes.forEach((h) => {
+      (h.wars || []).forEach((w) => {
+        if (w && String(w).trim()) set.add(String(w).trim());
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [heroes]);
+
+  const combatTypesInUse = useMemo(() => {
+    const set = new Set<string>();
+    heroes.forEach((h) => {
+      const t = h.combatAchievements?.type || "none";
+      set.add(t);
+    });
+    return Array.from(set).sort((a, b) => {
+      const la = COMBAT_TYPE_LABELS[a] || a;
+      const lb = COMBAT_TYPE_LABELS[b] || b;
+      return la.localeCompare(lb);
+    });
+  }, [heroes]);
+
   const handleDelete = async (id: string, name: string) => {
     const ok = await confirm({
       title: "Delete hero",
@@ -203,34 +297,65 @@ export default function AdminHeroesPage() {
     }
   };
 
-  // Filter heroes based on search, branch, and status
+  // Filter heroes based on search, branch, status, country, wars, tags, etc.
   const filtered = useMemo(() => {
     let result = heroes;
 
-    // Text search
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
         (h) =>
           h.name.toLowerCase().includes(q) ||
           h.rank.toLowerCase().includes(q) ||
-          (h.branch || "").toLowerCase().includes(q)
+          (h.branch || "").toLowerCase().includes(q) ||
+          (h.slug || "").toLowerCase().includes(q) ||
+          (h.countryCode || "").toLowerCase().includes(q) ||
+          (h.metadataTags || []).some((t) => t.toLowerCase().includes(q)) ||
+          (h.wars || []).some((w) => String(w).toLowerCase().includes(q))
       );
     }
 
-    // Branch filter
     if (branchFilter !== "all") {
       result = result.filter((h) => h.branch === branchFilter);
     }
 
-    // Status filter
     if (statusFilter === "published") {
       result = result.filter((h) => h.published);
     } else if (statusFilter === "draft") {
       result = result.filter((h) => !h.published);
     }
 
-    // Sort
+    if (countryFilter !== "all") {
+      result = result.filter((h) => (h.countryCode || "US").toUpperCase() === countryFilter);
+    }
+
+    if (warFilter !== "all") {
+      result = result.filter((h) => (h.wars || []).some((w) => String(w).trim() === warFilter));
+    }
+
+    if (combatFilter !== "all") {
+      result = result.filter(
+        (h) => (h.combatAchievements?.type || "none") === combatFilter
+      );
+    }
+
+    if (tagFilter !== "all") {
+      result = result.filter((h) => (h.metadataTags || []).includes(tagFilter));
+    }
+
+    if (medalMinFilter !== "all") {
+      const min = parseInt(medalMinFilter, 10);
+      if (!Number.isNaN(min)) {
+        result = result.filter((h) => heroMedalCount(h) >= min);
+      }
+    }
+
+    if (ownerFilter === "claimed") {
+      result = result.filter((h) => Boolean(h.ownerUserId));
+    } else if (ownerFilter === "unclaimed") {
+      result = result.filter((h) => !h.ownerUserId);
+    }
+
     result = [...result].sort((a, b) => {
       switch (sortOption) {
         case "name-asc":
@@ -243,13 +368,66 @@ export default function AdminHeroesPage() {
           return a.score - b.score;
         case "branch-asc":
           return (a.branch || "").localeCompare(b.branch || "");
+        case "rank-asc":
+          return (a.rank || "").localeCompare(b.rank || "");
+        case "country-asc":
+          return (a.countryCode || "US").localeCompare(b.countryCode || "US");
+        case "comparison-desc": {
+          const ac = a.comparisonScore;
+          const bc = b.comparisonScore;
+          if (ac == null && bc == null) return 0;
+          if (ac == null) return 1;
+          if (bc == null) return -1;
+          return bc - ac;
+        }
+        case "comparison-asc": {
+          const ac = a.comparisonScore;
+          const bc = b.comparisonScore;
+          if (ac == null && bc == null) return 0;
+          if (ac == null) return 1;
+          if (bc == null) return -1;
+          return ac - bc;
+        }
+        case "medals-desc":
+          return heroMedalCount(b) - heroMedalCount(a);
+        case "medals-asc":
+          return heroMedalCount(a) - heroMedalCount(b);
+        case "updated-desc":
+          return (
+            new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+          );
+        case "updated-asc":
+          return (
+            new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime()
+          );
+        case "display-order": {
+          const ao = a.orderOverride;
+          const bo = b.orderOverride;
+          if (ao != null && bo != null && ao !== bo) return ao - bo;
+          if (ao != null && bo == null) return -1;
+          if (ao == null && bo != null) return 1;
+          if (b.score !== a.score) return b.score - a.score;
+          return a.name.localeCompare(b.name);
+        }
         default:
           return 0;
       }
     });
 
     return result;
-  }, [heroes, search, branchFilter, statusFilter, sortOption]);
+  }, [
+    heroes,
+    search,
+    branchFilter,
+    statusFilter,
+    sortOption,
+    countryFilter,
+    warFilter,
+    combatFilter,
+    tagFilter,
+    medalMinFilter,
+    ownerFilter,
+  ]);
 
   // Page resets to 1 inline in filter onChange handlers below
 
@@ -568,68 +746,142 @@ export default function AdminHeroesPage() {
       </div>
 
       {/* Search + Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {/* Search */}
-        <div className="relative sm:col-span-2 lg:col-span-1">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 mb-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="relative lg:col-span-2 xl:col-span-2">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+              placeholder="Search name, rank, branch, slug, country, wars, tags…"
+              className="admin-input !pl-10 text-sm w-full"
             />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            placeholder="Filter by name, rank, or branch..."
-            className="admin-input !pl-10 text-sm w-full"
-          />
+          </div>
+
+          <select
+            value={branchFilter}
+            onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All branches</option>
+            {branches.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+
+          <select
+            value={countryFilter}
+            onChange={(e) => { setCountryFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All countries</option>
+            {countries.map((c) => (
+              <option key={c} value={c}>{countryOptionLabel(c)}</option>
+            ))}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All status</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+
+          <select
+            value={warFilter}
+            onChange={(e) => { setWarFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All wars</option>
+            {warsInUse.map((w) => (
+              <option key={w} value={w}>{w}</option>
+            ))}
+          </select>
+
+          <select
+            value={combatFilter}
+            onChange={(e) => { setCombatFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All combat types</option>
+            {combatTypesInUse.map((t) => (
+              <option key={t} value={t}>{COMBAT_TYPE_LABELS[t] || t}</option>
+            ))}
+          </select>
+
+          <select
+            value={tagFilter}
+            onChange={(e) => { setTagFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All tags</option>
+            {HERO_METADATA_TAGS.map((t) => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={medalMinFilter}
+            onChange={(e) => { setMedalMinFilter(e.target.value); setCurrentPage(1); }}
+            className="admin-input text-sm"
+          >
+            <option value="all">Any medal count</option>
+            <option value="1">1+ medals</option>
+            <option value="3">3+ medals</option>
+            <option value="5">5+ medals</option>
+            <option value="10">10+ medals</option>
+          </select>
+
+          <select
+            value={ownerFilter}
+            onChange={(e) => {
+              setOwnerFilter(e.target.value as "all" | "claimed" | "unclaimed");
+              setCurrentPage(1);
+            }}
+            className="admin-input text-sm"
+          >
+            <option value="all">All adoption</option>
+            <option value="claimed">Claimed (has owner)</option>
+            <option value="unclaimed">Unclaimed</option>
+          </select>
+
+          <select
+            value={sortOption}
+            onChange={(e) => { setSortOption(e.target.value as SortOption); setCurrentPage(1); }}
+            className="admin-input text-sm lg:col-span-2"
+          >
+            <option value="score-desc">Sort: Score high → low</option>
+            <option value="score-asc">Sort: Score low → high</option>
+            <option value="display-order">Sort: Public leaderboard order</option>
+            <option value="name-asc">Sort: Name A–Z</option>
+            <option value="name-desc">Sort: Name Z–A</option>
+            <option value="branch-asc">Sort: Branch A–Z</option>
+            <option value="rank-asc">Sort: Rank A–Z</option>
+            <option value="country-asc">Sort: Country code A–Z</option>
+            <option value="comparison-desc">Sort: Comparison score high → low</option>
+            <option value="comparison-asc">Sort: Comparison score low → high</option>
+            <option value="medals-desc">Sort: Most medals</option>
+            <option value="medals-asc">Sort: Fewest medals</option>
+            <option value="updated-desc">Sort: Recently updated</option>
+            <option value="updated-asc">Sort: Oldest update</option>
+          </select>
         </div>
-
-        {/* Branch filter */}
-        <select
-          value={branchFilter}
-          onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
-          className="admin-input text-sm"
-        >
-          <option value="all">All Branches</option>
-          {branches.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setCurrentPage(1); }}
-          className="admin-input text-sm"
-        >
-          <option value="all">All Status</option>
-          <option value="published">Published</option>
-          <option value="draft">Draft</option>
-        </select>
-
-        {/* Sort */}
-        <select
-          value={sortOption}
-          onChange={(e) => { setSortOption(e.target.value as SortOption); setCurrentPage(1); }}
-          className="admin-input text-sm"
-        >
-          <option value="score-desc">Score: High to Low</option>
-          <option value="score-asc">Score: Low to High</option>
-          <option value="name-asc">Name: A-Z</option>
-          <option value="name-desc">Name: Z-A</option>
-          <option value="branch-asc">Branch: A-Z</option>
-        </select>
       </div>
 
       {/* Results summary */}
@@ -680,6 +932,8 @@ export default function AdminHeroesPage() {
                 <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
                   {hero.rank}
                   {hero.branch ? ` \u00B7 ${hero.branch}` : ""}
+                  <span className="opacity-80">{` \u00B7 ${(hero.countryCode || "US").toUpperCase()}`}</span>
+                  <span className="opacity-70">{` \u00B7 ${heroMedalCount(hero)} medal${heroMedalCount(hero) === 1 ? "" : "s"}`}</span>
                 </p>
               </div>
 

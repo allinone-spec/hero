@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import HeroCard from "@/components/heroes/HeroCard";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import Pagination from "@/components/ui/Pagination";
+import { countryOptionLabel } from "@/lib/country-display";
 
 const SPECIALTY_LABELS: Record<string, string> = {
   infantry: "Infantry",
@@ -73,9 +74,25 @@ interface HeroData {
   combatAchievements?: {
     type: string;
   };
+  /** Present on rankings payload: active Owner adoption (no owner user id exposed). */
+  memberSupported?: boolean;
+  countryCode?: string;
+  comparisonScore?: number | null;
 }
 
-type SortOption = "score_desc" | "score_asc" | "name" | "medals_desc";
+type SortOption =
+  | "score_desc"
+  | "score_asc"
+  | "name"
+  | "medals_desc"
+  | "comparison_desc"
+  | "comparison_asc";
+
+function normalizedCountryCode(h: HeroData): string {
+  const raw = (h.countryCode ?? "").toString().trim().toUpperCase();
+  if (!raw || raw === "US") return "US";
+  return raw;
+}
 
 /* ── Avatar search dropdown ──────────────────────────────── */
 function AvatarSearch({
@@ -216,15 +233,19 @@ function Pill({
 export default function HeroListClient({
   heroes,
   profileFrom = "heroes",
+  userTab = false,
 }: {
   heroes: HeroData[];
   profileFrom?: "heroes" | "rankings";
+  /** User tab on rankings: copy tuned for Owner-supported subset. */
+  userTab?: boolean;
 }) {
   const searchParams = useSearchParams();
   const [search, setSearch]       = useState("");
   const [branch, setBranch]       = useState("All");
   const [war, setWar]             = useState("All");
   const [specialty, setSpecialty] = useState("All");
+  const [country, setCountry]     = useState("All");
   const [sort, setSort]           = useState<SortOption>("score_desc");
   const [page, setPage]           = useState(1);
   const pageRef = useRef(page);
@@ -234,9 +255,14 @@ export default function HeroListClient({
   // Derive unique filter values
   const branches = ["All", ...Array.from(new Set(heroes.map((h) => h.branch).filter(Boolean))).sort()];
   const wars     = ["All", ...Array.from(new Set(heroes.flatMap((h) => h.wars ?? []))).sort()];
+  const countries = [
+    "All",
+    ...Array.from(new Set(heroes.map((h) => normalizedCountryCode(h)))).sort((a, b) => a.localeCompare(b)),
+  ];
   const ALL_SPECIALTIES = Object.keys(SPECIALTY_LABELS);
   const heroSpecialties = ALL_SPECIALTIES.filter((s) => heroes.some((h) => h.combatAchievements?.type === s));
   const specialties: string[] = ["All", ...heroSpecialties];
+  const hasComparisonScores = heroes.some((h) => h.comparisonScore != null && Number.isFinite(Number(h.comparisonScore)));
 
   // Seed filters from URL params on mount, or restore page from sessionStorage
   useEffect(() => {
@@ -244,12 +270,19 @@ export default function HeroListClient({
     const pSpecialty = searchParams.get("specialty");
     const pSort = searchParams.get("sort");
     const pWar = searchParams.get("war");
-    const hasUrlParams = pBranch || pSpecialty || pSort || pWar;
+    const pCountry = searchParams.get("country");
+    const hasUrlParams = pBranch || pSpecialty || pSort || pWar || pCountry;
 
     if (pBranch && branches.includes(pBranch)) setBranch(pBranch);
     if (pSpecialty && (pSpecialty === "All" || SPECIALTY_LABELS[pSpecialty])) setSpecialty(pSpecialty);
-    if (pSort && ["score_desc", "score_asc", "name", "medals_desc"].includes(pSort)) setSort(pSort as SortOption);
+    if (
+      pSort &&
+      ["score_desc", "score_asc", "name", "medals_desc", "comparison_desc", "comparison_asc"].includes(pSort)
+    ) {
+      setSort(pSort as SortOption);
+    }
     if (pWar && wars.includes(pWar)) setWar(pWar);
+    if (pCountry && countries.includes(pCountry.toUpperCase())) setCountry(pCountry.toUpperCase());
 
     // Only restore page from sessionStorage if no URL params drove us here
     if (!hasUrlParams) {
@@ -268,10 +301,15 @@ export default function HeroListClient({
     .filter((h) => branch === "All" || h.branch === branch)
     .filter((h) => war === "All" || (h.wars ?? []).includes(war))
     .filter((h) => specialty === "All" || h.combatAchievements?.type === specialty)
+    .filter((h) => country === "All" || normalizedCountryCode(h) === country)
     .sort((a, b) => {
       if (sort === "score_desc") return b.score - a.score;
-      if (sort === "score_asc")  return a.score - b.score;
+      if (sort === "score_asc") return a.score - b.score;
       if (sort === "medals_desc") return totalMedalCount(b) - totalMedalCount(a);
+      if (sort === "comparison_desc")
+        return (Number(b.comparisonScore) || -1) - (Number(a.comparisonScore) || -1);
+      if (sort === "comparison_asc")
+        return (Number(a.comparisonScore) || -1) - (Number(b.comparisonScore) || -1);
       return a.name.localeCompare(b.name);
     });
 
@@ -296,86 +334,132 @@ export default function HeroListClient({
     .map((w) => ({ war: w, count: heroes.filter((h) => (h.wars ?? []).includes(w)).length }))
     .sort((a, b) => b.count - a.count);
 
+  const countryCounts = countries
+    .filter((c) => c !== "All")
+    .map((c) => ({ code: c, count: heroes.filter((h) => normalizedCountryCode(h) === c).length }))
+    .sort((a, b) => b.count - a.count);
+
   const highestScore = heroes.reduce((max, h) => Math.max(max, h.score), 0);
+
+  const filtersActive =
+    search || branch !== "All" || war !== "All" || specialty !== "All" || country !== "All";
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
       {/* ── Left: list + filters ────────────────────────── */}
       <div className="flex-1 min-w-0">
-        {/* Filter bar */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-4 mb-5 space-y-3">
-          {/* Row 2: branch filter */}
-          {branches.length > 2 && (
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium">Branch:</span>
-              {branches.map((b) => (
-                <Pill
-                  key={b}
-                  label={b === "All" ? "All Branches" : b.replace("U.S. ", "")}
-                  active={branch === b}
-                  onClick={() => handleFilterChange(() => setBranch(b))}
-                />
-              ))}
-            </div>
-          )}
-          {/* Row 3: war filter */}
-          {wars.length > 2 && (
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium">Era:</span>
-              {wars.map((w) => (
-                <Pill
-                  key={w}
-                  label={w === "All" ? "All Eras" : w}
-                  active={war === w}
-                  onClick={() => handleFilterChange(() => setWar(w))}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Row 4: specialty filter */}
-          {specialties.length > 1 && (
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium">Specialty:</span>
-              {specialties.map((s) => (
-                <Pill
-                  key={s}
-                  label={s === "All" ? "All Specialties" : SPECIALTY_LABELS[s] || s}
-                  active={specialty === s}
-                  onClick={() => handleFilterChange(() => setSpecialty(s))}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        {/* Row 1: search + sort */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <AvatarSearch
-              heroes={heroes}
-              profileFrom={profileFrom}
-              onQueryChange={(q) => handleFilterChange(() => setSearch(q))}
-            />
-            <select
-              value={sort}
-              onChange={(e) => handleFilterChange(() => setSort(e.target.value as typeof sort))}
-              className="admin-input w-full sm:flex-1 text-sm"
-            >
-              <option value="score_desc">Score: High to Low</option>
-              <option value="score_asc">Score: Low to High</option>
-              <option value="medals_desc">Most Medals</option>
-              <option value="name">Name A-Z</option>
-            </select>
+        {userTab && (
+          <div className="mb-4 rounded-lg border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/5 px-3 py-2 text-xs text-[var(--color-text-muted)]">
+            Showing <strong className="text-[var(--color-text)]">Owner-supported</strong> hero profiles only (active
+            adoption). Use categories and sort below to narrow the list.
           </div>
-        {/* Results count */}
+        )}
+
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-4 mb-5 space-y-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)] mb-2">Categories</p>
+            <div className="space-y-3">
+              {branches.length > 2 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium shrink-0">Branch</span>
+                  {branches.map((b) => (
+                    <Pill
+                      key={b}
+                      label={b === "All" ? "All" : b.replace("U.S. ", "")}
+                      active={branch === b}
+                      onClick={() => handleFilterChange(() => setBranch(b))}
+                    />
+                  ))}
+                </div>
+              )}
+              {countries.length > 2 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium shrink-0">Country</span>
+                  {countries.map((c) => (
+                    <Pill
+                      key={c}
+                      label={c === "All" ? "All" : countryOptionLabel(c)}
+                      active={country === c}
+                      onClick={() => handleFilterChange(() => setCountry(c))}
+                    />
+                  ))}
+                </div>
+              )}
+              {wars.length > 2 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium shrink-0">Era</span>
+                  {wars.map((w) => (
+                    <Pill
+                      key={w}
+                      label={w === "All" ? "All" : w}
+                      active={war === w}
+                      onClick={() => handleFilterChange(() => setWar(w))}
+                    />
+                  ))}
+                </div>
+              )}
+              {specialties.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium shrink-0">Specialty</span>
+                  {specialties.map((s) => (
+                    <Pill
+                      key={s}
+                      label={s === "All" ? "All" : SPECIALTY_LABELS[s] || s}
+                      active={specialty === s}
+                      onClick={() => handleFilterChange(() => setSpecialty(s))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--color-border)] pt-4 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)]">Search & sort</p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <AvatarSearch
+                heroes={heroes}
+                profileFrom={profileFrom}
+                onQueryChange={(q) => handleFilterChange(() => setSearch(q))}
+              />
+              <select
+                value={sort}
+                onChange={(e) => handleFilterChange(() => setSort(e.target.value as typeof sort))}
+                className="admin-input w-full sm:min-w-[11rem] sm:max-w-[14rem] text-sm"
+              >
+                <option value="score_desc">Score: High to Low</option>
+                <option value="score_asc">Score: Low to High</option>
+                <option value="medals_desc">Most Medals</option>
+                <option value="name">Name A-Z</option>
+                {hasComparisonScores && (
+                  <>
+                    <option value="comparison_desc">Comparison index: High to Low</option>
+                    <option value="comparison_asc">Comparison index: Low to High</option>
+                  </>
+                )}
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm text-[var(--color-text-muted)]">
             {filtered.length === heroes.length
               ? `${heroes.length} heroes`
               : `${filtered.length} of ${heroes.length} heroes`}
           </p>
-          {(search || branch !== "All" || war !== "All" || specialty !== "All") && (
+          {filtersActive && (
             <button
-              onClick={() => handleFilterChange(() => { setSearch(""); setBranch("All"); setWar("All"); setSpecialty("All"); })}
+              type="button"
+              onClick={() =>
+                handleFilterChange(() => {
+                  setSearch("");
+                  setBranch("All");
+                  setWar("All");
+                  setSpecialty("All");
+                  setCountry("All");
+                })
+              }
               className="text-xs text-[var(--color-gold)] hover:underline"
             >
               Clear filters
@@ -489,6 +573,30 @@ export default function HeroListClient({
                     }`}
                   >
                     <span className="truncate">{w}</span>
+                    <span className="font-bold ml-2 shrink-0">{count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {countryCounts.length > 1 && (
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 hidden lg:block">
+              <h3 className="text-xs font-semibold text-[var(--color-gold)] uppercase tracking-wider mb-3">
+                By Country
+              </h3>
+              <div className="space-y-1.5">
+                {countryCounts.map(({ code: c, count }) => (
+                  <button
+                    key={c}
+                    onClick={() => handleFilterChange(() => setCountry(country === c ? "All" : c))}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                      country === c
+                        ? "bg-[var(--color-gold)]/10 text-[var(--color-gold)] font-semibold"
+                        : "hover:bg-[var(--color-surface-hover)] text-[var(--color-text-muted)]"
+                    }`}
+                  >
+                    <span className="truncate">{countryOptionLabel(c)}</span>
                     <span className="font-bold ml-2 shrink-0">{count}</span>
                   </button>
                 ))}

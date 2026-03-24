@@ -472,7 +472,7 @@ export default function AdminUsersPage() {
                 : "text-(--color-text-muted) hover:text-(--color-text)"
             }`}
           >
-            Staff (admin)
+            Admin
           </button>
           <button
             type="button"
@@ -483,7 +483,7 @@ export default function AdminUsersPage() {
                 : "text-(--color-text-muted) hover:text-(--color-text)"
             }`}
           >
-            Site Members
+            Owners
           </button>
         </div>
       )}

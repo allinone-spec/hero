@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Menu {
@@ -275,7 +276,7 @@ export default function MenusPage() {
 
       {/* Grouped list */}
       {loading ? (
-        <div className="text-center py-16 opacity-50">Loading…</div>
+        <AdminLoader label="Loading menus…" />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 opacity-50">No menus found</div>
       ) : (

@@ -8,121 +8,156 @@ import AvatarFallback from "@/components/ui/AvatarFallback";
 import ContactModal from "@/components/ui/ContactModal";
 import { PrivilegeContext, type MenuPrivilege } from "@/contexts/PrivilegeContext";
 import { clearAdminHint } from "@/lib/client-session-hint";
-
-/* ── 3-D ring loader ────────────────────────────────────── */
-function Loader3D() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6"
-      style={{ backgroundColor: "var(--color-bg)" }}>
-      <div style={{ position: "relative", width: 72, height: 72 }}>
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: "50%",
-          border: "3px solid transparent",
-          borderTopColor: "var(--color-gold)",
-          borderRightColor: "var(--color-gold)",
-          animation: "ring3d 1.3s linear infinite",
-        }} />
-        <div style={{
-          position: "absolute", inset: 14, borderRadius: "50%",
-          border: "3px solid transparent",
-          borderTopColor: "var(--color-gold-light)",
-          borderLeftColor: "var(--color-gold-light)",
-          animation: "spin 0.9s linear infinite reverse",
-        }} />
-        <div style={{
-          position: "absolute", inset: 0, display: "flex",
-          alignItems: "center", justifyContent: "center",
-          color: "var(--color-gold)", fontSize: 18, fontWeight: 700,
-          animation: "pulse 1.6s ease-in-out infinite",
-        }}>★</div>
-      </div>
-      <p style={{
-        color: "var(--color-text-muted)", fontSize: "0.75rem",
-        letterSpacing: "0.15em", textTransform: "uppercase",
-      }}>Loading Admin…</p>
-    </div>
-  );
-}
+import { AdminLoader } from "@/components/ui/AdminLoader";
 
 /* ── Help Guide Panel ──────────────────────────────────── */
 const GUIDE_SECTIONS = [
   {
+    page: "Top bar & nav",
+    icon: "🧭",
+    items: [
+      {
+        button: "Tabs",
+        desc: "Menu items come from your group’s permissions. Active section is highlighted; extra items are under “More” on desktop.",
+      },
+      {
+        button: "Suggestions",
+        desc: "Red badge on the tab when there are items to review (if you can access Suggestions).",
+      },
+      {
+        button: "Inbox / Contact",
+        desc: "Super Admin: envelope opens the inbox. Other Admins: opens Contact to message the team.",
+      },
+      { button: "Theme", desc: "Sun/moon control next to the guide — toggles light or dark UI." },
+      {
+        button: "Account menu",
+        desc: "Avatar: your name, email, and Role (Super Admin, group name, or Admin). Switch role → public Owner flow; Log out ends this Admin session.",
+      },
+    ],
+  },
+  {
     page: "Dashboard",
     icon: "📊",
     items: [
-      { button: "+ Add Hero", desc: "Create a new hero profile from scratch" },
-      { button: "Quick Action Cards", desc: "Shortcuts to Heroes, Medals, Scoring, Users, and the public site" },
-      { button: "Recent Heroes", desc: "Click any hero card to jump to their edit form" },
+      {
+        button: "Who sees it",
+        desc: "Super Admins land here with stats, recent heroes, and quick actions. Other Admins are sent to Submit Hero instead.",
+      },
+      { button: "Stat cards", desc: "Totals for heroes (published/drafts), medal types, and Admin user count." },
+      { button: "Recent heroes", desc: "Click a row to open that hero’s edit form." },
+      {
+        button: "Quick actions",
+        desc: "Shortcuts: Add New Hero, Medal Types, Scoring Rules, Manage Users — no separate “public site” card.",
+      },
+    ],
+  },
+  {
+    page: "Submit Hero",
+    icon: "📤",
+    items: [
+      {
+        button: "Default home",
+        desc: "Non–Super Admin default landing: propose or submit hero updates according to your group’s access.",
+      },
     ],
   },
   {
     page: "Heroes",
     icon: "🎖️",
     items: [
-      { button: "+ Add Hero", desc: "Opens the hero creation form with Wikipedia import support" },
-      { button: "View", desc: "Read-only profile showing medals, biography, and service record" },
-      { button: "Edit", desc: "Open the full edit form to update medals, bio, and scoring fields" },
-      { button: "Status Badge", desc: "Click Published/Draft badge to toggle visibility on public site" },
-      { button: "Delete", desc: "Permanently remove a hero (requires confirmation)" },
-      { button: "Filters", desc: "Search by name, filter by branch/status, sort by score or name" },
+      { button: "+ Add Hero", desc: "Hero creation form (e.g. Wikipedia import) when your group can create." },
+      { button: "View", desc: "Read-only profile: medals, biography, service record." },
+      { button: "Edit", desc: "Full editor for medals, bio, scoring fields, publishing — if permitted." },
+      { button: "Published / Draft", desc: "Toggle visibility on the public Heroes list when you can edit." },
+      { button: "Delete", desc: "Permanent removal with confirmation when delete is allowed." },
+      { button: "Filters", desc: "Search, branch/status filters, sort by score or name." },
+    ],
+  },
+  {
+    page: "Rankings",
+    icon: "📈",
+    items: [
+      {
+        button: "Admin preview",
+        desc: "Published heroes in leaderboard order (scores, order override), ribbon rack, and slideshow-style preview for QA.",
+      },
+    ],
+  },
+  {
+    page: "Suggestions",
+    icon: "💡",
+    items: [
+      {
+        button: "Queue",
+        desc: "Public suggestions about heroes or data; review and resolve from here when the menu is enabled for your group.",
+      },
     ],
   },
   {
     page: "Medals",
     icon: "🏅",
     items: [
-      { button: "+ Add Medal Type", desc: "Create a new medal with ribbon colors, valor points, and tier" },
-      { button: "Edit", desc: "Modify medal name, points, ribbon colors, V-device settings" },
-      { button: "Design", desc: "Opens the Medal Avatar Designer to create custom medal images" },
-      { button: "Valor Points", desc: "Heroism Leaderboard points (0 if 'V' device is required but absent)" },
-      { button: "V / VALOR badges", desc: "'V' = requires valor device for points. 'VALOR' = inherently a valor award" },
+      { button: "+ Add Medal Type", desc: "New medal: ribbon colors, valor points, tier, V-device rules." },
+      { button: "Edit", desc: "Change name, points, ribbons, valor / V requirements." },
+      { button: "Medal (gallery)", desc: "Separate screen for medal artwork / designer flows linked from the console." },
+      { button: "Valor & V", desc: "Points are 0 if a “V” device is required but missing on the hero; VALOR-type awards score fully when earned." },
     ],
   },
   {
-    page: "Scoring",
+    page: "USM-25 & Scoring",
     icon: "⚙️",
     items: [
-      { button: "Save Rules", desc: "Save scoring config changes (valor devices, theater bonus, etc.)" },
-      { button: "Reset to Defaults", desc: "Revert all scoring rules to USM-25 factory defaults" },
-      { button: "Recalculate All", desc: "Re-compute every hero's score using current rules and medals" },
-    ],
-  },
-  {
-    page: "Users",
-    icon: "👥",
-    items: [
-      { button: "+ Add User", desc: "Create a new admin account with a role (superadmin/admin/editor)" },
-      { button: "Approve / Reject", desc: "Handle pending registration requests from the signup page" },
-      { button: "Active Toggle", desc: "Enable or disable a user account without deleting it" },
-      { button: "Edit", desc: "Change user name, role, or password" },
+      { button: "USM-25", desc: "In-console reference to methodology and matrix rules." },
+      { button: "Scoring", desc: "Save rules, reset to defaults, recalculate all hero scores from current medals and config." },
     ],
   },
   {
     page: "Wars",
     icon: "🏴",
     items: [
-      { button: "+ Add War", desc: "Manually add a war/conflict with year range and theater" },
-      { button: "AI Import", desc: "Use Gemini to auto-generate a comprehensive US war list" },
-      { button: "Edit", desc: "Update war name, years, theater, or description" },
-      { button: "Active Toggle", desc: "Inactive wars won't appear in hero form dropdowns" },
+      { button: "+ Add War", desc: "Manual war/conflict with years and theater." },
+      { button: "AI Import", desc: "Optional Gemini-assisted US war list generation." },
+      { button: "Edit / Active", desc: "Update metadata; inactive wars hide from hero form dropdowns." },
+    ],
+  },
+  {
+    page: "Users",
+    icon: "👥",
+    items: [
+      {
+        button: "Admin tab",
+        desc: "Staff Admin accounts: pending signup approvals, active toggle, roles (superadmin/admin/editor), edit and passwords.",
+      },
+      {
+        button: "Owners tab",
+        desc: "Super Admin only: public Owner accounts — filters, adoptions, Stripe, roles Owner vs Hero owner, edit/delete.",
+      },
+    ],
+  },
+  {
+    page: "Access control",
+    icon: "🔐",
+    items: [
+      { button: "Groups", desc: "Define admin groups (e.g. Super Admin, Default)." },
+      { button: "Menus", desc: "System menu registry paths and labels used for privileges." },
+      { button: "Group Privileges", desc: "Which groups can view/create/edit/delete each admin screen." },
     ],
   },
   {
     page: "Logs",
     icon: "📋",
     items: [
-      { button: "Category Pills", desc: "Filter logs by type: Hero, Medal, User, Auth, Scoring, System" },
-      { button: "Search", desc: "Search log descriptions to find specific actions" },
+      { button: "Categories", desc: "Filter by Hero, Medal, User, Auth, Scoring, System, etc." },
+      { button: "Search", desc: "Find actions by description text." },
     ],
   },
   {
     page: "AI Usage",
     icon: "🤖",
     items: [
-      { button: "Budget Bar", desc: "Track spending against $100 budget with color-coded progress" },
-      { button: "Cost per User", desc: "See which admin users are consuming the most API credits" },
-      { button: "Cost per Action", desc: "Breakdown by action type: descriptions, medals, wars" },
-      { button: "Recent Calls", desc: "Detailed log of every AI API request with tokens and cost" },
+      { button: "Budget", desc: "Track usage against the configured AI budget." },
+      { button: "By user / action", desc: "See which Admins and which action types consume the most." },
+      { button: "Recent calls", desc: "Per-request tokens and cost where logged." },
     ],
   },
 ];
@@ -178,8 +213,8 @@ function HelpGuide({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 function formatAdminRoleLabel(groupSlug: string): string {
-  if (!groupSlug) return "Staff";
-  if (groupSlug === "super-admin") return "Super admin";
+  if (!groupSlug) return "Admin";
+  if (groupSlug === "super-admin") return "Super Admin";
   return groupSlug
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -309,12 +344,14 @@ function AdminAccountDropdown({
   userEmail,
   groupSlug,
   isSuperAdmin,
+  onSwitchRole,
   onLogout,
 }: {
   userName: string;
   userEmail: string;
   groupSlug: string;
   isSuperAdmin: boolean;
+  onSwitchRole: () => void;
   onLogout: () => void;
 }) {
   const pathname = usePathname();
@@ -360,7 +397,6 @@ function AdminAccountDropdown({
           role="menu"
         >
           <div className="px-3 py-2 space-y-2 text-left">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted)">Staff account</p>
             <p className="text-sm font-medium text-(--color-text) truncate" title={userName}>
               {userName}
             </p>
@@ -371,7 +407,18 @@ function AdminAccountDropdown({
               Role: <span className="font-semibold text-(--color-gold)">{formatAdminRoleLabel(groupSlug)}</span>
             </p>
           </div>
-          <div className="border-t border-(--color-border) p-2">
+          <div className="border-t border-(--color-border) p-2 space-y-2">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSwitchRole();
+              }}
+              className="btn-secondary text-sm w-full py-2"
+            >
+              Switch role
+            </button>
             <button
               type="button"
               role="menuitem"
@@ -406,8 +453,6 @@ const PUBLIC_ADMIN_PATHS = ["/admin", "/admin/register"];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed]             = useState<boolean | null>(null);
-  /** After admin auth succeeds: false = no site-member cookie; true = both sessions (hide "As Site Member"). null = not loaded yet. */
-  const [siteMemberLoggedIn, setSiteMemberLoggedIn] = useState<boolean | null>(null);
   const [userName, setUserName]         = useState("Admin");
   const [userEmail, setUserEmail]       = useState("");
   const [groupSlug, setGroupSlug]       = useState("");
@@ -427,27 +472,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const myId = ++reloadGenRef.current;
     const opts: RequestInit = { cache: "no-store", credentials: "include" };
 
-    void fetch("/api/site/me", opts).then(async (r) => {
-      if (myId !== reloadGenRef.current) return;
-      let member = false;
-      if (r.ok) {
-        try {
-          const j = await r.json();
-          member = Boolean(j?.email);
-        } catch {
-          member = false;
-        }
-      }
-      setSiteMemberLoggedIn(member);
-    });
-
     void fetch("/api/auth/me", opts)
       .then(async (r) => {
         if (myId !== reloadGenRef.current) return;
         if (!r.ok) {
           reloadGenRef.current += 1;
           setAuthed(false);
-          setSiteMemberLoggedIn(null);
           return;
         }
         try {
@@ -461,14 +491,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         } catch {
           reloadGenRef.current += 1;
           setAuthed(false);
-          setSiteMemberLoggedIn(null);
         }
       })
       .catch(() => {
         if (myId !== reloadGenRef.current) return;
         reloadGenRef.current += 1;
         setAuthed(false);
-        setSiteMemberLoggedIn(null);
       });
   }, []);
 
@@ -583,14 +611,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const overflowNavLinks =
     navLinks.length <= ADMIN_NAV_INLINE_COUNT ? [] : navLinks.slice(ADMIN_NAV_INLINE_COUNT);
 
-  /** Show while site session is unknown or absent (hides as soon as site `/me` reports a member). */
-  const showAsSiteMemberLink = Boolean(authed) && siteMemberLoggedIn !== true;
-
-  if (authed === null) return <Loader3D />;
+  if (authed === null) return <AdminLoader fullscreen label="Loading Admin…" />;
   if (!authed) {
     if (PUBLIC_ADMIN_PATHS.includes(pathname)) return <>{children}</>;
     // useEffect will router.replace("/admin"); don’t render protected children meanwhile
-    return <Loader3D />;
+    return <AdminLoader fullscreen label="Loading Admin…" />;
   }
 
   return (
@@ -700,22 +725,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ?
               </button>
               <ThemeToggle />
-              {showAsSiteMemberLink && (
-                <Link
-                  href="/go/member"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden sm:block text-sm text-(--color-text-muted) hover:text-(--color-text) transition-colors px-2"
-                >
-                  As Site Member
-                </Link>
-              )}
 
               <AdminAccountDropdown
                 userName={userName}
                 userEmail={userEmail}
                 groupSlug={groupSlug}
                 isSuperAdmin={isSuperAdmin}
+                onSwitchRole={() => router.push("/go/member")}
                 onLogout={async () => {
                   await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
                   clearAdminHint();
@@ -752,18 +768,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </Link>
                   );
                 })}
-                {showAsSiteMemberLink && (
-                  <div className="border-t border-(--color-border) pt-2 mt-2">
-                    <Link
-                      href="/go/member"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block px-3 py-2.5 rounded-lg text-sm text-(--color-text-muted) hover:text-(--color-text)"
-                    >
-                      As Site Member
-                    </Link>
-                  </div>
-                )}
               </div>
             </div>
           )}

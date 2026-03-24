@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import HeroForm from "../../HeroForm";
 
 export default function EditHeroPage() {
@@ -35,7 +36,7 @@ export default function EditHeroPage() {
   }, [params.id]);
 
   if (loading) {
-    return <div className="text-[var(--color-text-muted)]">Loading hero data...</div>;
+    return <AdminLoader label="Loading hero data…" />;
   }
 
   if (!hero || hero.error) {

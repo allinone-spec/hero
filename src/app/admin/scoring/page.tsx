@@ -185,8 +185,8 @@ export default function AdminScoringPage() {
   if (loading) return <AdminLoader label="Loading scoring config…" />;
 
   return (
-    <div className="max-w-2xl space-y-6 animate-fade-in-up">
-      <div className="flex items-center justify-between">
+    <div className="animate-fade-in-up space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
         <h1 className="text-2xl font-bold">USM-25 Scoring Rules</h1>
         <div className="flex items-center gap-2">
           <button
@@ -231,7 +231,7 @@ export default function AdminScoringPage() {
           <p className="text-xs text-[var(--color-text-muted)] mb-4">
             All medal types ranked by precedence order.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
             {medals.map((mt, i) => (
               <div
                 key={mt._id}

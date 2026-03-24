@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
-import "@/lib/models/MedalType";
 import Link from "next/link";
 import HeroListClient from "../HeroListClient";
 import HeroSlideshow from "@/components/ui/HeroSlideshow";
@@ -75,21 +74,17 @@ export default async function RankingsPage() {
 
   const serialized: any[] = JSON.parse(JSON.stringify(sorted));
 
-  /* Stats */
-  const uniqueWars: string[] = Array.from(
-    new Set(serialized.flatMap((h) => h.wars ?? []))
-  );
-  const uniqueBranches: string[] = Array.from(
-    new Set(serialized.map((h) => h.branch).filter(Boolean))
-  );
-  const totalMedalAwards = serialized.reduce(
-    (sum, h) => sum + (h.medals ?? []).reduce((s: number, m: any) => s + (m.count ?? 1), 0),
-    0
-  );
-  const highestScore: number = serialized[0]?.score ?? 0;
+  const now = new Date();
+  const heroesForClient = serialized.map((h: any) => {
+    const { ownerUserId, adoptionExpiry, ...rest } = h;
+    const memberSupported = Boolean(
+      ownerUserId && (!adoptionExpiry || new Date(adoptionExpiry).getTime() > now.getTime())
+    );
+    return { ...rest, memberSupported };
+  });
 
-  const topHero = serialized[0];
-  const slideshowHeroes = serialized.slice(0, Math.min(5, serialized.length));
+  const topHero = heroesForClient[0];
+  const slideshowHeroes = heroesForClient.slice(0, Math.min(5, heroesForClient.length));
 
   /* Top hero ribbon medals */
   const topRibbons = topHero
@@ -247,19 +242,10 @@ export default async function RankingsPage() {
         </section>
       )} */}
 
-      {/* ── Full rankings ─────────────────────────────────── */}
       <section>
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <div>
-              <h2 className="text-xl font-bold leading-none">Category</h2>
-              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>Full archive · sorted by USM-25 score</p>
-            </div>
-            <div className="flex-1 h-px" style={{ backgroundColor: "var(--color-border)" }} />
-          </div>
-        </div>
+        <SectionTitle title="Full archive" sub="Sorted by USM-25 score · filter below" />
         <Suspense>
-          <HeroListClient heroes={serialized} profileFrom="heroes" />
+          <HeroListClient heroes={heroesForClient} profileFrom="rankings" />
         </Suspense>
       </section>
     </div>

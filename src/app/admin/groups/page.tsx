@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Group {
@@ -198,7 +199,7 @@ export default function GroupsPage() {
 
       {/* Table */}
       {loading ? (
-        <div className="text-center py-16 opacity-50">Loading…</div>
+        <AdminLoader label="Loading groups…" />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 opacity-50">
           {search ? "No groups match your search" : "No groups found"}

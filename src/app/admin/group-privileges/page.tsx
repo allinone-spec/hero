@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { AdminLoader, AdminLoaderOrbit } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Group {
@@ -235,7 +236,12 @@ export default function GroupPrivilegesPage() {
       <div className="mb-6 flex items-center gap-3">
         <label className="text-sm font-medium opacity-70 whitespace-nowrap">Select Group:</label>
         {loadingGroups ? (
-          <div className="admin-input w-48 opacity-50">Loading…</div>
+          <div className="flex items-center gap-2 min-h-[40px] w-64">
+            <span className="text-[var(--color-gold)] inline-flex shrink-0">
+              <AdminLoaderOrbit size={22} variant="brand" />
+            </span>
+            <span className="text-sm text-[var(--color-text-muted)]">Loading groups…</span>
+          </div>
         ) : (
           <select
             className="admin-input w-64"
@@ -271,7 +277,7 @@ export default function GroupPrivilegesPage() {
       {!selectedGroupId ? (
         <div className="text-center py-16 opacity-50">Select a group to manage its privileges</div>
       ) : loadingMatrix ? (
-        <div className="text-center py-16 opacity-50">Loading permissions…</div>
+        <AdminLoader compact label="Loading permissions…" />
       ) : matrix.length === 0 ? (
         <div className="text-center py-16 opacity-50">No menus available</div>
       ) : (
@@ -313,7 +319,7 @@ export default function GroupPrivilegesPage() {
                         return (
                           <div key={f.key} className="flex justify-center">
                             {isSaving ? (
-                              <LoadingSpinner size="md" className="text-(--color-gold)" label="Saving" />
+                              <LoadingSpinner size="md" className="text-[var(--color-gold)]" label="Saving" />
                             ) : (
                               <input
                                 type="checkbox"

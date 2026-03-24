@@ -16,7 +16,10 @@ function getClient(): GoogleGenAI {
   return _ai;
 }
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+/** Default when `GEMINI_MODEL` is unset (`gemini-2.0-flash` is often 404 for new API projects). */
+export const DEFAULT_GEMINI_MODEL_ID = "gemini-2.5-flash";
+
+const MODEL = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL_ID;
 
 // Pricing per 1M tokens (Gemini as of 2025)
 const PRICING = {
@@ -74,14 +77,86 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return ticket;
 }
 
+/** HTTP status from Gemini SDK error or JSON body in `message` (e.g. UNAVAILABLE / 503). */
+function getGeminiHttpStatus(err: unknown): number | undefined {
+  const e = err as {
+    status?: number;
+    httpStatusCode?: number;
+    code?: number;
+    message?: string;
+  };
+  if (typeof e.status === "number") return e.status;
+  if (typeof e.httpStatusCode === "number") return e.httpStatusCode;
+  if (typeof e.code === "number" && e.code >= 400 && e.code < 600) return e.code;
+  const msg = e.message || "";
+  const quoted = msg.match(/"code"\s*:\s*(\d{3})\b/);
+  if (quoted) return parseInt(quoted[1], 10);
+  return undefined;
+}
+
+const DEFAULT_GEMINI_FALLBACK_MODEL = DEFAULT_GEMINI_MODEL_ID;
+
+/** Narrow shape for logging / text extraction (matches GenerateContentResponse). */
+type GeminiContentResponse = {
+  text?: string;
+  candidates?: Array<{
+    finishReason?: string;
+    content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+  }>;
+  promptFeedback?: { blockReason?: string; blockReasonMessage?: string };
+};
+
+function getGeminiResponseText(response: GeminiContentResponse): string {
+  const fromApi = typeof response.text === "string" ? response.text : "";
+  if (fromApi.trim()) return fromApi.trim();
+  const parts = response.candidates?.[0]?.content?.parts;
+  if (!parts?.length) return "";
+  let s = "";
+  for (const part of parts) {
+    if (typeof part.text === "string" && !part.thought) {
+      s += part.text;
+    }
+  }
+  return s.trim();
+}
+
+function describeGeminiEmptyResponse(response: GeminiContentResponse | undefined): string {
+  if (!response) return "No response object";
+  const pf = response.promptFeedback;
+  if (pf?.blockReason) {
+    const extra = pf.blockReasonMessage ? ` — ${pf.blockReasonMessage}` : "";
+    return `Prompt blocked (${pf.blockReason})${extra}`;
+  }
+  const fr = response.candidates?.[0]?.finishReason;
+  if (fr) return `finishReason=${fr}`;
+  if (!response.candidates?.length) return "No candidates (blocked or API returned no output)";
+  return "Candidates had no text";
+}
+
 // Thinking models (gemini-2.5+, gemini-3+) don't support temperature
 const isThinkingModel = /gemini-(?:[2-9]\.[5-9]|[3-9])/.test(MODEL);
+
+/** API returns 400 if thinkingBudget is 0 ("only works in thinking mode"). */
+export function geminiRejectsThinkingBudgetZero(model: string): boolean {
+  const m = model.toLowerCase();
+  if (m.includes("gemini-2.5-pro")) return true;
+  if (m.includes("gemini-3-pro")) return true;
+  return false;
+}
 
 export async function askAI(
   systemPrompt: string,
   userPrompt: string,
   userEmail: string,
-  options?: { maxTokens?: number; maxSystemChars?: number; maxUserChars?: number; json?: boolean; model?: string }
+  options?: {
+    maxTokens?: number;
+    maxSystemChars?: number;
+    maxUserChars?: number;
+    json?: boolean;
+    model?: string;
+    /** `0` disables thinking where supported (frees output for long JSON). Omitted on models that require thinking (e.g. gemini-2.5-pro). */
+    thinkingBudget?: number;
+  }
 ): Promise<AIResponse> {
   if (!checkRateLimit(userEmail)) {
     throw new Error("Rate limit exceeded. Please wait a moment before trying again.");
@@ -91,37 +166,106 @@ export async function askAI(
   const maxTokens = options?.maxTokens ?? 2000;
   const maxSystemChars = options?.maxSystemChars ?? 2000;
   const maxUserChars = options?.maxUserChars ?? 8000;
-  const useModel = options?.model || MODEL;
-  const useThinking = /gemini-(?:[2-9]\.[5-9]|[3-9])/.test(useModel);
+  const primaryModel = options?.model || MODEL;
+  const flashFallback =
+    process.env.GEMINI_FALLBACK_MODEL?.trim() || DEFAULT_GEMINI_FALLBACK_MODEL;
+  /** Retries for rate limits and temporary overload (503/502). */
+  const MAX_ATTEMPTS = 8;
+  const MAX_EMPTY_BODY_RETRIES = 3;
 
-  const MAX_RETRIES = 2;
-  const response = await enqueue(async () => {
-    for (let attempt = 0; ; attempt++) {
+  const { response, modelUsed, content } = await enqueue(async () => {
+    let modelUsed = primaryModel;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        return await ai.models.generateContent({
-          model: useModel,
-          contents: truncate(userPrompt, maxUserChars),
-          config: {
-            systemInstruction: truncate(systemPrompt, maxSystemChars),
-            maxOutputTokens: maxTokens,
-            ...(useThinking ? {} : { temperature: 0 }),
-            ...(options?.json ? { responseMimeType: "application/json" } : {}),
-          },
-        });
-      } catch (err: unknown) {
-        const status = (err as { status?: number }).status
-          ?? (err as { httpStatusCode?: number }).httpStatusCode;
-        const message = (err as Error).message || "";
-        console.error(`Gemini API error (status ${status}):`, { message, model: useModel });
-        if (status === 429 && attempt < MAX_RETRIES) {
-          const delay = Math.min(5000 * Math.pow(1.5, attempt), 15000);
-          console.warn(`Gemini 429 rate limit — retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
-          await new Promise((r) => setTimeout(r, delay));
+        const useThinking = /gemini-(?:[2-9]\.[5-9]|[3-9])/.test(modelUsed);
+        let lastResponse: GeminiContentResponse | undefined;
+
+        for (let emptyTry = 0; emptyTry < MAX_EMPTY_BODY_RETRIES; emptyTry++) {
+          lastResponse = await ai.models.generateContent({
+            model: modelUsed,
+            contents: truncate(userPrompt, maxUserChars),
+            config: {
+              systemInstruction: truncate(systemPrompt, maxSystemChars),
+              maxOutputTokens: maxTokens,
+              ...(useThinking ? {} : { temperature: 0 }),
+              ...(useThinking &&
+              options?.thinkingBudget !== undefined &&
+              !(
+                options.thinkingBudget === 0 && geminiRejectsThinkingBudgetZero(modelUsed)
+              )
+                ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
+                : {}),
+              ...(options?.json ? { responseMimeType: "application/json" } : {}),
+            },
+          });
+
+          const text = getGeminiResponseText(lastResponse);
+          if (text) {
+            return { response: lastResponse, modelUsed, content: text };
+          }
+
+          console.warn(
+            `[Gemini] Empty response body (${emptyTry + 1}/${MAX_EMPTY_BODY_RETRIES}, model=${modelUsed}):`,
+            describeGeminiEmptyResponse(lastResponse)
+          );
+          if (emptyTry < MAX_EMPTY_BODY_RETRIES - 1) {
+            await new Promise((r) => setTimeout(r, 900 * (emptyTry + 1)));
+          }
+        }
+
+        if (modelUsed !== flashFallback) {
+          console.warn(
+            `[Gemini] Repeated empty responses on ${modelUsed} — trying ${flashFallback}`
+          );
+          modelUsed = flashFallback;
           continue;
         }
-        throw new Error(`Gemini API error (${status || "unknown"}): ${message}`);
+
+        throw new Error(
+          `Gemini returned an empty response. ${describeGeminiEmptyResponse(lastResponse)}`
+        );
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : "";
+        if (errMsg.startsWith("Gemini returned an empty")) {
+          throw err;
+        }
+
+        const status = getGeminiHttpStatus(err);
+        const message = (err as Error).message || "";
+        console.error(`Gemini API error (status ${status ?? "n/a"}):`, { message, model: modelUsed });
+
+        const retryable = status === 429 || status === 502 || status === 503;
+        if (!retryable) {
+          throw new Error(`Gemini API error (${status || "unknown"}): ${message}`);
+        }
+
+        if (attempt >= MAX_ATTEMPTS - 1) {
+          throw new Error(
+            `Gemini API error (${status || "unknown"}) after ${MAX_ATTEMPTS} attempts: ${message}`
+          );
+        }
+
+        // Pro / high-demand models often return 503; switch to Flash after a few failures
+        if (
+          (status === 503 || status === 502) &&
+          modelUsed !== flashFallback &&
+          attempt >= 2
+        ) {
+          console.warn(
+            `[Gemini] ${modelUsed} unavailable (${status}) — falling back to ${flashFallback}`
+          );
+          modelUsed = flashFallback;
+        }
+
+        const delay = Math.min(2500 * Math.pow(1.55, attempt), 22_000);
+        console.warn(
+          `Gemini ${status} — retrying in ${Math.round(delay / 1000)}s (attempt ${attempt + 1}/${MAX_ATTEMPTS}, model=${modelUsed})`
+        );
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
+    throw new Error("Gemini: exhausted retries");
   });
 
   const usage = response.usageMetadata;
@@ -129,14 +273,14 @@ export async function askAI(
   const completionTokens = usage?.candidatesTokenCount ?? 0;
   const totalTokens = usage?.totalTokenCount ?? (promptTokens + completionTokens);
 
-  const pricing = PRICING[useModel] || PRICING["gemini-2.0-flash"];
+  const pricing = PRICING[modelUsed] || PRICING[DEFAULT_GEMINI_MODEL_ID];
   const estimatedCost =
     (promptTokens / 1_000_000) * pricing.input +
     (completionTokens / 1_000_000) * pricing.output;
 
   return {
-    content: response.text ?? "",
-    model: useModel,
+    content,
+    model: modelUsed,
     promptTokens,
     completionTokens,
     totalTokens,

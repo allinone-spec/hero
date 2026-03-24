@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Suggestion {
@@ -146,8 +147,8 @@ export default function SubmitHeroClient() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto py-20 flex justify-center">
-        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
+      <div className="max-w-3xl mx-auto">
+        <AdminLoader label="Loading…" />
       </div>
     );
   }

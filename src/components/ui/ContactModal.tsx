@@ -19,7 +19,7 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
   const [success, setSuccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Pre-fill name/email from admin or site member session
+  // Pre-fill name/email; prefer Owner when both sessions exist (public Owner context).
   useEffect(() => {
     if (open && !loaded) {
       const sessionOpts: RequestInit = { cache: "no-store", credentials: "include" };
@@ -28,8 +28,13 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
         fetch("/api/site/me", sessionOpts).then((r) => (r.ok ? r.json() : null)),
       ])
         .then(([admin, site]) => {
-          const emailVal = admin?.email ?? site?.email;
-          const nameVal = admin?.name ?? (typeof site?.email === "string" ? site.email.split("@")[0] : "");
+          const emailVal = site?.email ?? admin?.email;
+          const nameVal =
+            typeof site?.name === "string" && site.name.trim()
+              ? site.name.trim()
+              : typeof site?.email === "string"
+                ? site.email.split("@")[0]
+                : admin?.name ?? "";
           if (emailVal) setEmail(String(emailVal));
           if (nameVal) setName(String(nameVal));
           setLoaded(true);

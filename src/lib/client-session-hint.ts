@@ -1,9 +1,9 @@
 /**
  * Short-lived session hints in sessionStorage so the navbar can show the correct user
- * immediately after login (before auth and site "me" API round-trips). Cleared after a successful snapshot fetch.
+ * immediately after login (before auth and `/api/site/me` round-trips). Cleared after a successful snapshot fetch.
  */
 
-export type SiteSessionHint = { email: string; role: "owner" | "user" };
+export type SiteSessionHint = { email: string; role: "owner" | "user"; name?: string };
 
 export type AdminSessionHint = {
   email: string;
@@ -26,12 +26,11 @@ function safeParse<T>(raw: string | null, guard: (x: unknown) => x is T): T | nu
 }
 
 function isSiteHint(x: unknown): x is SiteSessionHint {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    typeof (x as SiteSessionHint).email === "string" &&
-    ((x as SiteSessionHint).role === "owner" || (x as SiteSessionHint).role === "user")
-  );
+  if (typeof x !== "object" || x === null) return false;
+  const h = x as SiteSessionHint;
+  if (typeof h.email !== "string" || (h.role !== "owner" && h.role !== "user")) return false;
+  if (h.name !== undefined && typeof h.name !== "string") return false;
+  return true;
 }
 
 function isAdminHint(x: unknown): x is AdminSessionHint {
