@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Medal Catalog",
   description:
-    "Complete catalog of U.S. military medals and decorations with point values, ribbon colors, and precedence order used in the USM-25 scoring system.",
+    "Catalog of U.S. and Commonwealth military medals and decorations with precedence data, ribbon visuals, and scoring references.",
   openGraph: {
     title: "Medal Catalog — Medals N Bongs",
-    description: "Browse all U.S. military medals and decorations recognized by the USM-25 scoring system.",
+    description: "Browse U.S. and Commonwealth medal inventories used by the archive and rack engine.",
   },
-  keywords: ["military medals", "Medal of Honor", "Silver Star", "Purple Heart", "military decorations", "ribbon rack", "medal catalog"],
+  keywords: ["military medals", "Commonwealth medals", "Medal of Honor", "Victoria Cross", "ribbon rack", "medal catalog"],
 };
 
 export default async function MedalsPage() {
@@ -26,7 +26,7 @@ export default async function MedalsPage() {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Medal Catalog</h1>
         <p className="text-[var(--color-text-muted)]">
-          All medal types recognized by the USM-25 scoring system — click any medal to view details
+          U.S. and Commonwealth medal inventories used by the archive and rack engine
         </p>
       </div>
 

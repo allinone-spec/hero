@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
+import MedalWikiModal from "@/components/medals/MedalWikiModal";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
+import { buildRibbonRackMedals, type RackRenderMedal } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
 
 /* ── Types ──────────────────────────────────────────────────────────────────── */
@@ -22,6 +24,7 @@ interface HeroDetail {
   wars: string[];
   combatTours: number;
   ownerUserId?: string | null;
+  adoptionExpiry?: string | null;
   medals: {
     medalType: {
       _id: string;
@@ -34,6 +37,8 @@ interface HeroDetail {
       ribbonImageUrl?: string;
       deviceLogic?: string;
       wikiSummary?: string;
+      history?: string;
+      awardCriteria?: string;
     };
     count: number;
     hasValor: boolean;
@@ -85,18 +90,15 @@ function describeDevices(count: number, hasValor: boolean, branch: string): stri
   return parts.length > 0 ? `w/ ${parts.join(" & ")}` : "";
 }
 
-/** Check if medal is a unit citation (gets gold frame on ribbon) */
-function isUnitCitation(name: string): boolean {
-  return /\bunit\b/i.test(name) || /\bpresidential.*citation\b/i.test(name);
-}
-
 function SupportAdoptPanel({
   heroId,
   ownerUserId,
+  adoptionExpiry,
   heroSlug,
 }: {
   heroId: string;
   ownerUserId?: string | null;
+  adoptionExpiry?: string | null;
   heroSlug: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -105,7 +107,9 @@ function SupportAdoptPanel({
   const [me, setMe] = useState<null | { signedIn: boolean; userId: string | null }>(null);
 
   const ownerId = ownerUserId ? String(ownerUserId) : null;
-  const hasOwner = Boolean(ownerId);
+  const hasActiveOwner = Boolean(
+    ownerId && (!adoptionExpiry || new Date(adoptionExpiry).getTime() > Date.now())
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -129,7 +133,7 @@ function SupportAdoptPanel({
 
   const iAmOwner = Boolean(ownerId && me?.signedIn && me.userId && ownerId === me.userId);
 
-  if (hasOwner && me === null) {
+  if (hasActiveOwner && me === null) {
     return (
       <div
         className="no-print mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/30 p-4"
@@ -141,15 +145,15 @@ function SupportAdoptPanel({
     );
   }
 
-  if (hasOwner && iAmOwner) {
+  if (hasActiveOwner && iAmOwner) {
     return (
       <div className="no-print mt-6 rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4">
         <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-400 mb-2">
           Support & adopt
         </h3>
         <p className="text-sm text-[var(--color-text)] mb-3">
-          You are the named supporter for this hero. You can edit the tribute biography and portrait from your adoption
-          benefits for as long as your adoption is active.
+          You are the named supporter for this hero.
+          {adoptionExpiry ? ` Your support is active until ${new Date(adoptionExpiry).toLocaleDateString()}.` : ""}
         </p>
         <div className="flex flex-wrap gap-2">
           <Link href={`/heroes/${heroSlug}/edit`} className="btn-secondary text-sm">
@@ -163,7 +167,7 @@ function SupportAdoptPanel({
     );
   }
 
-  if (hasOwner && !iAmOwner) {
+  if (hasActiveOwner && !iAmOwner) {
     return (
       <div className="no-print mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/50 p-4">
         <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--color-gold)] mb-2">
@@ -291,24 +295,13 @@ export default function HeroDetailClient({
   profileBackHref,
   profileBackLabel,
 }: Props) {
+  const [selectedMedal, setSelectedMedal] = useState<RackRenderMedal | null>(null);
+
   const sortedMedals = [...hero.medals]
     .filter((m) => m.medalType)
     .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
 
-  const ribbonMedals = sortedMedals.map((m) => ({
-    medalId: String(m.medalType._id),
-    name: m.medalType.name,
-    count: m.count,
-    precedenceOrder: m.medalType.precedenceOrder,
-    ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-    ribbonImageUrl: m.wikiRibbonUrl || m.medalType.ribbonImageUrl,
-    hasValor: m.hasValor,
-    arrowheads: m.arrowheads ?? 0,
-    isUnitCitation: isUnitCitation(m.medalType.name),
-    deviceImages: m.deviceImages,
-    deviceLogic: m.medalType.deviceLogic,
-    wikiSummary: m.medalType.wikiSummary,
-  }));
+  const ribbonMedals = buildRibbonRackMedals(sortedMedals);
 
   const rackMaxPerRow = hero.ribbonMaxPerRow || 3;
 
@@ -319,6 +312,7 @@ export default function HeroDetailClient({
 
   return (
     <div className="animate-fade-in-up">
+      <MedalWikiModal medal={selectedMedal} onClose={() => setSelectedMedal(null)} />
       <Suspense fallback={null}>
         <StripeAdoptionReturnSync heroSlug={hero.slug} />
       </Suspense>
@@ -440,7 +434,12 @@ export default function HeroDetailClient({
                   Ribbon Rack
                 </h2>
                 <div className="flex justify-center">
-                  <RibbonRack medals={ribbonMedals} maxPerRow={rackMaxPerRow} scale={3} />
+                  <RibbonRack
+                    medals={ribbonMedals}
+                    maxPerRow={rackMaxPerRow}
+                    scale={3}
+                    onRibbonClick={setSelectedMedal}
+                  />
                 </div>
               </div>
             )}
@@ -464,7 +463,12 @@ export default function HeroDetailClient({
 
       {/* ── Score Breakdown (web only) ──────────────────────────────────────── */}
       <div className="no-print mt-8">
-        <SupportAdoptPanel heroId={hero._id} ownerUserId={hero.ownerUserId} heroSlug={hero.slug} />
+        <SupportAdoptPanel
+          heroId={hero._id}
+          ownerUserId={hero.ownerUserId}
+          adoptionExpiry={hero.adoptionExpiry}
+          heroSlug={hero.slug}
+        />
         <ScoreBreakdown breakdown={scoreBreakdown} total={scoreTotal} />
       </div>
 

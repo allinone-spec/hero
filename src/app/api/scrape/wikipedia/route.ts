@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { url } = await req.json();
+    const { url, queueItemId, batchId } = await req.json();
     if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "url is required" }, { status: 400 });
     }
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const jobId = randomUUID();
     await heroImportQueue.add(
       "import",
-      { url: url.trim(), userEmail: session.email },
+      { url: url.trim(), userEmail: session.email, queueItemId, batchId },
       { jobId }
     );
 

@@ -116,15 +116,17 @@ export default function MyHeroesPage() {
             can open it or edit the tribute.
           </p>
           <Link
-            href="/rankings"
+            href="/adopt"
             className="inline-flex items-center justify-center rounded-lg border border-[var(--color-border)] px-4 py-2.5 text-sm font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-gold)] hover:text-[var(--color-gold)]"
           >
-            Explore rankings
+            Browse heroes to adopt
           </Link>
         </div>
       ) : (
         <ul className="space-y-3">
-          {heroes.map((h, index) => (
+          {heroes.map((h, index) => {
+            const active = !h.adoptionExpiry || new Date(h.adoptionExpiry).getTime() > Date.now();
+            return (
             <li key={h.id}>
               <div className="hero-card group flex flex-col gap-4 p-4 transition-colors hover:border-[var(--color-gold)]/40 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -153,7 +155,7 @@ export default function MyHeroesPage() {
                       {h.adoptionExpiry && (
                         <>
                           <span>·</span>
-                          <span>Active until {new Date(h.adoptionExpiry).toLocaleDateString()}</span>
+                          <span>{active ? "Active until" : "Expired on"} {new Date(h.adoptionExpiry).toLocaleDateString()}</span>
                         </>
                       )}
                     </div>
@@ -169,16 +171,23 @@ export default function MyHeroesPage() {
                       View profile
                     </Link>
                   )}
-                  <Link
-                    href={`/heroes/${h.slug}/edit`}
-                    className="rounded-lg border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10 px-3 py-2 text-center text-sm font-medium text-[var(--color-gold)] transition-colors hover:bg-[var(--color-gold)]/20"
-                  >
-                    Edit tribute
-                  </Link>
+                  {active ? (
+                    <Link
+                      href={`/heroes/${h.slug}/edit`}
+                      className="rounded-lg border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10 px-3 py-2 text-center text-sm font-medium text-[var(--color-gold)] transition-colors hover:bg-[var(--color-gold)]/20"
+                    >
+                      Edit tribute
+                    </Link>
+                  ) : (
+                    <span className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-center text-sm text-[var(--color-text-muted)]">
+                      Renew to edit
+                    </span>
+                  )}
                 </div>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

@@ -34,7 +34,7 @@ export async function GET() {
   const countMap = new Map(agg.map((a) => [String(a._id), a.n]));
 
   const payload = users.map((u) => {
-    const plain = u as Record<string, unknown> & { _id: unknown };
+    const plain = u as unknown as Record<string, unknown> & { _id: unknown };
     return {
       ...plain,
       _id: String(u._id),

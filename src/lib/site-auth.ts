@@ -68,5 +68,5 @@ export function clearSiteUserCookie(response: NextResponse) {
   });
 }
 
-/** Fields a hero owner may PATCH on their adopted hero (not full admin). */
+/** String fields a hero owner may PATCH on their adopted hero (medals handled separately). */
 export const OWNER_HERO_PATCH_KEYS = ["biography", "avatarUrl"] as const;

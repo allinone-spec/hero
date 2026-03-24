@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import { isAdoptionActive } from "@/lib/adoption";
 import { getSiteSession } from "@/lib/site-auth";
 
 export async function GET(req: NextRequest) {
@@ -16,7 +17,11 @@ export async function GET(req: NextRequest) {
 
   await dbConnect();
   const hero = await Hero.findOne({ slug })
-    .select("_id slug name biography avatarUrl ownerUserId published")
+    .select("_id slug name biography avatarUrl ownerUserId adoptionExpiry published medals")
+    .populate({
+      path: "medals.medalType",
+      select: "name shortName precedenceOrder ribbonColors ribbonImageUrl deviceLogic wikiSummary history awardCriteria imageUrl",
+    })
     .lean();
 
   if (!hero) {
@@ -24,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const ownerId = hero.ownerUserId?.toString();
-  if (!ownerId || ownerId !== session.sub) {
+  if (!ownerId || ownerId !== session.sub || !isAdoptionActive(hero.adoptionExpiry)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -35,5 +40,26 @@ export async function GET(req: NextRequest) {
     biography: hero.biography || "",
     avatarUrl: hero.avatarUrl || "",
     published: hero.published,
+    medals: Array.isArray(hero.medals)
+      ? (hero.medals as Array<{
+          medalType?: unknown;
+          count?: number;
+          hasValor?: boolean;
+          valorDevices?: number;
+          arrowheads?: number;
+          deviceImages?: { url: string; deviceType: string; count: number }[];
+          wikiRibbonUrl?: string;
+        }>)
+          .filter((m) => m?.medalType)
+          .map((m) => ({
+            medalType: m.medalType,
+            count: m.count ?? 1,
+            hasValor: Boolean(m.hasValor),
+            valorDevices: m.valorDevices ?? 0,
+            arrowheads: m.arrowheads ?? 0,
+            deviceImages: Array.isArray(m.deviceImages) ? m.deviceImages : [],
+            wikiRibbonUrl: m.wikiRibbonUrl || "",
+          }))
+      : [],
   });
 }

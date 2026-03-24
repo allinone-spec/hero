@@ -3,6 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import MedalTypeModel from "@/lib/models/MedalType";
 import ScoringConfig from "@/lib/models/ScoringConfig";
+import { isAdoptionActive } from "@/lib/adoption";
 import { getSession, requirePrivilege } from "@/lib/auth";
 import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
 import {
@@ -41,22 +42,100 @@ export async function PUT(
   await dbConnect();
   const { id } = await params;
   const body = await req.json();
+  type BodyMedal = {
+    medalType?: string;
+    count: number;
+    hasValor: boolean;
+    valorDevices: number;
+    arrowheads?: number;
+    deviceImages?: { url: string; deviceType: string; count: number }[];
+    wikiRibbonUrl?: string;
+  };
 
   if (!adminSession && siteSession) {
-    const existing = await Hero.findById(id).select("ownerUserId name").lean();
+    const existing = await Hero.findById(id);
     if (!existing) {
       return NextResponse.json({ error: "Hero not found" }, { status: 404 });
     }
     const ownerId = existing.ownerUserId?.toString();
-    if (!ownerId || ownerId !== siteSession.sub) {
+    if (!ownerId || ownerId !== siteSession.sub || !isAdoptionActive(existing.adoptionExpiry)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const patch: Record<string, string> = {};
+    const patch: Record<string, unknown> = {};
     for (const key of OWNER_HERO_PATCH_KEYS) {
       if (key in body && typeof (body as Record<string, unknown>)[key] === "string") {
         patch[key] = String((body as Record<string, unknown>)[key]);
       }
+    }
+
+    const ownerMedals = Array.isArray(body.medals)
+      ? (body.medals as BodyMedal[])
+          .filter((m) => typeof m?.medalType === "string")
+          .map((m) => ({
+            medalType: String(m.medalType),
+            count: Math.max(1, Number(m.count) || 1),
+            hasValor: Boolean(m.hasValor),
+            valorDevices: Math.max(0, Number(m.valorDevices) || (m.hasValor ? 1 : 0)),
+            arrowheads: Math.max(0, Number(m.arrowheads) || 0),
+            deviceImages: Array.isArray(m.deviceImages) ? m.deviceImages : [],
+            wikiRibbonUrl: typeof m.wikiRibbonUrl === "string" ? m.wikiRibbonUrl : "",
+          }))
+      : null;
+
+    if (ownerMedals) {
+      patch.medals = ownerMedals;
+
+      const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
+      const config: IScoringConfig = rawConfig ?? DEFAULT_SCORING_CONFIG;
+      const medalTypeIds = ownerMedals.map((m) => m.medalType);
+      const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<
+        Array<{
+          _id: { toString(): string };
+          name: string;
+          basePoints: number;
+          valorPoints?: number;
+          requiresValorDevice?: boolean;
+          inherentlyValor?: boolean;
+        }>
+      >();
+      const medalTypeMap = new Map(medalTypeDocs.map((mt) => [mt._id.toString(), mt]));
+      const medalData = ownerMedals
+        .filter((m) => medalTypeMap.has(m.medalType))
+        .map((m) => {
+          const mt = medalTypeMap.get(m.medalType)!;
+          return {
+            name: mt.name,
+            basePoints: mt.basePoints ?? 0,
+            valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
+            requiresValorDevice: mt.requiresValorDevice ?? false,
+            inherentlyValor: mt.inherentlyValor ?? false,
+            count: m.count,
+            hasValor: m.hasValor,
+            valorDevices: m.valorDevices ?? 0,
+          };
+        });
+
+      const result = calculateScore(
+        {
+          medals: medalData,
+          wars: existing.wars,
+          combatTours: existing.combatTours,
+          hadCombatCommand: existing.hadCombatCommand,
+          powHeroism: existing.powHeroism,
+          multiServiceOrMultiWar: existing.multiServiceOrMultiWar,
+          combatAchievements: existing.combatAchievements,
+        },
+        config
+      );
+
+      patch.score = result.total;
+      patch.comparisonScore = calculateComparisonScore(
+        result.total,
+        medalData.map((m) => ({ count: m.count, hasValor: m.hasValor })),
+        existing.wars?.length ?? 0,
+        Boolean(existing.multiServiceOrMultiWar)
+      );
     }
 
     if (Object.keys(patch).length === 0) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import { isAdoptionActive } from "@/lib/adoption";
 import { getSiteSession } from "@/lib/site-auth";
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -67,12 +68,17 @@ export async function POST(req: NextRequest) {
   }
 
   await dbConnect();
-  const hero = await Hero.findById(heroId).select("name slug published").lean();
+  const hero = await Hero.findById(heroId).select("name slug published ownerUserId adoptionExpiry").lean();
   if (!hero) {
     return NextResponse.json({ error: "Hero not found" }, { status: 404 });
   }
   if (!hero.published) {
     return NextResponse.json({ error: "Hero is not available for adoption" }, { status: 400 });
+  }
+  const activeOwnerId = hero.ownerUserId?.toString();
+  const active = isAdoptionActive(hero.adoptionExpiry);
+  if (active && activeOwnerId && activeOwnerId !== session.sub) {
+    return NextResponse.json({ error: "Hero already has an active supporter." }, { status: 409 });
   }
 
   const stripe = new Stripe(stripeSecret);

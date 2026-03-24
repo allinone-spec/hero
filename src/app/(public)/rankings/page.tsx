@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import dbConnect from "@/lib/mongodb";
-import Hero from "@/lib/models/Hero";
 import Link from "next/link";
 import HeroListClient from "../HeroListClient";
 import HeroSlideshow from "@/components/ui/HeroSlideshow";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import type { Metadata } from "next";
+import { getPublishedHeroesForPublicList } from "@/lib/public-heroes";
 
 export const dynamic = "force-dynamic";
 
@@ -58,30 +58,7 @@ function StatCard({ icon, value, label }: { icon: string; value: string | number
 
 export default async function RankingsPage() {
   await dbConnect();
-
-  const heroes = await Hero.find({ published: true })
-    .populate("medals.medalType")
-    .lean();
-
-  const sorted = (heroes as any[]).sort((a, b) => {
-    if (a.orderOverride != null && b.orderOverride != null)
-      return a.orderOverride - b.orderOverride;
-    if (a.orderOverride != null) return -1;
-    if (b.orderOverride != null) return 1;
-    if (b.score !== a.score) return b.score - a.score;
-    return a.name.localeCompare(b.name);
-  });
-
-  const serialized: any[] = JSON.parse(JSON.stringify(sorted));
-
-  const now = new Date();
-  const heroesForClient = serialized.map((h: any) => {
-    const { ownerUserId, adoptionExpiry, ...rest } = h;
-    const memberSupported = Boolean(
-      ownerUserId && (!adoptionExpiry || new Date(adoptionExpiry).getTime() > now.getTime())
-    );
-    return { ...rest, memberSupported };
-  });
+  const heroesForClient = await getPublishedHeroesForPublicList();
 
   const topHero = heroesForClient[0];
   const slideshowHeroes = heroesForClient.slice(0, Math.min(5, heroesForClient.length));
@@ -109,15 +86,15 @@ export default async function RankingsPage() {
       {/* ── Hero slideshow ───────────────────────────────── */}
       {slideshowHeroes.length > 0 && (
         <section>
-          <HeroSlideshow heroes={slideshowHeroes} profileFrom="heroes" />
+          <HeroSlideshow heroes={slideshowHeroes} profileFrom="rankings" />
         </section>
       )}
 
       {/* ── Quick stats ────────────────────────────────────
-      {serialized.length > 0 && (
+      {heroesForClient.length > 0 && (
         <section>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard icon="★" value={serialized.length} label="Heroes Archived" />
+            <StatCard icon="★" value={heroesForClient.length} label="Heroes Archived" />
             <StatCard icon="🎖" value={totalMedalAwards} label="Medal Awards" />
             <StatCard icon="⚔" value={uniqueWars.length} label="Conflicts Covered" />
             <StatCard icon="🏆" value={`${highestScore} pts`} label="Highest Score" />
@@ -130,7 +107,7 @@ export default async function RankingsPage() {
         <section>
           <SectionTitle title="Top Ranked Hero" sub="Highest USM-25 score in the archive" />
 
-          <Link href={`/heroes/${topHero.slug}?from=heroes`} className="block group">
+          <Link href={`/heroes/${topHero.slug}?from=rankings`} className="block group">
             <div
               className="hero-card p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6"
               style={{

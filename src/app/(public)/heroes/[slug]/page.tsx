@@ -46,10 +46,14 @@ export default async function HeroPage({ params, searchParams }: Props) {
   const query = await searchParams;
   const fromRaw = query.from;
   const fromOk =
-    fromRaw === "my-heroes" || fromRaw === "rankings" || fromRaw === "heroes" ? fromRaw : undefined;
+    fromRaw === "my-heroes" || fromRaw === "rankings" || fromRaw === "heroes" || fromRaw === "adopt"
+      ? fromRaw
+      : undefined;
   const profileBack =
     fromOk === "my-heroes"
       ? { href: "/my-heroes" as const, label: "< Back to My Heroes" as const }
+      : fromOk === "adopt"
+        ? { href: "/adopt" as const, label: "< Back to Adopt a Hero" as const }
       : fromOk === "rankings"
         ? { href: "/rankings" as const, label: "< Back to Rankings" as const }
         : { href: "/rankings" as const, label: "< Back to Heroes" as const };

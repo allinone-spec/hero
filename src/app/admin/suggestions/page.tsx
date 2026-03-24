@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
@@ -15,34 +16,105 @@ interface Suggestion {
   createdAt: string;
 }
 
+interface QueueItem {
+  id: string;
+  batchId: string | null;
+  heroName: string;
+  status: string;
+  sourceType: string;
+  sourceUrl: string;
+  error: string;
+  createdHeroId: string | null;
+  importResult: {
+    name?: string;
+    rank?: string;
+    branch?: string;
+    countryCode?: string;
+    metadataTags?: string[];
+    aiMedals?: unknown[];
+  } | null;
+  unmatchedMedals: Array<{ rawName?: string; count?: number }>;
+}
+
+const QUEUE_FILTERS = ["needs_review", "processing", "queued", "approved", "failed", "dismissed", "all"] as const;
+
 export default function SuggestionsPage() {
+  const params = useSearchParams();
   const { can } = usePrivileges();
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const [activeTab, setActiveTab] = useState<"suggestions" | "caretaker">(
+    params.get("tab") === "caretaker" ? "caretaker" : "suggestions"
+  );
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [queueWorkingId, setQueueWorkingId] = useState<string | null>(null);
   const [sSearch, setSSearch] = useState("");
   const [statusOnly, setStatusOnly] = useState<"all" | "new" | "reviewed" | "denied">("all");
   const [sSort, setSSort] = useState<"date-desc" | "date-asc" | "url" | "submitter">("date-desc");
+  const [queueStatus, setQueueStatus] = useState<(typeof QUEUE_FILTERS)[number]>("needs_review");
+  const [queueBatchId, setQueueBatchId] = useState(params.get("batchId") || "");
+  const [queueSearch, setQueueSearch] = useState("");
+  const [error, setError] = useState("");
 
   const fetchSuggestions = async () => {
-    try {
-      const res = await fetch("/api/hero-suggestions");
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data);
-      }
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch("/api/hero-suggestions");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to fetch suggestions");
+    setSuggestions(Array.isArray(data) ? data : []);
+  };
+
+  const fetchQueue = async () => {
+    const qs = new URLSearchParams();
+    qs.set("status", queueStatus);
+    if (queueBatchId.trim()) qs.set("batchId", queueBatchId.trim());
+    const res = await fetch(`/api/admin/caretaker-queue?${qs.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load queue");
+    setQueueItems(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
-    fetchSuggestions();
-    // Mark all suggestions as read by admin
-    fetch("/api/hero-suggestions/mark-read", { method: "POST" }).catch(() => {});
+    let mounted = true;
+    const loadAll = async () => {
+      try {
+        setError("");
+        await Promise.all([fetchSuggestions(), fetchQueue()]);
+        fetch("/api/hero-suggestions/mark-read", { method: "POST" }).catch(() => {});
+      } catch (err: unknown) {
+        if (mounted) setError(err instanceof Error ? err.message : "Failed to load inbox");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    void loadAll();
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  useEffect(() => {
+    setActiveTab(params.get("tab") === "caretaker" ? "caretaker" : "suggestions");
+    setQueueBatchId(params.get("batchId") || "");
+  }, [params]);
+
+  useEffect(() => {
+    if (loading) return;
+    void fetchQueue().catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : "Failed to load queue");
+    });
+  }, [queueStatus, queueBatchId]);
+
+  useEffect(() => {
+    if (loading) return;
+    const timer = window.setInterval(() => {
+      void fetchSuggestions().catch(() => undefined);
+      void fetchQueue().catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [loading, queueStatus, queueBatchId]);
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
@@ -81,7 +153,58 @@ export default function SuggestionsPage() {
     }
   };
 
-  if (loading) return <AdminLoader />;
+  const handleQueueSuggestion = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/hero-suggestions/${id}/queue`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to queue suggestion");
+      setSuggestions((prev) =>
+        prev.map((s) => (s._id === id ? { ...s, status: "reviewed" } : s))
+      );
+      await fetchQueue();
+      setActiveTab("caretaker");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to queue suggestion");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleApproveQueue = async (id: string) => {
+    setQueueWorkingId(id);
+    try {
+      const res = await fetch(`/api/admin/caretaker-queue/${id}/approve`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Approve failed");
+      await fetchQueue();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Approve failed");
+    } finally {
+      setQueueWorkingId(null);
+    }
+  };
+
+  const handleDismissQueue = async (id: string) => {
+    const ok = await confirm({
+      title: "Dismiss caretaker item",
+      message: "Dismiss this caretaker queue item?",
+      danger: true,
+      confirmLabel: "Dismiss",
+    });
+    if (!ok) return;
+    setQueueWorkingId(id);
+    try {
+      const res = await fetch(`/api/admin/caretaker-queue/${id}/dismiss`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Dismiss failed");
+      await fetchQueue();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Dismiss failed");
+    } finally {
+      setQueueWorkingId(null);
+    }
+  };
 
   const filteredSuggestions = useMemo(() => {
     let r = suggestions;
@@ -110,6 +233,21 @@ export default function SuggestionsPage() {
     });
   }, [suggestions, sSearch, statusOnly, sSort]);
 
+  const filteredQueueItems = useMemo(() => {
+    const q = queueSearch.trim().toLowerCase();
+    if (!q) return queueItems;
+    return queueItems.filter((item) => {
+      const name = (item.importResult?.name || item.heroName || "").toLowerCase();
+      const url = (item.sourceUrl || "").toLowerCase();
+      const tags = Array.isArray(item.importResult?.metadataTags)
+        ? item.importResult?.metadataTags.join(" ").toLowerCase()
+        : "";
+      return name.includes(q) || url.includes(q) || tags.includes(q);
+    });
+  }, [queueItems, queueSearch]);
+
+  if (loading) return <AdminLoader />;
+
   const statusBadge = (status: string) => {
     if (status === "reviewed") {
       return (
@@ -134,134 +272,286 @@ export default function SuggestionsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Hero Suggestions</h1>
+          <h1 className="text-2xl font-bold">Hero Intake</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            Wikipedia URLs submitted by visitors
+            Public suggestions and caretaker review in one place.
           </p>
         </div>
         <span className="text-sm text-[var(--color-text-muted)]">
-          {filteredSuggestions.length}
-          {filteredSuggestions.length !== suggestions.length
-            ? ` / ${suggestions.length}`
-            : ""}{" "}
-          suggestion{filteredSuggestions.length !== 1 ? "s" : ""}
+          {activeTab === "suggestions"
+            ? `${filteredSuggestions.length}${filteredSuggestions.length !== suggestions.length ? ` / ${suggestions.length}` : ""} suggestion${filteredSuggestions.length !== 1 ? "s" : ""}`
+            : `${filteredQueueItems.length}${filteredQueueItems.length !== queueItems.length ? ` / ${queueItems.length}` : ""} caretaker item${filteredQueueItems.length !== 1 ? "s" : ""}`}
         </span>
       </div>
 
-      {suggestions.length > 0 && (
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <input
-            type="text"
-            value={sSearch}
-            onChange={(e) => setSSearch(e.target.value)}
-            placeholder="Search URL or submitter…"
-            className="admin-input text-sm lg:col-span-2"
-          />
-          <select
-            value={statusOnly}
-            onChange={(e) => setStatusOnly(e.target.value as typeof statusOnly)}
-            className="admin-input text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="new">New only</option>
-            <option value="reviewed">Accepted</option>
-            <option value="denied">Denied</option>
-          </select>
-          <select
-            value={sSort}
-            onChange={(e) => setSSort(e.target.value as typeof sSort)}
-            className="admin-input text-sm"
-          >
-            <option value="date-desc">Sort: Newest first</option>
-            <option value="date-asc">Sort: Oldest first</option>
-            <option value="url">Sort: URL A–Z</option>
-            <option value="submitter">Sort: Submitter A–Z</option>
-          </select>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("suggestions")}
+          className={`rounded-full px-3 py-1.5 text-sm border ${activeTab === "suggestions" ? "border-[var(--color-gold)] text-[var(--color-gold)]" : "border-[var(--color-border)] text-[var(--color-text-muted)]"}`}
+        >
+          Suggestions
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("caretaker")}
+          className={`rounded-full px-3 py-1.5 text-sm border ${activeTab === "caretaker" ? "border-[var(--color-gold)] text-[var(--color-gold)]" : "border-[var(--color-border)] text-[var(--color-text-muted)]"}`}
+        >
+          Caretaker Queue
+        </button>
+        <Link href="/admin/heroes/import" className="ml-auto btn-primary text-sm">
+          Bulk import
+        </Link>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          {error}
         </div>
       )}
 
-      {/* List */}
-      {suggestions.length === 0 ? (
-        <div className="text-center py-16 text-[var(--color-text-muted)]">
-          <div className="text-4xl mb-3">📭</div>
-          <p className="text-sm">No suggestions yet.</p>
-          <p className="text-xs mt-1">Visitors can submit hero suggestions from the Suggestions page.</p>
-        </div>
-      ) : filteredSuggestions.length === 0 ? (
-        <div className="text-center py-12 text-sm text-[var(--color-text-muted)]">
-          No suggestions match your filters.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredSuggestions.map((s) => (
-            <div
-              key={s._id}
-              className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <a
-                    href={s.wikipediaUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-[var(--color-gold)] hover:underline break-all"
-                  >
-                    {s.wikipediaUrl}
-                  </a>
-                  {statusBadge(s.status)}
-                </div>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                  by <span className="font-medium text-[var(--color-text)]">{s.submittedBy}</span>
-                  {" · "}
-                  {new Date(s.createdAt).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </div>
+      {activeTab === "suggestions" ? (
+        <>
+          {suggestions.length > 0 && (
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <input
+                type="text"
+                value={sSearch}
+                onChange={(e) => setSSearch(e.target.value)}
+                placeholder="Search URL or submitter…"
+                className="admin-input text-sm lg:col-span-2"
+              />
+              <select
+                value={statusOnly}
+                onChange={(e) => setStatusOnly(e.target.value as typeof statusOnly)}
+                className="admin-input text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value="new">New only</option>
+                <option value="reviewed">Queued / accepted</option>
+                <option value="denied">Denied</option>
+              </select>
+              <select
+                value={sSort}
+                onChange={(e) => setSSort(e.target.value as typeof sSort)}
+                className="admin-input text-sm"
+              >
+                <option value="date-desc">Sort: Newest first</option>
+                <option value="date-asc">Sort: Oldest first</option>
+                <option value="url">Sort: URL A–Z</option>
+                <option value="submitter">Sort: Submitter A–Z</option>
+              </select>
+            </div>
+          )}
 
-              <div className="flex items-center gap-2 shrink-0">
-                {s.status === "new" && (
-                  <>
-                    {can("/admin/suggestions", "canEdit") ? (
-                      <Link
-                        href={`/admin/heroes/new?wikiUrl=${encodeURIComponent(s.wikipediaUrl)}`}
-                        onClick={() => handleUpdateStatus(s._id, "reviewed")}
-                        className="btn-primary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5"
+          {suggestions.length === 0 ? (
+            <div className="text-center py-16 text-[var(--color-text-muted)]">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-sm">No suggestions yet.</p>
+              <p className="text-xs mt-1">Visitors can submit hero suggestions from the Suggestions page.</p>
+            </div>
+          ) : filteredSuggestions.length === 0 ? (
+            <div className="text-center py-12 text-sm text-[var(--color-text-muted)]">
+              No suggestions match your filters.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredSuggestions.map((s) => (
+                <div
+                  key={s._id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={s.wikipediaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-[var(--color-gold)] hover:underline break-all"
                       >
-                        {updatingId === s._id ? <LoadingSpinner size="xs" label="Accepting" /> : "Accept"}
-                      </Link>
-                    ) : (
-                      <span className="btn-primary text-xs py-1.5 px-3 opacity-40 cursor-not-allowed">
-                        Accept
-                      </span>
+                        {s.wikipediaUrl}
+                      </a>
+                      {statusBadge(s.status)}
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                      by <span className="font-medium text-[var(--color-text)]">{s.submittedBy}</span>
+                      {" · "}
+                      {new Date(s.createdAt).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {s.status === "new" && (
+                      <>
+                        {can("/admin/suggestions", "canEdit") ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleQueueSuggestion(s._id)}
+                            className="btn-primary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5"
+                            disabled={updatingId === s._id}
+                          >
+                            {updatingId === s._id ? <LoadingSpinner size="xs" label="Queueing" /> : "Queue"}
+                          </button>
+                        ) : (
+                          <span className="btn-primary text-xs py-1.5 px-3 opacity-40 cursor-not-allowed">
+                            Queue
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleUpdateStatus(s._id, "denied")}
+                          disabled={updatingId === s._id || !can("/admin/suggestions", "canEdit")}
+                          className="btn-secondary text-xs py-1.5 px-3 min-w-[4rem] inline-flex items-center justify-center gap-1.5 text-yellow-400 hover:text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {updatingId === s._id ? <LoadingSpinner size="xs" label="Denying" /> : "Deny"}
+                        </button>
+                      </>
+                    )}
+                    {s.status === "reviewed" && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("caretaker")}
+                        className="btn-secondary text-xs py-1.5 px-3"
+                      >
+                        View queue
+                      </button>
                     )}
                     <button
-                      onClick={() => handleUpdateStatus(s._id, "denied")}
-                      disabled={updatingId === s._id || !can("/admin/suggestions", "canEdit")}
-                      className="btn-secondary text-xs py-1.5 px-3 min-w-[4rem] inline-flex items-center justify-center gap-1.5 text-yellow-400 hover:text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => handleDelete(s._id)}
+                      disabled={deletingId === s._id || !can("/admin/suggestions", "canDelete")}
+                      className="btn-secondary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 text-red-400 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {updatingId === s._id ? <LoadingSpinner size="xs" label="Denying" /> : "Deny"}
+                      {deletingId === s._id ? <LoadingSpinner size="xs" label="Deleting" /> : "Delete"}
                     </button>
-                  </>
-                )}
-                <button
-                  onClick={() => handleDelete(s._id)}
-                  disabled={deletingId === s._id || !can("/admin/suggestions", "canDelete")}
-                  className="btn-secondary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 text-red-400 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {deletingId === s._id ? <LoadingSpinner size="xs" label="Deleting" /> : "Delete"}
-                </button>
-              </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {QUEUE_FILTERS.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setQueueStatus(filter)}
+                  className={`rounded-full px-3 py-1.5 text-sm border ${
+                    queueStatus === filter
+                      ? "border-[var(--color-gold)] text-[var(--color-gold)]"
+                      : "border-[var(--color-border)] text-[var(--color-text-muted)]"
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <input
+                value={queueSearch}
+                onChange={(e) => setQueueSearch(e.target.value)}
+                placeholder="Search hero, URL, or tags…"
+                className="admin-input text-sm lg:col-span-2"
+              />
+              <input
+                value={queueBatchId}
+                onChange={(e) => setQueueBatchId(e.target.value)}
+                placeholder="Optional batch id filter"
+                className="admin-input text-sm"
+              />
+            </div>
+          </div>
+
+          {queueItems.length === 0 ? (
+            <div className="rounded-xl border border-[var(--color-border)] p-8 text-sm text-[var(--color-text-muted)]">
+              No caretaker items for this filter.
+            </div>
+          ) : filteredQueueItems.length === 0 ? (
+            <div className="text-center py-12 text-sm text-[var(--color-text-muted)]">
+              No caretaker items match your filters.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredQueueItems.map((item) => (
+                <div key={item.id} className="rounded-xl border border-[var(--color-border)] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{item.importResult?.name || item.heroName || "Unnamed hero"}</p>
+                      <p className="text-sm text-[var(--color-text-muted)]">
+                        {item.importResult?.rank || "Unknown rank"} · {item.importResult?.branch || "Unknown branch"} · {item.importResult?.countryCode || "US"}
+                      </p>
+                      <p className="text-xs text-[var(--color-text-muted)] truncate mt-1">{item.sourceUrl || "No source URL"}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">{item.status}</p>
+                      {item.createdHeroId && (
+                        <Link href={`/admin/heroes/${item.createdHeroId}/edit`} className="text-sm text-[var(--color-gold)] hover:underline">
+                          Open draft
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4 text-sm">
+                    <div className="rounded-lg border border-[var(--color-border)] p-3">
+                      <p className="font-medium mb-2">AI medals</p>
+                      <p className="text-[var(--color-text-muted)]">
+                        {Array.isArray(item.importResult?.aiMedals) ? item.importResult?.aiMedals.length : 0} matched medal entries
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--color-border)] p-3">
+                      <p className="font-medium mb-2">Metadata tags</p>
+                      <p className="text-[var(--color-text-muted)]">
+                        {Array.isArray(item.importResult?.metadataTags) && item.importResult?.metadataTags.length > 0
+                          ? item.importResult?.metadataTags.join(", ")
+                          : "None detected"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--color-border)] p-3">
+                      <p className="font-medium mb-2">Unmatched medals</p>
+                      <p className="text-[var(--color-text-muted)]">
+                        {item.unmatchedMedals.length > 0
+                          ? item.unmatchedMedals.map((m) => `${m.rawName || "Unknown"}${m.count && m.count > 1 ? ` x${m.count}` : ""}`).join(", ")
+                          : "None"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {item.error && <p className="mt-3 text-sm text-red-300">{item.error}</p>}
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={queueWorkingId === item.id || item.status !== "needs_review" || !can("/admin/heroes", "canCreate")}
+                      onClick={() => void handleApproveQueue(item.id)}
+                      className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-badge-text)] disabled:opacity-50"
+                      style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))" }}
+                    >
+                      {queueWorkingId === item.id ? "Working..." : "Approve to draft"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={queueWorkingId === item.id || item.status === "approved" || item.status === "dismissed" || !can("/admin/heroes", "canEdit")}
+                      onClick={() => void handleDismissQueue(item.id)}
+                      className="btn-secondary text-sm disabled:opacity-50"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {confirmDialog}
     </div>

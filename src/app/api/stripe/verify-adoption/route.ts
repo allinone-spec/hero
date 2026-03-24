@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import AdoptionTransaction from "@/lib/models/AdoptionTransaction";
 import { User } from "@/lib/models/User";
+import { isAdoptionActive, nextAdoptionExpiry } from "@/lib/adoption";
 import { getSiteSession } from "@/lib/site-auth";
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
-
-function adoptionExpiryDate(): Date {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() + 1);
-  return d;
-}
 
 /**
  * Confirms paid Checkout and applies adoption when the webhook is delayed or unreachable
@@ -62,16 +58,61 @@ export async function POST(req: NextRequest) {
   }
 
   await dbConnect();
-  const hero = await Hero.findById(heroId).select("_id slug").lean();
+  const hero = await Hero.findById(heroId).select("_id slug ownerUserId adoptionExpiry published");
   if (!hero) {
     return NextResponse.json({ error: "Hero not found" }, { status: 404 });
+  }
+  if (!hero.published) {
+    return NextResponse.json({ error: "Hero is not available for adoption" }, { status: 400 });
+  }
+  const currentOwnerId = hero.ownerUserId?.toString();
+  if (isAdoptionActive(hero.adoptionExpiry) && currentOwnerId && currentOwnerId !== userId) {
+    await AdoptionTransaction.updateOne(
+      { stripeSessionId: checkoutSession.id },
+      {
+        $set: {
+          stripePaymentIntentId:
+            typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : "",
+          stripeCustomerId: typeof checkoutSession.customer === "string" ? checkoutSession.customer : "",
+          userId,
+          heroId,
+          amountCents: checkoutSession.amount_total ?? 0,
+          currency: checkoutSession.currency ?? "usd",
+          status: "blocked",
+          note: "Active adoption already owned by another user",
+        },
+      },
+      { upsert: true }
+    );
+    return NextResponse.json({ error: "Hero already has an active supporter." }, { status: 409 });
   }
 
   await Hero.findByIdAndUpdate(heroId, {
     ownerUserId: userId,
-    adoptionExpiry: adoptionExpiryDate(),
+    adoptionExpiry: nextAdoptionExpiry(hero.adoptionExpiry),
   });
-  await User.findByIdAndUpdate(userId, { role: "owner" }).catch(() => undefined);
+  await AdoptionTransaction.updateOne(
+    { stripeSessionId: checkoutSession.id },
+    {
+      $set: {
+        stripePaymentIntentId:
+          typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : "",
+        stripeCustomerId: typeof checkoutSession.customer === "string" ? checkoutSession.customer : "",
+        userId,
+        heroId,
+        amountCents: checkoutSession.amount_total ?? 0,
+        currency: checkoutSession.currency ?? "usd",
+        status: "paid",
+        note: "",
+      },
+    },
+    { upsert: true }
+  );
+  await User.findByIdAndUpdate(userId, {
+    role: "owner",
+    ...(typeof checkoutSession.customer === "string" ? { stripeCustomerId: checkoutSession.customer } : {}),
+    subscriptionStatus: "adopted",
+  }).catch(() => undefined);
 
   return NextResponse.json({ success: true, slug: hero.slug });
 }

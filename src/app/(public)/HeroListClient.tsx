@@ -76,6 +76,8 @@ interface HeroData {
   };
   /** Present on rankings payload: active Owner adoption (no owner user id exposed). */
   memberSupported?: boolean;
+  availableForAdoption?: boolean;
+  adoptionExpiry?: string | null;
   countryCode?: string;
   comparisonScore?: number | null;
 }
@@ -102,7 +104,7 @@ function AvatarSearch({
 }: {
   heroes: HeroData[];
   onQueryChange: (q: string) => void;
-  profileFrom: "heroes" | "rankings";
+  profileFrom: "heroes" | "rankings" | "adopt";
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -234,11 +236,15 @@ export default function HeroListClient({
   heroes,
   profileFrom = "heroes",
   userTab = false,
+  marketplaceMode = false,
+  initialAvailability = "all",
 }: {
   heroes: HeroData[];
-  profileFrom?: "heroes" | "rankings";
+  profileFrom?: "heroes" | "rankings" | "adopt";
   /** User tab on rankings: copy tuned for Owner-supported subset. */
   userTab?: boolean;
+  marketplaceMode?: boolean;
+  initialAvailability?: "all" | "available" | "supported";
 }) {
   const searchParams = useSearchParams();
   const [search, setSearch]       = useState("");
@@ -246,6 +252,7 @@ export default function HeroListClient({
   const [war, setWar]             = useState("All");
   const [specialty, setSpecialty] = useState("All");
   const [country, setCountry]     = useState("All");
+  const [availability, setAvailability] = useState<"all" | "available" | "supported">(initialAvailability);
   const [sort, setSort]           = useState<SortOption>("score_desc");
   const [page, setPage]           = useState(1);
   const pageRef = useRef(page);
@@ -302,6 +309,12 @@ export default function HeroListClient({
     .filter((h) => war === "All" || (h.wars ?? []).includes(war))
     .filter((h) => specialty === "All" || h.combatAchievements?.type === specialty)
     .filter((h) => country === "All" || normalizedCountryCode(h) === country)
+    .filter((h) => {
+      const available = h.availableForAdoption ?? !h.memberSupported;
+      if (availability === "available") return available;
+      if (availability === "supported") return !available;
+      return true;
+    })
     .sort((a, b) => {
       if (sort === "score_desc") return b.score - a.score;
       if (sort === "score_asc") return a.score - b.score;
@@ -341,8 +354,11 @@ export default function HeroListClient({
 
   const highestScore = heroes.reduce((max, h) => Math.max(max, h.score), 0);
 
+  const availableCount = heroes.filter((h) => h.availableForAdoption ?? !h.memberSupported).length;
+  const supportedCount = heroes.length - availableCount;
+
   const filtersActive =
-    search || branch !== "All" || war !== "All" || specialty !== "All" || country !== "All";
+    search || branch !== "All" || war !== "All" || specialty !== "All" || country !== "All" || availability !== initialAvailability;
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -352,6 +368,12 @@ export default function HeroListClient({
           <div className="mb-4 rounded-lg border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/5 px-3 py-2 text-xs text-[var(--color-text-muted)]">
             Showing <strong className="text-[var(--color-text)]">Owner-supported</strong> hero profiles only (active
             adoption). Use categories and sort below to narrow the list.
+          </div>
+        )}
+        {marketplaceMode && (
+          <div className="mb-4 rounded-lg border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/5 px-3 py-2 text-xs text-[var(--color-text-muted)]">
+            Marketplace mode defaults to <strong className="text-[var(--color-text)]">available for adoption</strong>.
+            Switch availability below to compare open profiles with already-supported ones.
           </div>
         )}
 
@@ -383,6 +405,26 @@ export default function HeroListClient({
                       onClick={() => handleFilterChange(() => setCountry(c))}
                     />
                   ))}
+                </div>
+              )}
+              {(marketplaceMode || availableCount > 0) && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-xs text-[var(--color-text-muted)] mr-1 font-medium shrink-0">Adoption</span>
+                  <Pill
+                    label={`All (${heroes.length})`}
+                    active={availability === "all"}
+                    onClick={() => handleFilterChange(() => setAvailability("all"))}
+                  />
+                  <Pill
+                    label={`Available (${availableCount})`}
+                    active={availability === "available"}
+                    onClick={() => handleFilterChange(() => setAvailability("available"))}
+                  />
+                  <Pill
+                    label={`Supported (${supportedCount})`}
+                    active={availability === "supported"}
+                    onClick={() => handleFilterChange(() => setAvailability("supported"))}
+                  />
                 </div>
               )}
               {wars.length > 2 && (
@@ -458,6 +500,7 @@ export default function HeroListClient({
                   setWar("All");
                   setSpecialty("All");
                   setCountry("All");
+                  setAvailability(initialAvailability);
                 })
               }
               className="text-xs text-[var(--color-gold)] hover:underline"

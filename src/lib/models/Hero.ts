@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import "@/lib/models/User";
+import "@/lib/models/MedalType";
 
 export type CombatSpecialty =
   | "none"
@@ -111,6 +111,7 @@ const CombatAchievementSchema = new Schema(
 export interface IHeroDoc extends Document {
   name: string;
   slug: string;
+  wikiUrl: string;
   rank: string;
   branch: string;
   avatarUrl: string;
@@ -158,6 +159,7 @@ export interface IHeroDoc extends Document {
   metadataTags: string[];
   ownerUserId: mongoose.Types.ObjectId | null;
   adoptionExpiry: Date | null;
+  isVerified: boolean;
   /** Optional cross-country comparison index (separate from score) */
   comparisonScore: number | null;
   score: number;
@@ -169,6 +171,7 @@ const HeroSchema = new Schema<IHeroDoc>(
   {
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
+    wikiUrl: { type: String, default: "" },
     rank: { type: String, required: true },
     branch: { type: String, default: "U.S. Army" },
     avatarUrl: { type: String, default: "" },
@@ -180,6 +183,7 @@ const HeroSchema = new Schema<IHeroDoc>(
     metadataTags: { type: [String], default: [] },
     ownerUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     adoptionExpiry: { type: Date, default: null },
+    isVerified: { type: Boolean, default: false },
     comparisonScore: { type: Number, default: null },
     biography: { type: String, default: "" },
     wars: { type: [String], default: [] },
@@ -202,6 +206,8 @@ HeroSchema.index({ published: 1, name: 1 });
 HeroSchema.index({ slug: 1, published: 1 });
 HeroSchema.index({ published: 1, countryCode: 1, score: -1 });
 HeroSchema.index({ published: 1, metadataTags: 1, score: -1 });
+HeroSchema.index({ ownerUserId: 1, adoptionExpiry: 1 });
+HeroSchema.index({ published: 1, ownerUserId: 1 });
 
 // Auto-generate slug from name
 HeroSchema.pre("validate", function () {

@@ -67,6 +67,57 @@ type ProgressCallback = (step: string, percent: number) => void | Promise<void>;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function deriveMetadataTags(input: {
+  branch?: string;
+  combatType?: string;
+  wars?: string[];
+  gender?: string;
+  current?: string[];
+}): string[] {
+  const out = new Set<string>(normalizeMetadataTags(input.current ?? []));
+  const branch = String(input.branch || "").toLowerCase();
+  const combatType = String(input.combatType || "").toLowerCase();
+  const wars = Array.isArray(input.wars) ? input.wars.map((w) => String(w).toLowerCase()) : [];
+  const gender = String(input.gender || "").toLowerCase();
+
+  if (gender === "female") out.add("female");
+  if (gender === "male") out.add("male");
+
+  if (branch.includes("army")) out.add("army");
+  if (branch.includes("navy")) out.add("navy");
+  if (branch.includes("marine")) out.add("usmc");
+  if (branch.includes("air force")) out.add("usaf");
+  if (branch.includes("coast guard")) out.add("coast_guard");
+  if (branch.includes("space force")) out.add("space_force");
+
+  if (combatType === "submarine") out.add("submariner");
+  if (combatType === "surface") {
+    out.add("surface_commander");
+    out.add("surface_warfare");
+  }
+  if (combatType === "aviation") {
+    out.add("aviator");
+    out.add("pilot");
+  }
+  if (combatType === "airborne") out.add("paratrooper");
+  if (combatType === "special_operations") out.add("special_operations");
+  if (combatType === "infantry" || combatType === "armor" || combatType === "artillery") {
+    out.add("ground_combat");
+  }
+
+  for (const war of wars) {
+    if (war.includes("world war i")) out.add("wwi");
+    if (war.includes("world war ii")) out.add("wwii");
+    if (war.includes("korean war") || war === "korea") out.add("korea");
+    if (war.includes("vietnam")) out.add("vietnam");
+    if (war.includes("iraq")) out.add("iraq");
+    if (war.includes("afghanistan")) out.add("afghanistan");
+    if (war.includes("terror")) out.add("war_on_terror");
+  }
+
+  return [...out];
+}
+
 export function extractHeroNameFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -257,10 +308,13 @@ export async function runHeroImportPipeline(
     devices: "",
   }));
 
-  let metadataTags = normalizeMetadataTags(aiParsed.metadataTags);
-  if (aiParsed.gender && String(aiParsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
-    metadataTags = [...metadataTags, "female"];
-  }
+  const metadataTags = deriveMetadataTags({
+    branch: scraped.branch,
+    combatType,
+    wars: mergedWars,
+    gender: aiParsed.gender,
+    current: aiParsed.metadataTags,
+  });
   const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
   const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
   const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
@@ -403,10 +457,13 @@ async function aiFallbackPipeline(
     }
   }
 
-  let metadataTags = normalizeMetadataTags(aiParsed.metadataTags);
-  if (aiParsed.gender && String(aiParsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
-    metadataTags = [...metadataTags, "female"];
-  }
+  const metadataTags = deriveMetadataTags({
+    branch: aiParsed.branch,
+    combatType: aiParsed.combatSpecialty,
+    wars: aiWars,
+    gender: aiParsed.gender,
+    current: aiParsed.metadataTags,
+  });
   const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
   const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
   const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";

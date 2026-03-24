@@ -241,25 +241,39 @@ function AdminDashboard() {
               delay={0.08}
             />
             <ActionCard
+              icon="🗂"
+              title="Hero Intake"
+              desc="Review public suggestions and caretaker imports in one inbox."
+              href="/admin/suggestions?tab=caretaker"
+              delay={0.12}
+            />
+            <ActionCard
+              icon="⬆"
+              title="Bulk Import"
+              desc="Upload CSV or Excel batches and send wiki rows to review."
+              href="/admin/heroes/import"
+              delay={0.16}
+            />
+            <ActionCard
               icon="🎖"
               title="Medal Types"
               desc="Manage medal definitions and ribbon colors."
               href="/admin/medals"
-              delay={0.12}
+              delay={0.20}
             />
             <ActionCard
               icon="⚙"
               title="Scoring Rules"
               desc="Configure USM-25 scoring parameters."
               href="/admin/scoring"
-              delay={0.16}
+              delay={0.24}
             />
             <ActionCard
               icon="👤"
               title="Manage Users"
               desc="Add or update admin panel accounts."
               href="/admin/users"
-              delay={0.20}
+              delay={0.28}
             />
           </div>
         </div>

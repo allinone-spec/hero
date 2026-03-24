@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { medalTextColor } from "@/components/ui/AvatarFallback";
 import Pagination from "@/components/ui/Pagination";
+import { countryOptionLabel } from "@/lib/country-display";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalType {
@@ -18,6 +19,7 @@ interface MedalType {
   imageUrl?: string;
   ribbonImageUrl?: string;
   branch?: string;
+  countryCode?: string;
   requiresValorDevice?: boolean;
   inherentlyValor?: boolean;
 }
@@ -31,6 +33,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
 
 const CATEGORIES = ["All", "valor", "service", "foreign", "other"];
 const ITEMS_PER_PAGE = 8;
+const COUNTRY_SORT_ORDER = ["US", "UK", "GB", "CA", "AU", "NZ", "ZA", "IN"];
 
 type SortOption = "precedence" | "points_desc" | "points_asc" | "name";
 
@@ -46,6 +49,7 @@ export default function MedalListClient({
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [branch, setBranch] = useState("All");
+  const [country, setCountry] = useState("All");
   const [sort, setSort] = useState<SortOption>("precedence");
   const [page, setPage]         = useState(1);
   const pageRef = useRef(page);
@@ -67,8 +71,20 @@ export default function MedalListClient({
     )
   ).sort((a, b) => a.localeCompare(b));
   const branches = ["All", ...distinctBranches];
+  const distinctCountries = Array.from(
+    new Set(
+      medals
+        .map((m) => (m.countryCode || "").trim().toUpperCase())
+        .filter((c) => c.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+  const countries = ["All", ...distinctCountries];
 
   const filtered = medals
+    .filter((m) => {
+      if (country === "All") return true;
+      return (m.countryCode || "").trim().toUpperCase() === country;
+    })
     .filter((m) => category === "All" || m.category === category)
     .filter((m) => {
       if (branch === "All") return true;
@@ -85,7 +101,16 @@ export default function MedalListClient({
         case "points_desc": return b.basePoints - a.basePoints;
         case "points_asc":  return a.basePoints - b.basePoints;
         case "name":        return a.name.localeCompare(b.name);
-        default:            return a.precedenceOrder - b.precedenceOrder;
+        default: {
+          if (country === "All") {
+            const aCountry = (a.countryCode || "").toUpperCase();
+            const bCountry = (b.countryCode || "").toUpperCase();
+            const aIdx = COUNTRY_SORT_ORDER.indexOf(aCountry);
+            const bIdx = COUNTRY_SORT_ORDER.indexOf(bCountry);
+            if (aIdx !== bIdx) return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+          }
+          return a.precedenceOrder - b.precedenceOrder;
+        }
       }
     });
 
@@ -208,6 +233,38 @@ export default function MedalListClient({
           </div>
         )}
 
+        {countries.length > 1 && (
+          <div className="border-t border-[var(--color-border)] pt-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
+              Country
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {countries.map((c) => {
+                const n =
+                  c === "All"
+                    ? medals.length
+                    : medals.filter((m) => (m.countryCode || "").trim().toUpperCase() === c).length;
+                const active = country === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleFilterChange(() => setCountry(c))}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+                      active
+                        ? "border-[var(--color-gold)] bg-[var(--color-gold)]/10 text-[var(--color-gold)]"
+                        : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-gold)]/50"
+                    }`}
+                  >
+                    {c === "All" ? "All countries" : countryOptionLabel(c)}{" "}
+                    <span className="opacity-80">({n})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="border-t border-[var(--color-border)] pt-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-gold)] shrink-0 sm:mr-2">
             Sort
@@ -229,9 +286,9 @@ export default function MedalListClient({
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-[var(--color-text-muted)]">
           {filtered.length} {filtered.length === 1 ? "medal" : "medals"}
-          {search || category !== "All" ? ` matching filters` : " total"}
+          {search || category !== "All" || branch !== "All" || country !== "All" ? ` matching filters` : " total"}
         </p>
-        {(search || category !== "All" || branch !== "All" || sort !== "precedence") && (
+        {(search || category !== "All" || branch !== "All" || country !== "All" || sort !== "precedence") && (
           <button
             type="button"
             onClick={() =>
@@ -239,6 +296,7 @@ export default function MedalListClient({
                 setSearch("");
                 setCategory("All");
                 setBranch("All");
+                setCountry("All");
                 setSort("precedence");
               })
             }
@@ -313,6 +371,11 @@ export default function MedalListClient({
                     <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono">
                       {medalShortLabelForDisplay(mt.shortName, mt.name)}
                     </p>
+                    {mt.countryCode && (
+                      <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
+                        {countryOptionLabel(mt.countryCode)}
+                      </p>
+                    )}
                   </div>
 
                   {/* Category + points + precedence */}

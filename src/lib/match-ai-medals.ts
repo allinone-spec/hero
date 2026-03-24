@@ -1,5 +1,7 @@
 /** Shared AI medal list → DB MedalType matching (clerk output, not layout). */
 
+import { normalizeAwardText } from "@/lib/medal-normalization";
+
 export interface MedalTypeForMatch {
   _id: { toString(): string };
   name: string;
@@ -48,18 +50,13 @@ export function matchAiMedalsToDatabase(
       continue;
     }
 
+    const normalized = normalizeAwardText(medalName, count, hasValor);
+    medalName = normalized.name;
+    count = normalized.count;
+    hasValor = normalized.hasValor;
+
     const lower = medalName.toLowerCase().trim();
-
-    if (!hasValor) {
-      hasValor = /with\s+valor|with\s+"?v"?\s*device|combat\s+"?v"?|\(v\)|\bvalor\b/i.test(lower);
-    }
-
-    const cleanLower = lower
-      .replace(/\s*with\s+valor\b/i, "")
-      .replace(/\s*with\s+"?v"?\s*device\b/i, "")
-      .replace(/\s*combat\s+"?v"?\b/i, "")
-      .replace(/\s*\(v\)\s*/i, "")
-      .trim();
+    const cleanLower = lower;
 
     let mt = medalTypes.find((t) => t.name.toLowerCase() === cleanLower);
     if (!mt) mt = medalTypes.find((t) => t.name.toLowerCase() === lower);

@@ -13,10 +13,9 @@ export default function ExplorePage() {
       <div>
         <Link
           href="/"
-          className="text-sm inline-flex items-center gap-1 mb-4"
-          style={{ color: "var(--color-text-muted)" }}
+          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1 mb-4"
         >
-          ← Home
+          &lt; Back to Heroes
         </Link>
         <h1 className="text-3xl font-bold mb-2">Explore heroes</h1>
         <p className="text-sm max-w-lg" style={{ color: "var(--color-text-muted)" }}>

@@ -3,6 +3,7 @@ import type { CombatSpecialty } from "@/lib/models/Hero";
 
 export interface IMedalType {
   _id?: string;
+  medalId?: string;
   name: string;
   shortName: string;
   category: "valor" | "service" | "foreign" | "other";
@@ -13,9 +14,16 @@ export interface IMedalType {
   tier: number;                 // Scoring tier (1=MOH, 2=Crosses, etc.)
   branch: string;               // "All", "Army", "Navy", "Marine Corps", etc.
   precedenceOrder: number;
+  countryCode?: string;
+  deviceLogic?: string;
+  vDeviceAllowed?: boolean;
   ribbonColors: string[];       // Array of color hex codes for ribbon stripes
   description?: string;
   imageUrl?: string;
+  ribbonImageUrl?: string;
+  wikiSummary?: string;
+  history?: string;
+  awardCriteria?: string;
 }
 
 export interface IMedal {
@@ -31,6 +39,7 @@ export interface IHero {
   _id?: string;
   name: string;
   slug: string;
+  wikiUrl?: string;
   rank: string;
   branch: string;
   avatarUrl?: string;
@@ -49,6 +58,12 @@ export interface IHero {
     definingMissions?: number;
   };
   score: number; // Computed score
+  countryCode?: string;
+  metadataTags?: string[];
+  ownerUserId?: string | null;
+  adoptionExpiry?: Date | string | null;
+  isVerified?: boolean;
+  comparisonScore?: number | null;
   orderOverride?: number; // Manual ranking override
   published: boolean;
   createdAt?: Date;

@@ -6,6 +6,9 @@ export interface MedalModalData {
   medalId?: string;
   name: string;
   wikiSummary?: string;
+  history?: string;
+  awardCriteria?: string;
+  imageUrl?: string;
 }
 
 interface Props {
@@ -45,6 +48,11 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
             </svg>
           </button>
         </div>
+        {medal.imageUrl ? (
+          <div className="mb-4 flex justify-center">
+            <img src={medal.imageUrl} alt={medal.name} className="max-h-40 w-auto object-contain" />
+          </div>
+        ) : null}
         {medal.wikiSummary ? (
           <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap mb-5">
             {medal.wikiSummary}
@@ -52,6 +60,22 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
         ) : (
           <p className="text-sm text-[var(--color-text-muted)] mb-5">No summary is stored for this medal yet.</p>
         )}
+        {medal.history ? (
+          <div className="mb-4">
+            <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">History</h3>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
+              {medal.history}
+            </p>
+          </div>
+        ) : null}
+        {medal.awardCriteria ? (
+          <div className="mb-5">
+            <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">Criteria</h3>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
+              {medal.awardCriteria}
+            </p>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-3 justify-end">
           {medal.medalId && (
             <Link

@@ -13,6 +13,8 @@ interface HeroCardProps {
     rank: string;
     score: number;
     avatarUrl?: string;
+    memberSupported?: boolean;
+    availableForAdoption?: boolean;
     medals: {
       medalType: {
         _id?: string;
@@ -30,7 +32,7 @@ interface HeroCardProps {
   };
   href?: string;
   /** Query `from` on profile URL (heroes / rankings / my-heroes) for back navigation */
-  fromParam?: "heroes" | "rankings" | "my-heroes";
+  fromParam?: "heroes" | "rankings" | "my-heroes" | "adopt";
   onClick?: () => void;
 }
 
@@ -52,6 +54,9 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
   const to =
     href ||
     `/heroes/${hero.slug}?from=${fromParam}`;
+  const hasAdoptionState =
+    typeof hero.availableForAdoption === "boolean" || typeof hero.memberSupported === "boolean";
+  const availableForAdoption = hero.availableForAdoption ?? !hero.memberSupported;
 
   return (
     <Link href={to} onClick={onClick}>
@@ -75,7 +80,20 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
         {/* Info */}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-lg truncate">{hero.name}</h3>
-          <p className="text-sm text-[var(--color-text-muted)]">{hero.rank}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            <p className="text-sm text-[var(--color-text-muted)]">{hero.rank}</p>
+            {hasAdoptionState && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  availableForAdoption
+                    ? "bg-[var(--color-gold)]/10 text-[var(--color-gold)]"
+                    : "bg-emerald-500/10 text-emerald-400"
+                }`}
+              >
+                {availableForAdoption ? "Available to adopt" : "Already supported"}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Ribbon preview */}
@@ -86,7 +104,14 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
         </div>
 
         {/* Score */}
-        <div className="score-badge shrink-0">{hero.score} pts</div>
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="score-badge">{hero.score} pts</div>
+          {hasAdoptionState && availableForAdoption && (
+            <span className="hidden md:inline text-xs font-medium text-[var(--color-gold)]">
+              Adopt profile →
+            </span>
+          )}
+        </div>
       </div>
     </Link>
   );
