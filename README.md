@@ -56,10 +56,12 @@ KEY=value
 Enough to run the app, connect to MongoDB, and sign JWTs:
 
 ```env
-MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.example.mongodb.net/dbname?retryWrites=true&w=majority
-NEXTAUTH_SECRET=replace-with-long-random-string
+MONGODB_URI=
+NEXTAUTH_SECRET=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+Fill **`MONGODB_URI`** with the connection string from Atlas (**Connect** → **Drivers**). In the copied template, replace the `<password>` placeholder with your database user’s password (URL-encode special characters in the password). Do not commit the final string to git.
 
 Generate `NEXTAUTH_SECRET` (32+ random bytes, hex):
 
@@ -95,8 +97,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 # CLOUDINARY_API_SECRET=
 
 # --- Stripe (use Test mode keys from Dashboard) ---
-# STRIPE_SECRET_KEY=sk_test_...
-# STRIPE_WEBHOOK_SECRET=whsec_...
+# STRIPE_SECRET_KEY=(Stripe Dashboard → API keys → Test mode secret)
+# STRIPE_WEBHOOK_SECRET=(Stripe → Webhooks → endpoint signing secret)
 # STRIPE_ADOPTION_PRICE_CENTS=999
 
 # --- Admin AI features ---
@@ -143,25 +145,27 @@ Production does **not** rely on a committed `.env.local` on the server. You set 
 3. **`NEXT_PUBLIC_APP_URL`** — Your real public origin: `https://yourdomain.com` (no trailing slash).  
 4. **`SITE_PUBLIC_URL`** (optional) — Same as public URL if your app runs behind a proxy and you want email links to always use the canonical domain.  
 5. **`COOKIE_SECURE`** — Use `true` on HTTPS (cookies are secure by default in production in this app unless `COOKIE_SECURE=false`).  
-6. **Stripe** — Switch to **live** keys (`sk_live_…`) and a **live** webhook signing secret; point the webhook URL to `https://yourdomain.com/api/webhooks/stripe` (or the route your app uses).  
+6. **Stripe** — Switch Dashboard to **Live mode** and use live API + webhook signing secrets; point the webhook URL to `https://yourdomain.com/api/webhooks/stripe` (or the route your app uses).  
 7. **Resend** — Use a **verified domain**; `from` is built as `noreply@<host of NEXT_PUBLIC_APP_URL>`.  
 8. **Redeploy** after changing env vars so `next build` picks up `NEXT_PUBLIC_*` values.
 
 ### Example production values (illustrative only)
 
+Use your real domain and paste secrets from each provider’s dashboard. **Do not put real keys in git** — only in the host’s environment UI or a private `.env` on the server.
+
 ```env
-MONGODB_URI=mongodb+srv://...
-NEXTAUTH_SECRET=production-only-secret-use-openssl-rand
-NEXT_PUBLIC_APP_URL=https://medalsnbongs.com
-SITE_PUBLIC_URL=https://medalsnbongs.com
-RESEND_API_KEY=re_...
+MONGODB_URI=
+NEXTAUTH_SECRET=
+NEXT_PUBLIC_APP_URL=https://your-production-domain.example
+SITE_PUBLIC_URL=https://your-production-domain.example
+RESEND_API_KEY=
 COOKIE_SECURE=true
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
-GEMINI_API_KEY=...
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+GEMINI_API_KEY=
 ```
 
 ---
@@ -174,8 +178,8 @@ GEMINI_API_KEY=...
 2. **Database Access** → add a database user (username + password).  
 3. **Network Access** → allow your IP (local) or `0.0.0.0/0` for testing (tighten for production).  
 4. **Database** → **Connect** → **Drivers** → copy the connection string.  
-5. Replace `<password>` with your user’s password (URL-encode special characters in the password).  
-6. Example: `mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/heroes?retryWrites=true&w=majority`
+5. Replace the `<password>` placeholder in that string with your user’s password (URL-encode special characters in the password).  
+6. See MongoDB’s [connection string format](https://www.mongodb.com/docs/manual/reference/connection-string/) — keep the real URI only in `.env.local` or your host’s secret store, never in the repo.
 
 ### JWT secrets — `NEXTAUTH_SECRET`, `SITE_JWT_SECRET`
 
@@ -186,7 +190,7 @@ GEMINI_API_KEY=...
 ### Resend — `RESEND_API_KEY` and sending domain
 
 1. Sign up at [resend.com](https://resend.com).  
-2. **API Keys** → create a key → copy `re_...` into **`RESEND_API_KEY`**.  
+2. **API Keys** → create a key → copy the key value into **`RESEND_API_KEY`**.  
 3. **Domains** → **Add domain** → add DNS records (SPF, DKIM, MX on `send` subdomain) at your DNS host (e.g. Hostinger).  
 4. Wait until the domain shows **Verified**.  
 5. Set **`NEXT_PUBLIC_APP_URL`** to match that domain (e.g. `https://yourdomain.com`) so the app sends as `noreply@yourdomain.com`.  
@@ -201,10 +205,10 @@ GEMINI_API_KEY=...
 ### Stripe — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_ADOPTION_PRICE_CENTS`
 
 1. Sign up at [stripe.com](https://stripe.com).  
-2. **Developers** → **API keys** → use **Test mode** locally: **Secret key** → `sk_test_...` → **`STRIPE_SECRET_KEY`**.  
+2. **Developers** → **API keys** → use **Test mode** locally: copy the **Secret key** into **`STRIPE_SECRET_KEY`**.  
 3. **Developers** → **Webhooks** → **Add endpoint** → URL must match a route in this repo, e.g. `https://your-domain.com/api/stripe/webhook` or `https://your-domain.com/api/webhooks/stripe` (both exist; pick one and stay consistent).  
 4. Select events your app needs (e.g. `checkout.session.completed`).  
-5. After creating the endpoint, open it and reveal **Signing secret** → **`STRIPE_WEBHOOK_SECRET`** (`whsec_...`).  
+5. After creating the endpoint, open it and reveal **Signing secret** → **`STRIPE_WEBHOOK_SECRET`**.  
 6. For production, repeat with **Live mode** keys and a live webhook.  
 7. **`STRIPE_ADOPTION_PRICE_CENTS`** — integer cents (e.g. `999` = $9.99); optional, default in code if unset.
 
