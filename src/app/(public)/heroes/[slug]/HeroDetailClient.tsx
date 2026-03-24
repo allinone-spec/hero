@@ -43,6 +43,10 @@ interface HeroDetail {
       wikiSummary?: string;
       history?: string;
       awardCriteria?: string;
+      description?: string;
+      wikipediaUrl?: string;
+      appearance?: string;
+      established?: string;
     };
     count: number;
     hasValor: boolean;
@@ -84,6 +88,7 @@ function SupportAdoptPanel({
 }) {
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
+  const [showVerifyEmailCta, setShowVerifyEmailCta] = useState(false);
   /** null = session check not finished */
   const [me, setMe] = useState<null | { signedIn: boolean; userId: string | null }>(null);
 
@@ -164,6 +169,7 @@ function SupportAdoptPanel({
   async function startCheckout() {
     setBusy(true);
     setHint("");
+    setShowVerifyEmailCta(false);
     try {
       const res = await fetch("/api/stripe/create-adoption-checkout", {
         method: "POST",
@@ -182,7 +188,9 @@ function SupportAdoptPanel({
         window.location.href = data.url;
         return;
       }
-      setHint(data.error || "Checkout unavailable");
+      const msg = data.error || "Checkout unavailable";
+      setHint(msg);
+      setShowVerifyEmailCta(res.status === 403 && /verify your email/i.test(msg));
     } catch {
       setHint("Network error");
     } finally {
@@ -208,6 +216,15 @@ function SupportAdoptPanel({
         {busy ? "Redirecting…" : "Adopt this hero"}
       </button>
       {hint && <p className="text-xs text-red-300 mt-2">{hint}</p>}
+      {showVerifyEmailCta && (
+        <p className="text-xs text-[var(--color-text-muted)] mt-2">
+          <Link href="/login?role=member" className="text-[var(--color-gold)] hover:underline">
+            Sign in
+          </Link>{" "}
+          and use &quot;Resend verification&quot; if you did not get the email, or open the link we sent when you
+          registered.
+        </p>
+      )}
       {me?.signedIn && (
         <p className="text-xs text-[var(--color-text-muted)] mt-2">
           You&apos;re signed in as an Owner — use the button above to open secure checkout.

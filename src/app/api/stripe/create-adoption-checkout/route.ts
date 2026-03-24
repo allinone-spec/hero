@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import { User } from "@/lib/models/User";
 import { isAdoptionActive } from "@/lib/adoption";
 import { getSiteSession } from "@/lib/site-auth";
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const priceCents = parseInt(process.env.STRIPE_ADOPTION_PRICE_CENTS || "999", 10);
+/** When set, Checkout uses subscription mode (yearly renewal via invoice.paid subscription_cycle). */
+const yearlyPriceId = process.env.STRIPE_ADOPTION_YEARLY_PRICE_ID?.trim() || "";
 
 /** Stripe requires absolute URLs with an explicit https:// or http:// scheme. */
 function normalizeEnvOrigin(raw: string | undefined): string | null {
@@ -68,6 +71,17 @@ export async function POST(req: NextRequest) {
   }
 
   await dbConnect();
+  const dbUser = await User.findById(session.sub).select("emailVerified stripeCustomerId email").lean();
+  if (dbUser && dbUser.emailVerified === false) {
+    return NextResponse.json(
+      {
+        error:
+          "Verify your email before adopting. Check your inbox for the verification link, or request a new one from the login page.",
+      },
+      { status: 403 },
+    );
+  }
+
   const hero = await Hero.findById(heroId).select("name slug published ownerUserId adoptionExpiry").lean();
   if (!hero) {
     return NextResponse.json({ error: "Hero not found" }, { status: 404 });
@@ -84,41 +98,68 @@ export async function POST(req: NextRequest) {
   const stripe = new Stripe(stripeSecret);
   const origin = appOrigin(req);
 
+  let stripeCustomerId = dbUser?.stripeCustomerId?.trim() || "";
+  if (!stripeCustomerId) {
+    const cust = await stripe.customers.create({
+      email: session.email || dbUser?.email || undefined,
+      metadata: { userId: session.sub },
+    });
+    stripeCustomerId = cust.id;
+    await User.findByIdAndUpdate(session.sub, { stripeCustomerId }).catch(() => undefined);
+  }
+
+  const meta = {
+    heroId: hero._id.toString(),
+    userId: session.sub,
+    userEmail: session.email || "",
+  };
+
   let checkout: Stripe.Checkout.Session;
   try {
-    checkout = await stripe.checkout.sessions.create({
-      mode: "payment",
-      /** Prefill email so Link / Checkout can match the Owner account and send receipts. */
-      ...(session.email ? { customer_email: session.email } : {}),
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Hero adoption: ${hero.name}`,
-              description: "Supporter adoption — tribute editing for one year (where enabled).",
-            },
-            unit_amount: Number.isFinite(priceCents) && priceCents > 0 ? priceCents : 999,
-          },
-          quantity: 1,
+    if (yearlyPriceId) {
+      checkout = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        customer: stripeCustomerId,
+        line_items: [{ price: yearlyPriceId, quantity: 1 }],
+        success_url: `${origin}/heroes/${hero.slug}?adopted=1&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/heroes/${hero.slug}?adopted=0`,
+        metadata: meta,
+        subscription_data: {
+          metadata: { heroId: meta.heroId, userId: meta.userId },
         },
-      ],
-      success_url: `${origin}/heroes/${hero.slug}?adopted=1&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/heroes/${hero.slug}?adopted=0`,
-      metadata: {
-        heroId: hero._id.toString(),
-        userId: session.sub,
-        userEmail: session.email,
-      },
-      client_reference_id: session.sub,
-      ...(session.email
-        ? {
-            payment_intent_data: {
-              receipt_email: session.email,
+        client_reference_id: session.sub,
+        ...(session.email ? { customer_update: { name: "auto" as const } } : {}),
+      });
+    } else {
+      checkout = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer: stripeCustomerId,
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `Hero adoption: ${hero.name}`,
+                description: "Supporter adoption — tribute editing for one year (where enabled).",
+              },
+              unit_amount: Number.isFinite(priceCents) && priceCents > 0 ? priceCents : 999,
             },
-          }
-        : {}),
-    });
+            quantity: 1,
+          },
+        ],
+        success_url: `${origin}/heroes/${hero.slug}?adopted=1&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/heroes/${hero.slug}?adopted=0`,
+        metadata: meta,
+        client_reference_id: session.sub,
+        ...(session.email
+          ? {
+              payment_intent_data: {
+                receipt_email: session.email,
+              },
+            }
+          : {}),
+      });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Checkout failed";
     console.error("create-adoption-checkout:", err);

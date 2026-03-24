@@ -1,4 +1,7 @@
-/** Shared AI medal list → DB MedalType matching (clerk output, not layout). */
+/**
+ * Stage 1–2: AI medal list → DB MedalType matching (clerk output, not rack layout).
+ * Normalization: `normalizeAwardText` / `@/lib/award-clerk`.
+ */
 
 import { normalizeAwardText } from "@/lib/medal-normalization";
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import ScoringConfig from "@/lib/models/ScoringConfig";
-import { getSession } from "@/lib/auth";
+import { requirePrivilege } from "@/lib/auth";
 import {
   calculateComparisonScore,
   calculateScore,
@@ -12,16 +12,27 @@ import {
 import { logActivity } from "@/lib/activity-logger";
 
 export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const publishedOnly = searchParams.get("published") !== "false";
+
+  if (!publishedOnly) {
+    try {
+      await requirePrivilege("/admin/heroes", "canView");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Forbidden";
+      const status = msg === "Unauthorized" ? 401 : 403;
+      return NextResponse.json({ error: msg }, { status });
+    }
+  }
+
   await dbConnect();
 
-  const { searchParams } = new URL(req.url);
   const search = searchParams.get("search");
   const medal = searchParams.get("medal");
   const branch = searchParams.get("branch");
   const war = searchParams.get("war");
   const countryCode = searchParams.get("country");
   const tag = searchParams.get("tag");
-  const publishedOnly = searchParams.get("published") !== "false";
   const page = parseInt(searchParams.get("page") || "0");
   const limit = parseInt(searchParams.get("limit") || "0");
 
@@ -80,9 +91,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let session: { email: string; groupSlug: string };
+  try {
+    session = await requirePrivilege("/admin/heroes", "canCreate");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Forbidden";
+    const status = msg === "Unauthorized" ? 401 : 403;
+    return NextResponse.json({ error: msg }, { status });
   }
 
   await dbConnect();

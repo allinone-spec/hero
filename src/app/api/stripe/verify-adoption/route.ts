@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import dbConnect from "@/lib/mongodb";
-import Hero from "@/lib/models/Hero";
-import AdoptionTransaction from "@/lib/models/AdoptionTransaction";
-import { User } from "@/lib/models/User";
-import { isAdoptionActive, nextAdoptionExpiry } from "@/lib/adoption";
+import { applyAdoptionAfterCheckoutPayment } from "@/lib/stripe-adoption";
 import { getSiteSession } from "@/lib/site-auth";
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -57,62 +53,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This purchase belongs to a different account" }, { status: 403 });
   }
 
-  await dbConnect();
-  const hero = await Hero.findById(heroId).select("_id slug ownerUserId adoptionExpiry published");
-  if (!hero) {
-    return NextResponse.json({ error: "Hero not found" }, { status: 404 });
-  }
-  if (!hero.published) {
-    return NextResponse.json({ error: "Hero is not available for adoption" }, { status: 400 });
-  }
-  const currentOwnerId = hero.ownerUserId?.toString();
-  if (isAdoptionActive(hero.adoptionExpiry) && currentOwnerId && currentOwnerId !== userId) {
-    await AdoptionTransaction.updateOne(
-      { stripeSessionId: checkoutSession.id },
-      {
-        $set: {
-          stripePaymentIntentId:
-            typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : "",
-          stripeCustomerId: typeof checkoutSession.customer === "string" ? checkoutSession.customer : "",
-          userId,
-          heroId,
-          amountCents: checkoutSession.amount_total ?? 0,
-          currency: checkoutSession.currency ?? "usd",
-          status: "blocked",
-          note: "Active adoption already owned by another user",
-        },
-      },
-      { upsert: true }
-    );
-    return NextResponse.json({ error: "Hero already has an active supporter." }, { status: 409 });
+  const customerId =
+    typeof checkoutSession.customer === "string" ? checkoutSession.customer : "";
+
+  if (checkoutSession.mode === "subscription") {
+    const subId = checkoutSession.subscription;
+    if (typeof subId !== "string") {
+      return NextResponse.json({ error: "Subscription not ready yet; try again in a moment." }, { status: 409 });
+    }
+    const sub = await stripe.subscriptions.retrieve(subId);
+    const sh = sub.metadata?.heroId?.trim();
+    const su = sub.metadata?.userId?.trim();
+    if (sh !== heroId || su !== userId) {
+      return NextResponse.json({ error: "Subscription metadata mismatch" }, { status: 400 });
+    }
   }
 
-  await Hero.findByIdAndUpdate(heroId, {
-    ownerUserId: userId,
-    adoptionExpiry: nextAdoptionExpiry(hero.adoptionExpiry),
+  const result = await applyAdoptionAfterCheckoutPayment({
+    heroId,
+    userId,
+    stripeSessionId: checkoutSession.id,
+    stripePaymentIntentId:
+      typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : "",
+    stripeCustomerId: customerId,
+    amountCents: checkoutSession.amount_total ?? 0,
+    currency: checkoutSession.currency ?? "usd",
   });
-  await AdoptionTransaction.updateOne(
-    { stripeSessionId: checkoutSession.id },
-    {
-      $set: {
-        stripePaymentIntentId:
-          typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : "",
-        stripeCustomerId: typeof checkoutSession.customer === "string" ? checkoutSession.customer : "",
-        userId,
-        heroId,
-        amountCents: checkoutSession.amount_total ?? 0,
-        currency: checkoutSession.currency ?? "usd",
-        status: "paid",
-        note: "",
-      },
-    },
-    { upsert: true }
-  );
-  await User.findByIdAndUpdate(userId, {
-    role: "owner",
-    ...(typeof checkoutSession.customer === "string" ? { stripeCustomerId: checkoutSession.customer } : {}),
-    subscriptionStatus: "adopted",
-  }).catch(() => undefined);
 
-  return NextResponse.json({ success: true, slug: hero.slug });
+  if (!result.ok) {
+    if (result.code === "conflict") {
+      return NextResponse.json({ error: result.message }, { status: 409 });
+    }
+    return NextResponse.json({ error: result.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true, slug: result.slug });
 }

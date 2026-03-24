@@ -171,7 +171,11 @@ export default function UnifiedRegisterPage() {
           <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
             We sent a verification link to <span className="text-[var(--color-gold)] font-medium">{email}</span>. Open
             the email, open the link, then click <strong>Verify email and sign in</strong> on our site — you won&apos;t need
-            to enter your password again.
+            to enter your password again. After that you can adopt a hero and renew support from{" "}
+            <Link href="/adopt" className="text-[var(--color-gold)] hover:underline">
+              Adopt a Hero
+            </Link>
+            .
           </p>
           {verifyEmailSent === false && (
             <p className="text-sm text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">

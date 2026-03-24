@@ -33,6 +33,14 @@ export interface RibbonMedal {
   countryCode?: string;
   serviceBranch?: string;
   wikiSummary?: string;
+  history?: string;
+  awardCriteria?: string;
+  imageUrl?: string;
+  description?: string;
+  wikipediaUrl?: string;
+  appearance?: string;
+  established?: string;
+  inventoryCategory?: string;
 }
 
 interface RibbonRackProps {

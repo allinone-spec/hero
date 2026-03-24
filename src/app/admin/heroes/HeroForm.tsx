@@ -55,6 +55,8 @@ interface HeroFormData {
   powHeroism: boolean;
   multiServiceOrMultiWar: boolean;
   published: boolean;
+  /** Caretaker: data reviewed against sources */
+  isVerified: boolean;
   orderOverride: string;
   medals: MedalEntry[];
   countryCode: string;
@@ -119,6 +121,7 @@ interface HeroFormProps {
     ownerUserId?: string;
     adoptionExpiry?: string;
     comparisonScore?: number | null;
+    isVerified?: boolean;
   };
   isEdit?: boolean;
   importWikiUrl?: string;
@@ -689,6 +692,7 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
     powHeroism: initialData?.powHeroism || false,
     multiServiceOrMultiWar: initialData?.multiServiceOrMultiWar || false,
     published: initialData?.published || false,
+    isVerified: initialData?.isVerified ?? false,
     orderOverride: initialData?.orderOverride?.toString() || "",
     medals: initialData?.medals || [],
     combatAchievements: initialData?.combatAchievements || {
@@ -2661,12 +2665,18 @@ function normalizeCombatType(input: unknown): CombatType {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+        <div className="rounded-xl border border-[var(--color-border)] overflow-hidden divide-y divide-[var(--color-border)]">
           <Toggle
             label="Published"
             description="Visible on the public rankings and heroes pages"
             checked={form.published}
             onChange={(v) => set("published", v)}
+          />
+          <Toggle
+            label="Verified (caretaker)"
+            description="Mark when awards, tags, and biography have been human-reviewed"
+            checked={form.isVerified}
+            onChange={(v) => set("isVerified", v)}
           />
         </div>
       </section>

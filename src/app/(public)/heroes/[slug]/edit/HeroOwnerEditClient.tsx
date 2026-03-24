@@ -66,6 +66,46 @@ interface OwnerMedalEntry {
   wikiRibbonUrl?: string;
 }
 
+/** Map populated hero.medals from API → editor state (Stage 2: same shape after save → instant rack refresh). */
+function medalsFromServerPayload(
+  raw: unknown
+): OwnerMedalEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (m): m is Record<string, unknown> =>
+        Boolean(m) && typeof m === "object" && m !== null && typeof (m as { medalType?: unknown }).medalType === "object"
+    )
+    .map((m) => {
+      const mt = m.medalType as Record<string, unknown>;
+      return {
+        medalType: {
+          _id: String(mt._id ?? ""),
+          name: String(mt.name ?? ""),
+          shortName: mt.shortName != null ? String(mt.shortName) : undefined,
+          precedenceOrder: Number(mt.precedenceOrder) || 0,
+          ribbonColors: Array.isArray(mt.ribbonColors) ? (mt.ribbonColors as string[]) : undefined,
+          ribbonImageUrl: mt.ribbonImageUrl != null ? String(mt.ribbonImageUrl) : undefined,
+          deviceLogic: mt.deviceLogic != null ? String(mt.deviceLogic) : undefined,
+          deviceRule: mt.deviceRule as MedalDeviceRule | undefined,
+          countryCode: mt.countryCode != null ? String(mt.countryCode) : undefined,
+          inventoryCategory: mt.inventoryCategory != null ? String(mt.inventoryCategory) : undefined,
+          wikiSummary: mt.wikiSummary != null ? String(mt.wikiSummary) : undefined,
+          history: mt.history != null ? String(mt.history) : undefined,
+          awardCriteria: mt.awardCriteria != null ? String(mt.awardCriteria) : undefined,
+          imageUrl: mt.imageUrl != null ? String(mt.imageUrl) : undefined,
+        },
+        count: Math.max(1, Number(m.count) || 1),
+        hasValor: Boolean(m.hasValor),
+        valorDevices: Math.max(0, Number(m.valorDevices) || 0),
+        arrowheads: Math.max(0, Number(m.arrowheads) || 0),
+        deviceImages: Array.isArray(m.deviceImages) ? (m.deviceImages as OwnerMedalEntry["deviceImages"]) : [],
+        wikiRibbonUrl: typeof m.wikiRibbonUrl === "string" ? m.wikiRibbonUrl : "",
+      };
+    })
+    .filter((m) => m.medalType._id);
+}
+
 export default function HeroOwnerEditClient({ slug }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -81,6 +121,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   const [medals, setMedals] = useState<OwnerMedalEntry[]>([]);
   const [catalog, setCatalog] = useState<MedalOption[]>([]);
   const [selectedMedalId, setSelectedMedalId] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,7 +151,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         setBiography(data.biography || "");
         setAvatarUrl(data.avatarUrl || "");
         setPublished(Boolean(data.published));
-        setMedals(Array.isArray(data.medals) ? data.medals : []);
+        setMedals(medalsFromServerPayload(data.medals));
         setCatalog(Array.isArray(medalData) ? medalData : []);
       } catch {
         if (!cancelled) setError("Network error");
@@ -128,6 +169,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
     [branch, countryCode, medals]
   );
   function addMedal() {
+    setSaveSuccess(false);
     if (!selectedMedalId) return;
     const match = catalog.find((m) => m._id === selectedMedalId);
     if (!match) return;
@@ -146,6 +188,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   }
 
   function updateMedal(medalId: string, patch: Partial<OwnerMedalEntry>) {
+    setSaveSuccess(false);
     setMedals((prev) =>
       prev.map((m) =>
         m.medalType._id === medalId
@@ -163,6 +206,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   }
 
   function removeMedal(medalId: string) {
+    setSaveSuccess(false);
     setMedals((prev) => prev.filter((m) => m.medalType._id !== medalId));
   }
 
@@ -171,6 +215,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
     if (!id) return;
     setSaving(true);
     setError("");
+    setSaveSuccess(false);
     try {
       const res = await fetch(`/api/heroes/${id}`, {
         method: "PUT",
@@ -194,7 +239,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         setError(data.error || "Save failed");
         return;
       }
-      router.push("/my-heroes");
+      setMedals(medalsFromServerPayload(data.medals));
+      if (typeof data.biography === "string") setBiography(data.biography);
+      if (typeof data.avatarUrl === "string") setAvatarUrl(data.avatarUrl);
+      setSaveSuccess(true);
       router.refresh();
     } catch {
       setError("Network error");
@@ -256,11 +304,22 @@ export default function HeroOwnerEditClient({ slug }: Props) {
             {error}
           </div>
         )}
+        {saveSuccess && (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+            Saved. Ribbon rack and scores are updated from the server.{" "}
+            <Link href="/my-heroes" className="font-medium underline underline-offset-2 hover:text-emerald-100">
+              My Heroes
+            </Link>
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Biography</label>
           <textarea
             value={biography}
-            onChange={(e) => setBiography(e.target.value)}
+            onChange={(e) => {
+              setSaveSuccess(false);
+              setBiography(e.target.value);
+            }}
             rows={10}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
           />
@@ -269,7 +328,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Portrait</label>
           <ImageUpload
             value={avatarUrl}
-            onChange={setAvatarUrl}
+            onChange={(url) => {
+              setSaveSuccess(false);
+              setAvatarUrl(url);
+            }}
             folder="Heroes/TributePortraits"
             label="portrait"
             uploadUrl="/api/site/upload-tribute-image"
@@ -282,7 +344,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           <input
             type="text"
             value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
+            onChange={(e) => {
+              setSaveSuccess(false);
+              setAvatarUrl(e.target.value);
+            }}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
             placeholder="https://…"
             autoComplete="off"

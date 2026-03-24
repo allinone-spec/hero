@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
-import { isAdoptionActive } from "@/lib/adoption";
+import { assertHeroOwnerAccess } from "@/lib/hero-access";
 import { getSiteSession } from "@/lib/site-auth";
 
 cloudinary.config({
@@ -40,8 +40,9 @@ export async function POST(req: NextRequest) {
     if (!hero) {
       return NextResponse.json({ error: "Hero not found" }, { status: 404 });
     }
-    const ownerId = hero.ownerUserId?.toString();
-    if (!ownerId || ownerId !== session.sub || !isAdoptionActive(hero.adoptionExpiry)) {
+    try {
+      assertHeroOwnerAccess(hero, session);
+    } catch {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

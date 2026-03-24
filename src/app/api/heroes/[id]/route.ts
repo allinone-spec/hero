@@ -3,7 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import MedalTypeModel from "@/lib/models/MedalType";
 import ScoringConfig from "@/lib/models/ScoringConfig";
-import { isAdoptionActive } from "@/lib/adoption";
+import { assertHeroOwnerAccess } from "@/lib/hero-access";
 import { getSession, requirePrivilege } from "@/lib/auth";
 import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
 import {
@@ -18,6 +18,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  try {
+    await requirePrivilege("/admin/heroes", "canView");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Forbidden";
+    const status = msg === "Unauthorized" ? 401 : 403;
+    return NextResponse.json({ error: msg }, { status });
+  }
+
   await dbConnect();
   const { id } = await params;
 
@@ -57,8 +65,9 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json({ error: "Hero not found" }, { status: 404 });
     }
-    const ownerId = existing.ownerUserId?.toString();
-    if (!ownerId || ownerId !== siteSession.sub || !isAdoptionActive(existing.adoptionExpiry)) {
+    try {
+      assertHeroOwnerAccess(existing, siteSession);
+    } catch {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -166,6 +175,14 @@ export async function PUT(
       const message = err instanceof Error ? err.message : "Failed to update hero";
       return NextResponse.json({ error: message }, { status: 400 });
     }
+  }
+
+  try {
+    await requirePrivilege("/admin/heroes", "canEdit");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Forbidden";
+    const status = msg === "Unauthorized" ? 401 : 403;
+    return NextResponse.json({ error: msg }, { status });
   }
 
   const session = adminSession!;

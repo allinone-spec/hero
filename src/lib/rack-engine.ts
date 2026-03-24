@@ -21,6 +21,10 @@ export interface RackMedalTypeLike {
   history?: string;
   awardCriteria?: string;
   imageUrl?: string;
+  description?: string;
+  wikipediaUrl?: string;
+  appearance?: string;
+  established?: string;
 }
 
 export interface RackMedalEntryLike {
@@ -52,6 +56,10 @@ export interface RackRenderMedal {
   history?: string;
   awardCriteria?: string;
   imageUrl?: string;
+  description?: string;
+  wikipediaUrl?: string;
+  appearance?: string;
+  established?: string;
 }
 
 export interface RibbonRackProfile {
@@ -142,6 +150,10 @@ export function buildRibbonRackMedals(
         history: medalType.history,
         awardCriteria: medalType.awardCriteria,
         imageUrl: medalType.imageUrl,
+        description: medalType.description,
+        wikipediaUrl: medalType.wikipediaUrl,
+        appearance: medalType.appearance,
+        established: medalType.established,
       } satisfies RackRenderMedal;
     });
 

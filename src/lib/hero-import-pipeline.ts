@@ -6,6 +6,7 @@ import { analyzeHero, fetchHeroFromAI } from "@/lib/openai";
 import { scrapeWikipediaHero } from "@/lib/wikipedia-scraper";
 import { normalizeMetadataTags } from "@/lib/metadata-tags";
 import { matchAiMedalsToDatabase } from "@/lib/match-ai-medals";
+// Stage 1 clerk path: match-ai-medals uses normalizeAwardText (see @/lib/award-clerk).
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

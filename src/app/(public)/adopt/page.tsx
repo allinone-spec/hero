@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import dbConnect from "@/lib/mongodb";
 import HeroListClient from "../HeroListClient";
 import { getPublishedHeroesForPublicList } from "@/lib/public-heroes";
@@ -41,7 +42,11 @@ export default async function AdoptPage() {
           <h1 className="text-3xl font-bold">Adopt a Hero</h1>
           <p className="max-w-3xl text-sm text-[var(--color-text-muted)]">
             Browse published profiles and find heroes that are currently available for adoption. Adopting a hero makes
-            you the named supporter for the profile and unlocks tribute editing on your Owner account.
+            you the named supporter for the profile and unlocks tribute editing on your Owner account. You need a free{" "}
+            <Link href="/register?role=member" className="text-[var(--color-gold)] hover:underline">
+              Owner registration
+            </Link>{" "}
+            and a verified email before checkout.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

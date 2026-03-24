@@ -31,6 +31,8 @@ export default function MyHeroesPage() {
   const [heroes, setHeroes] = useState<MyHero[] | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [renewBusyId, setRenewBusyId] = useState<string | null>(null);
+  const [renewMessage, setRenewMessage] = useState<{ heroId: string; text: string; verify?: boolean } | null>(null);
 
   const load = useCallback(async () => {
     const meRes = await fetch("/api/site/me", { credentials: "include", cache: "no-store" });
@@ -55,6 +57,33 @@ export default function MyHeroesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function startRenewCheckout(heroId: string) {
+    setRenewBusyId(heroId);
+    setRenewMessage(null);
+    try {
+      const res = await fetch("/api/stripe/create-adoption-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ heroId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setRenewMessage({
+        heroId,
+        text: data.error || `Could not start checkout (${res.status})`,
+        verify: res.status === 403 && /verify your email/i.test(data.error || ""),
+      });
+    } catch {
+      setRenewMessage({ heroId, text: "Network error" });
+    } finally {
+      setRenewBusyId(null);
+    }
+  }
 
   if (heroes === null) {
     return (
@@ -179,9 +208,27 @@ export default function MyHeroesPage() {
                       Edit tribute
                     </Link>
                   ) : (
-                    <span className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-center text-sm text-[var(--color-text-muted)]">
-                      Renew to edit
-                    </span>
+                    <div className="flex min-w-[10rem] flex-col gap-1 sm:items-stretch">
+                      <button
+                        type="button"
+                        disabled={renewBusyId === h.id}
+                        onClick={() => startRenewCheckout(h.id)}
+                        className="rounded-lg border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10 px-3 py-2 text-center text-sm font-medium text-[var(--color-gold)] transition-colors hover:bg-[var(--color-gold)]/20 disabled:opacity-60"
+                      >
+                        {renewBusyId === h.id ? "Opening checkout…" : "Renew support"}
+                      </button>
+                      {renewMessage?.heroId === h.id && (
+                        <p className="text-xs text-red-300">{renewMessage.text}</p>
+                      )}
+                      {renewMessage?.heroId === h.id && renewMessage.verify && (
+                        <Link
+                          href="/login?role=member"
+                          className="text-center text-xs text-[var(--color-gold)] hover:underline"
+                        >
+                          Sign in and resend verification
+                        </Link>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
