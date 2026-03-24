@@ -1,18 +1,26 @@
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
+import { resolveMedalDeviceRule } from "@/lib/medal-device-rules";
+
 // ── Ribbon Device Computation Engine ─────────────────────────────────────────
-// Handles silver/bronze compaction, V-device, and arrowhead layout logic.
+// Handles stars, oak leaf clusters, Commonwealth devices, V-device, and arrowhead layout logic.
 
 export type DeviceKind =
   | "silver-star"
+  | "gold-star"
   | "bronze-star"
+  | "silver-olc"
+  | "bronze-olc"
+  | "maple-leaf"
+  | "numeral-device"
   | "valor-v"
   | "arrowhead"
-  /** Commonwealth / UK-style campaign devices (from MedalType.deviceLogic) */
   | "bar-device"
   | "rosette"
   | "clasp";
 
 export interface Device {
   kind: DeviceKind;
+  value?: number;
 }
 
 export interface PositionedDevice extends Device {
@@ -21,46 +29,54 @@ export interface PositionedDevice extends Device {
 }
 
 /**
- * Compute the ordered list of devices for a single ribbon.
- *
- * Compaction rules (Army/Navy campaign stars):
- *   - 1st award  = ribbon itself (no device)
- *   - 2nd–6th    = 1–5 bronze stars
- *   - Every 5 bronze stars → 1 silver star
- * Order: silver stars → bronze stars → V-device → arrowhead
+ * Compute the ordered list of devices for a single ribbon from the medal's
+ * structured repeat-award rule and the recipient's branch context.
  */
 export function computeDevices(
   count: number,
   hasValor: boolean,
   arrowheads: number,
-  deviceLogic?: string
+  deviceRule?: MedalDeviceRule | string,
+  serviceBranch?: string
 ): Device[] {
   const devices: Device[] = [];
   const additional = Math.max(0, count - 1);
-  const logic = (deviceLogic || "").toLowerCase();
+  const rule = resolveMedalDeviceRule(deviceRule, serviceBranch);
 
-  if (
-    additional > 0 &&
-    (logic.includes("bar") || logic.includes("rosette") || logic.includes("clasp"))
-  ) {
-    const n = Math.min(additional, 6);
-    if (logic.includes("rosette")) {
-      for (let i = 0; i < n; i++) devices.push({ kind: "rosette" });
-    } else if (logic.includes("clasp")) {
-      for (let i = 0; i < n; i++) devices.push({ kind: "clasp" });
-    } else {
-      for (let i = 0; i < n; i++) devices.push({ kind: "bar-device" });
-    }
-    if (hasValor) devices.push({ kind: "valor-v" });
-    if (arrowheads > 0) devices.push({ kind: "arrowhead" });
-    return devices;
+  if (additional > 0 && rule.repeatDevice === "numeral-device") {
+    devices.push({
+      kind: "numeral-device",
+      value: rule.numeralValueMode === "additional-awards" ? additional : count,
+    });
   }
 
-  const silver = Math.floor(additional / 5);
-  const bronze = additional % 5;
+  if (additional > 0 && rule.repeatDevice !== "none" && rule.repeatDevice !== "numeral-device") {
+    const compactStep = Math.max(0, rule.compactStep || 0);
+    const maxDisplayCount = Math.max(1, rule.maxDisplayCount || additional);
+    const visibleRepeatDevice = (rule.ribbonBarRepeatDevice ?? rule.repeatDevice) as DeviceKind;
+    const visibleCompactDevice = (rule.ribbonBarCompactDevice ?? rule.compactDevice) as DeviceKind | undefined;
+    let compactCount = 0;
+    let repeatCount = additional;
 
-  for (let i = 0; i < silver; i++) devices.push({ kind: "silver-star" });
-  for (let i = 0; i < bronze; i++) devices.push({ kind: "bronze-star" });
+    if (visibleCompactDevice && compactStep > 1) {
+      compactCount = Math.floor(additional / compactStep);
+      repeatCount = additional % compactStep;
+    }
+
+    const repeatDevices = [
+      ...Array.from(
+        { length: compactCount },
+        () => ({ kind: visibleCompactDevice || visibleRepeatDevice } as Device),
+      ),
+      ...Array.from(
+        { length: repeatCount },
+        () => ({ kind: visibleRepeatDevice } as Device),
+      ),
+    ].slice(0, maxDisplayCount);
+
+    devices.push(...repeatDevices);
+  }
+
   if (hasValor) devices.push({ kind: "valor-v" });
   if (arrowheads > 0) devices.push({ kind: "arrowhead" });
 
@@ -72,8 +88,8 @@ export function computeDevices(
  *
  * Layout rules:
  *  - When a V-device is present it is always pinned to the ribbon center.
- *  - Campaign/OLC stars cluster in the LEFT zone  (margin → center - gap).
- *  - Arrowhead sits in the RIGHT zone             (center + gap → ribbonW - margin).
+ *  - Repeat-award devices cluster in the left zone.
+ *  - Arrowhead sits in the right zone.
  *  - When there is no V-device, all devices are evenly spaced across the full width.
  */
 export function layoutDevices(
@@ -91,7 +107,12 @@ export function layoutDevices(
   const stars = devices.filter(
     (d) =>
       d.kind === "silver-star" ||
+      d.kind === "gold-star" ||
       d.kind === "bronze-star" ||
+      d.kind === "silver-olc" ||
+      d.kind === "bronze-olc" ||
+      d.kind === "maple-leaf" ||
+      d.kind === "numeral-device" ||
       d.kind === "bar-device" ||
       d.kind === "rosette" ||
       d.kind === "clasp"

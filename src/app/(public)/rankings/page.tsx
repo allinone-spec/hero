@@ -7,6 +7,7 @@ import AvatarFallback from "@/components/ui/AvatarFallback";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import type { Metadata } from "next";
 import { getPublishedHeroesForPublicList } from "@/lib/public-heroes";
+import { buildRibbonRackMedals } from "@/lib/rack-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -63,21 +64,11 @@ export default async function RankingsPage() {
   const topHero = heroesForClient[0];
   const slideshowHeroes = heroesForClient.slice(0, Math.min(5, heroesForClient.length));
 
-  /* Top hero ribbon medals */
-  const topRibbons = topHero
-    ? (topHero.medals ?? [])
-        .filter((m: any) => m.medalType)
-        .map((m: any) => ({
-          medalId: m.medalType._id,
-          name: m.medalType.name,
-          count: m.count,
-          precedenceOrder: m.medalType.precedenceOrder,
-          ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-          ribbonImageUrl: m.medalType.ribbonImageUrl,
-          hasValor: m.hasValor,
-          deviceImages: m.deviceImages,
-        }))
-        .sort((a: any, b: any) => a.precedenceOrder - b.precedenceOrder)
+  const topRibbonMedals = topHero
+    ? buildRibbonRackMedals(topHero.medals ?? [], {
+        serviceBranch: topHero.branch,
+        nationalCountryCode: topHero.countryCode,
+      })
     : [];
 
   return (
@@ -160,9 +151,15 @@ export default async function RankingsPage() {
                   {topHero.wars?.length ? ` · ${(topHero.wars as string[]).join(", ")}` : ""}
                 </p>
 
-                {topRibbons.length > 0 ? (
-                  <div className="mb-4 flex justify-center sm:justify-start">
-                    <RibbonRack medals={topRibbons} maxPerRow={8} scale={2} disableLinks />
+                {topRibbonMedals.length > 0 ? (
+                  <div className="mb-4 flex justify-center sm:justify-start overflow-x-auto">
+                    <RibbonRack
+                      medals={topRibbonMedals}
+                      maxPerRow={Math.max(topRibbonMedals.length, 1)}
+                      countryCode={topHero.countryCode}
+                      scale={2}
+                      disableLinks
+                    />
                   </div>
                 ) : null}
 
@@ -175,14 +172,8 @@ export default async function RankingsPage() {
                   </p>
                 )}
 
-                <div className="flex items-center gap-3 justify-center sm:justify-start">
+                <div className="flex justify-center sm:justify-start">
                   <span className="score-badge">{topHero.score} pts</span>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    View full profile →
-                  </span>
                 </div>
               </div>
             </div>

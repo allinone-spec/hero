@@ -7,6 +7,7 @@ import MedalWikiModal from "@/components/medals/MedalWikiModal";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
+import { describeMedalDevices, type MedalDeviceRule } from "@/lib/medal-device-rules";
 import { buildRibbonRackMedals, type RackRenderMedal } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
 
@@ -36,6 +37,9 @@ interface HeroDetail {
       imageUrl?: string;
       ribbonImageUrl?: string;
       deviceLogic?: string;
+      deviceRule?: MedalDeviceRule;
+      countryCode?: string;
+      inventoryCategory?: string;
       wikiSummary?: string;
       history?: string;
       awardCriteria?: string;
@@ -50,6 +54,7 @@ interface HeroDetail {
   }[];
   ribbonMaxPerRow?: number;
   rackGap?: number;
+  countryCode?: string;
 }
 
 interface Props {
@@ -65,30 +70,6 @@ const profileBackNavClass =
   "text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1";
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
-
-/** Describe OLC / Stars / V-devices for a medal entry */
-function describeDevices(count: number, hasValor: boolean, branch: string): string {
-  const parts: string[] = [];
-  const additional = Math.max(0, count - 1);
-
-  if (additional > 0) {
-    const silver = Math.floor(additional / 5);
-    const bronze = additional % 5;
-    const isNavy = /navy|marine|coast guard/i.test(branch);
-
-    if (isNavy) {
-      if (silver > 0) parts.push(`${silver} Silver Star${silver > 1 ? "s" : ""}`);
-      if (bronze > 0) parts.push(`${bronze} Gold Star${bronze > 1 ? "s" : ""}`);
-    } else {
-      if (silver > 0) parts.push(`${silver} Silver Oak Leaf Cluster${silver > 1 ? "s" : ""}`);
-      if (bronze > 0) parts.push(`${bronze} Bronze Oak Leaf Cluster${bronze > 1 ? "s" : ""}`);
-    }
-  }
-
-  if (hasValor) parts.push('"V" Device');
-
-  return parts.length > 0 ? `w/ ${parts.join(" & ")}` : "";
-}
 
 function SupportAdoptPanel({
   heroId,
@@ -301,9 +282,10 @@ export default function HeroDetailClient({
     .filter((m) => m.medalType)
     .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
 
-  const ribbonMedals = buildRibbonRackMedals(sortedMedals);
-
-  const rackMaxPerRow = hero.ribbonMaxPerRow || 3;
+  const ribbonMedals = buildRibbonRackMedals(sortedMedals, {
+    serviceBranch: hero.branch,
+    nationalCountryCode: hero.countryCode,
+  });
 
   // Split biography into paragraphs
   const bioParas = hero.biography
@@ -404,7 +386,13 @@ export default function HeroDetailClient({
             <ol className="space-y-1.5 text-sm list-none">
               {sortedMedals.map((m, idx) => {
                 const devices = m.wikiDeviceText
-                  || describeDevices(m.count, m.hasValor, hero.branch);
+                  || describeMedalDevices({
+                    count: m.count,
+                    hasValor: m.hasValor,
+                    arrowheads: m.arrowheads,
+                    deviceRule: m.medalType.deviceRule ?? m.medalType.deviceLogic,
+                    serviceBranch: hero.branch,
+                  });
                 return (
                   <li key={idx} className="py-1.5 border-b border-[var(--color-border)]/50 last:border-0">
                     <Link
@@ -436,7 +424,8 @@ export default function HeroDetailClient({
                 <div className="flex justify-center">
                   <RibbonRack
                     medals={ribbonMedals}
-                    maxPerRow={rackMaxPerRow}
+                    rowLayout="rankListPyramid"
+                    countryCode={hero.countryCode}
                     scale={3}
                     onRibbonClick={setSelectedMedal}
                   />

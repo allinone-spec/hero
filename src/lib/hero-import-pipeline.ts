@@ -21,6 +21,7 @@ interface MedalTypeDoc {
   shortName: string;
   otherNames?: string[];
   ribbonImageUrl?: string;
+  countryCode?: string;
 }
 
 export interface HeroImportResult {
@@ -116,6 +117,21 @@ function deriveMetadataTags(input: {
   }
 
   return [...out];
+}
+
+function normalizeCountryCode(raw?: string, branch?: string): string {
+  const allowed = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
+  const direct = String(raw || "").trim().toUpperCase();
+  if (allowed.has(direct)) return direct;
+
+  const branchText = String(branch || "").toLowerCase();
+  if (/australia|australian/.test(branchText)) return "AU";
+  if (/new zealand/.test(branchText)) return "NZ";
+  if (/canada|canadian/.test(branchText)) return "CA";
+  if (/south africa|south african/.test(branchText)) return "ZA";
+  if (/\bindia\b|indian/.test(branchText)) return "IN";
+  if (/british|royal navy|royal marines|raf|royal air force/.test(branchText)) return "UK";
+  return "US";
 }
 
 export function extractHeroNameFromUrl(url: string): string | null {
@@ -258,6 +274,7 @@ export async function runHeroImportPipeline(
     metadataTags?: string[];
     countryCode?: string;
     gender?: string;
+    branch?: string;
   } = {};
 
   if (aiResult) {
@@ -285,9 +302,11 @@ export async function runHeroImportPipeline(
     ? scraped.combatType
     : (aiParsed.combatSpecialty || "none");
 
+  const countryCode = normalizeCountryCode(aiParsed.countryCode, scraped.branch || aiParsed.branch);
   const { matched: matchedMain, unmatched: unmatchedMain } = matchAiMedalsToDatabase(
     aiParsed.medals,
-    medalTypes
+    medalTypes,
+    { countryCode }
   );
   const mtById = new Map(medalTypes.map((m) => [m._id.toString(), m]));
   const aiMedals = matchedMain.map((m) => ({
@@ -315,10 +334,6 @@ export async function runHeroImportPipeline(
     gender: aiParsed.gender,
     current: aiParsed.metadataTags,
   });
-  const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
-  const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
-  const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
-
   await progress("Done!", 100);
 
   const wikiMedalNames = (scraped.medalCells || [])
@@ -414,9 +429,11 @@ async function aiFallbackPipeline(
     ? aiParsed.wars.filter((w) => typeof w === "string" && !medalNameSet.has(w.toLowerCase().trim()))
     : [];
 
+  const countryCode = normalizeCountryCode(aiParsed.countryCode, aiParsed.branch);
   const { matched: fbMatched, unmatched: fbUnmatched } = matchAiMedalsToDatabase(
     aiParsed.medals,
-    medalTypes
+    medalTypes,
+    { countryCode }
   );
   const mtByIdFb = new Map(medalTypes.map((m) => [m._id.toString(), m]));
   const aiMedals = fbMatched.map((m) => ({
@@ -464,10 +481,6 @@ async function aiFallbackPipeline(
     gender: aiParsed.gender,
     current: aiParsed.metadataTags,
   });
-  const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
-  const ccRaw = String(aiParsed.countryCode || "US").toUpperCase();
-  const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
-
   await progress("Done!", 100);
 
   return {

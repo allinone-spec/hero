@@ -1,3 +1,6 @@
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
+import { parseMedalDeviceRule } from "@/lib/medal-device-rules";
+
 export interface RackDeviceImage {
   url: string;
   deviceType: string;
@@ -11,6 +14,9 @@ export interface RackMedalTypeLike {
   ribbonColors?: string[];
   ribbonImageUrl?: string;
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  inventoryCategory?: string;
   wikiSummary?: string;
   history?: string;
   awardCriteria?: string;
@@ -38,28 +44,84 @@ export interface RackRenderMedal {
   isUnitCitation?: boolean;
   deviceImages?: RackDeviceImage[];
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  inventoryCategory?: string;
+  serviceBranch?: string;
   wikiSummary?: string;
   history?: string;
   awardCriteria?: string;
   imageUrl?: string;
 }
 
+export interface RibbonRackProfile {
+  countryCode: string;
+  defaultMaxPerRow: number;
+  defaultGap: number;
+  rowAlignment: "flush" | "center" | "pyramid";
+}
+
 export function isUnitCitationMedal(name: string): boolean {
   return /\bunit\b/i.test(name) || /\bpresidential.*citation\b/i.test(name);
 }
 
-export function sortRackMedals<T extends { precedenceOrder: number; name: string }>(medals: T[]): T[] {
+export function getRibbonRackProfile(countryCode?: string | null): RibbonRackProfile {
+  const cc = String(countryCode || "US").toUpperCase();
+  switch (cc) {
+    case "UK":
+    case "CA":
+    case "AU":
+    case "NZ":
+    case "ZA":
+    case "IN":
+      return { countryCode: cc, defaultMaxPerRow: 4, defaultGap: 1.5, rowAlignment: "pyramid" };
+    case "US":
+    default:
+      return { countryCode: cc || "US", defaultMaxPerRow: 4, defaultGap: 1.5, rowAlignment: "pyramid" };
+  }
+}
+
+function getMedalNationalPriority(
+  medalCountryCode: string | undefined,
+  nationalCountryCode: string | undefined,
+): number {
+  const medalCC = String(medalCountryCode || "").toUpperCase();
+  const nationalCC = String(nationalCountryCode || "").toUpperCase();
+  if (!nationalCC) return 0;
+  if (!medalCC || medalCC === nationalCC) return 0;
+  return 1;
+}
+
+export function sortRackMedals<
+  T extends { precedenceOrder: number; name: string; countryCode?: string }
+>(medals: T[], options?: { nationalCountryCode?: string }): T[] {
   return [...medals].sort((a, b) => {
+    const aNationalPriority = getMedalNationalPriority(a.countryCode, options?.nationalCountryCode);
+    const bNationalPriority = getMedalNationalPriority(b.countryCode, options?.nationalCountryCode);
+    if (aNationalPriority !== bNationalPriority) return aNationalPriority - bNationalPriority;
     if (a.precedenceOrder !== b.precedenceOrder) return a.precedenceOrder - b.precedenceOrder;
+    if ((a.countryCode || "") !== (b.countryCode || "")) {
+      return String(a.countryCode || "").localeCompare(String(b.countryCode || ""));
+    }
     return a.name.localeCompare(b.name);
   });
 }
 
-export function buildRibbonRackMedals(entries: RackMedalEntryLike[]): RackRenderMedal[] {
+export function buildRibbonRackMedals(
+  entries: RackMedalEntryLike[],
+  options?: { serviceBranch?: string; nationalCountryCode?: string },
+): RackRenderMedal[] {
   const medals = entries
     .filter((entry) => entry.medalType)
     .map((entry) => {
       const medalType = entry.medalType!;
+      const resolvedDeviceRule =
+        medalType.deviceRule ??
+        parseMedalDeviceRule(medalType.deviceLogic, {
+          countryCode: medalType.countryCode,
+          inventoryCategory: medalType.inventoryCategory,
+          medalName: medalType.name,
+        });
       return {
         medalId: medalType._id ? String(medalType._id) : undefined,
         name: medalType.name,
@@ -72,6 +134,10 @@ export function buildRibbonRackMedals(entries: RackMedalEntryLike[]): RackRender
         isUnitCitation: isUnitCitationMedal(medalType.name),
         deviceImages: entry.deviceImages ?? [],
         deviceLogic: medalType.deviceLogic,
+        deviceRule: resolvedDeviceRule,
+        countryCode: medalType.countryCode,
+        inventoryCategory: medalType.inventoryCategory,
+        serviceBranch: options?.serviceBranch,
         wikiSummary: medalType.wikiSummary,
         history: medalType.history,
         awardCriteria: medalType.awardCriteria,
@@ -79,5 +145,5 @@ export function buildRibbonRackMedals(entries: RackMedalEntryLike[]): RackRender
       } satisfies RackRenderMedal;
     });
 
-  return sortRackMedals(medals);
+  return sortRackMedals(medals, { nationalCountryCode: options?.nationalCountryCode });
 }

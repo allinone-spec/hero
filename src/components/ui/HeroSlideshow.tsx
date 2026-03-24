@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AvatarFallback from "./AvatarFallback";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 interface SlideshowHero {
   _id: string;
@@ -13,6 +15,7 @@ interface SlideshowHero {
   branch: string;
   score: number;
   avatarUrl?: string;
+  countryCode?: string;
   wars: string[];
   medals: {
     medalType: {
@@ -21,6 +24,10 @@ interface SlideshowHero {
       precedenceOrder: number;
       ribbonColors: string[];
       ribbonImageUrl?: string;
+      deviceLogic?: string;
+      deviceRule?: MedalDeviceRule;
+      countryCode?: string;
+      inventoryCategory?: string;
     };
     count: number;
     hasValor: boolean;
@@ -67,19 +74,10 @@ export default function HeroSlideshow({
 
   const hero = heroes[current];
 
-  const ribbonMedals = hero.medals
-    .filter((m) => m.medalType)
-    .map((m) => ({
-      medalId: m.medalType._id,
-      name: m.medalType.name,
-      count: m.count,
-      precedenceOrder: m.medalType.precedenceOrder,
-      ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-      ribbonImageUrl: m.medalType.ribbonImageUrl,
-      hasValor: m.hasValor,
-      deviceImages: m.deviceImages,
-    }))
-    .sort((a, b) => a.precedenceOrder - b.precedenceOrder);
+  const ribbonMedals = buildRibbonRackMedals(hero.medals, {
+    serviceBranch: hero.branch,
+    nationalCountryCode: hero.countryCode,
+  });
 
   return (
     <div
@@ -150,8 +148,14 @@ export default function HeroSlideshow({
 
             {/* Ribbon rack */}
             {ribbonMedals.length > 0 ? (
-              <div className="mb-5 flex justify-center sm:justify-start">
-                <RibbonRack medals={ribbonMedals} maxPerRow={7} scale={2} disableLinks />
+              <div className="mb-5 flex justify-center sm:justify-start overflow-x-auto">
+                <RibbonRack
+                  medals={ribbonMedals}
+                  maxPerRow={Math.max(ribbonMedals.length, 1)}
+                  countryCode={hero.countryCode}
+                  scale={2}
+                  disableLinks
+                />
               </div>
             ) : null}
 

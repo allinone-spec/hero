@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ImageUpload from "@/components/ui/ImageUpload";
+import { describeMedalDevices, getMedalDeviceFamilyLabel } from "@/lib/medal-device-rules";
 import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 const profileOwnerBackClass =
   "text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1";
@@ -17,6 +19,20 @@ function ProfileOwnerBackChevron() {
       <polyline points="15 18 9 12 15 6" />
     </svg>
   );
+}
+
+function describeOwnerMedalAdjustment(
+  medal: OwnerMedalEntry,
+  branch: string
+): string {
+  const detail = describeMedalDevices({
+    count: medal.count,
+    hasValor: medal.hasValor,
+    arrowheads: medal.arrowheads,
+    deviceRule: medal.medalType.deviceRule ?? medal.medalType.deviceLogic,
+    serviceBranch: branch,
+  });
+  return detail ? `Displays ${detail.replace(/^w\/\s*/, "")}` : "Displays with no repeat-award device";
 }
 
 interface Props {
@@ -31,6 +47,9 @@ interface MedalOption {
   ribbonColors?: string[];
   ribbonImageUrl?: string;
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  inventoryCategory?: string;
   wikiSummary?: string;
   history?: string;
   awardCriteria?: string;
@@ -54,6 +73,8 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   const [error, setError] = useState("");
   const [id, setId] = useState("");
   const [name, setName] = useState("");
+  const [branch, setBranch] = useState("");
+  const [countryCode, setCountryCode] = useState("US");
   const [biography, setBiography] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [published, setPublished] = useState(false);
@@ -84,6 +105,8 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         }
         setId(data._id);
         setName(data.name || "");
+        setBranch(data.branch || "");
+        setCountryCode(data.countryCode || "US");
         setBiography(data.biography || "");
         setAvatarUrl(data.avatarUrl || "");
         setPublished(Boolean(data.published));
@@ -100,8 +123,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
     };
   }, [slug]);
 
-  const ribbonMedals = useMemo(() => buildRibbonRackMedals(medals), [medals]);
-
+  const ribbonMedals = useMemo(
+    () => buildRibbonRackMedals(medals, { serviceBranch: branch, nationalCountryCode: countryCode }),
+    [branch, countryCode, medals]
+  );
   function addMedal() {
     if (!selectedMedalId) return;
     const match = catalog.find((m) => m._id === selectedMedalId);
@@ -299,12 +324,18 @@ export default function HeroOwnerEditClient({ slug }: Props) {
               {medals.map((medal) => (
                 <div
                   key={medal.medalType._id}
-                  className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 md:grid-cols-[minmax(0,1fr)_100px_100px_auto]"
+                  className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
                 >
                   <div className="min-w-0">
                     <div className="truncate font-medium text-[var(--color-text)]">{medal.medalType.name}</div>
                     <div className="text-xs text-[var(--color-text-muted)]">
                       Precedence {medal.medalType.precedenceOrder}
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--color-text-muted)]">
+                      {getMedalDeviceFamilyLabel(medal.medalType.deviceRule ?? medal.medalType.deviceLogic, branch)}
+                    </div>
+                    <div className="text-xs text-[var(--color-text-muted)]/80">
+                      {describeOwnerMedalAdjustment(medal, branch)}
                     </div>
                   </div>
                   <label className="text-sm text-[var(--color-text-muted)]">
@@ -318,6 +349,9 @@ export default function HeroOwnerEditClient({ slug }: Props) {
                       }
                       className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
                     />
+                    <span className="mt-1 block text-[11px] text-[var(--color-text-muted)]/80">
+                      Total awards or clasp/bar count for this medal.
+                    </span>
                   </label>
                   <label className="flex items-center gap-2 self-end text-sm text-[var(--color-text-muted)]">
                     <input
@@ -348,7 +382,12 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-4">
             <h2 className="mb-3 text-sm font-medium text-[var(--color-text-muted)]">Rack preview</h2>
             <div className="flex justify-center">
-              <RibbonRack medals={ribbonMedals} maxPerRow={3} scale={3} />
+              <RibbonRack
+                medals={ribbonMedals}
+                rowLayout="rankListPyramid"
+                countryCode={countryCode}
+                scale={3}
+              />
             </div>
           </div>
         )}

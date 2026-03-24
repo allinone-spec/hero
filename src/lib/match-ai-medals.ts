@@ -7,6 +7,8 @@ export interface MedalTypeForMatch {
   name: string;
   shortName: string;
   otherNames?: string[];
+  countryCode?: string;
+  medalId?: string;
 }
 
 export interface MatchedAiMedal {
@@ -24,12 +26,28 @@ export interface UnmatchedMedalName {
   hasValor: boolean;
 }
 
+interface MatchOptions {
+  countryCode?: string;
+}
+
+function getCandidatePool(
+  medalTypes: MedalTypeForMatch[],
+  options?: MatchOptions
+): MedalTypeForMatch[] {
+  const countryCode = String(options?.countryCode || "").toUpperCase();
+  if (!countryCode) return medalTypes;
+  const scoped = medalTypes.filter((t) => String(t.countryCode || "").toUpperCase() === countryCode);
+  return scoped.length > 0 ? scoped : medalTypes;
+}
+
 export function matchAiMedalsToDatabase(
   medals: unknown,
-  medalTypes: MedalTypeForMatch[]
+  medalTypes: MedalTypeForMatch[],
+  options?: MatchOptions
 ): { matched: MatchedAiMedal[]; unmatched: UnmatchedMedalName[] } {
   const matched: MatchedAiMedal[] = [];
   const unmatched: UnmatchedMedalName[] = [];
+  const candidatePool = getCandidatePool(medalTypes, options);
 
   if (!Array.isArray(medals)) {
     return { matched, unmatched };
@@ -58,15 +76,15 @@ export function matchAiMedalsToDatabase(
     const lower = medalName.toLowerCase().trim();
     const cleanLower = lower;
 
-    let mt = medalTypes.find((t) => t.name.toLowerCase() === cleanLower);
-    if (!mt) mt = medalTypes.find((t) => t.name.toLowerCase() === lower);
+    let mt = candidatePool.find((t) => t.name.toLowerCase() === cleanLower);
+    if (!mt) mt = candidatePool.find((t) => t.name.toLowerCase() === lower);
     if (!mt) {
-      mt = medalTypes.find((t) =>
+      mt = candidatePool.find((t) =>
         t.otherNames?.some((alt) => alt.toLowerCase() === cleanLower)
       );
     }
     if (!mt && cleanLower.length > 6) {
-      mt = medalTypes.find(
+      mt = candidatePool.find(
         (t) =>
           t.name.toLowerCase().includes(cleanLower) ||
           cleanLower.includes(t.name.toLowerCase()) ||
@@ -76,7 +94,7 @@ export function matchAiMedalsToDatabase(
       );
     }
     if (!mt) {
-      mt = medalTypes.find((t) => t.shortName.toLowerCase() === cleanLower);
+      mt = candidatePool.find((t) => t.shortName.toLowerCase() === cleanLower);
     }
 
     if (mt) {

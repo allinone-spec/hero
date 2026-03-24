@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 export interface IWikiImage {
   url: string;
@@ -22,6 +23,7 @@ export interface IMedalTypeDoc extends Document {
   medalId?: string;
   countryCode?: string;
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
   vDeviceAllowed?: boolean;
   inventoryCategory?: string;
   ribbonColors: string[];
@@ -59,6 +61,14 @@ const MedalTypeSchema = new Schema<IMedalTypeDoc>(
     medalId: { type: String, unique: true, sparse: true },
     countryCode: { type: String, default: "US" },
     deviceLogic: { type: String, default: "None" },
+    deviceRule: {
+      family: { type: String, default: "none" },
+      repeatDevice: { type: String, default: "none" },
+      compactDevice: { type: String, default: undefined },
+      compactStep: { type: Number, default: undefined },
+      maxDisplayCount: { type: Number, default: undefined },
+      notes: { type: String, default: "" },
+    },
     vDeviceAllowed: { type: Boolean, default: false },
     inventoryCategory: { type: String, default: "" },
     ribbonColors: { type: [String], default: [] },

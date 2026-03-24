@@ -3,6 +3,8 @@
 import Link from "next/link";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 interface HeroCardProps {
   rank: number;
@@ -11,8 +13,10 @@ interface HeroCardProps {
     name: string;
     slug: string;
     rank: string;
+    branch: string;
     score: number;
     avatarUrl?: string;
+    countryCode?: string;
     memberSupported?: boolean;
     availableForAdoption?: boolean;
     medals: {
@@ -22,6 +26,10 @@ interface HeroCardProps {
         precedenceOrder: number;
         ribbonColors: string[];
         ribbonImageUrl?: string;
+        deviceLogic?: string;
+        deviceRule?: MedalDeviceRule;
+        countryCode?: string;
+        inventoryCategory?: string;
       };
       count: number;
       hasValor: boolean;
@@ -37,19 +45,10 @@ interface HeroCardProps {
 }
 
 export default function HeroCard({ rank, hero, href, fromParam = "heroes", onClick }: HeroCardProps) {
-  const ribbonMedals = hero.medals
-    .filter((m) => m.medalType)
-    .map((m) => ({
-      medalId: m.medalType._id,
-      name: m.medalType.name,
-      count: m.count,
-      precedenceOrder: m.medalType.precedenceOrder,
-      ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-      ribbonImageUrl: m.medalType.ribbonImageUrl,
-      hasValor: m.hasValor,
-      deviceImages: m.deviceImages,
-    }))
-    .sort((a, b) => a.precedenceOrder - b.precedenceOrder);
+  const ribbonMedals = buildRibbonRackMedals(hero.medals, {
+    serviceBranch: hero.branch,
+    nationalCountryCode: hero.countryCode,
+  });
 
   const to =
     href ||
@@ -60,12 +59,16 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
 
   return (
     <Link href={to} onClick={onClick}>
-      <div className="hero-card p-4 flex items-center gap-4">
+      <div
+        className="hero-card p-4 grid items-center gap-3 sm:gap-4
+          grid-cols-[2.5rem_3.5rem_minmax(0,1fr)_auto]
+          sm:grid-cols-[2.5rem_3.5rem_minmax(0,1fr)_11rem_9.5rem]"
+      >
         {/* Rank number */}
-        <div className="rank-number">#{rank}</div>
+        <div className="rank-number justify-self-start">#{rank}</div>
 
         {/* Avatar */}
-        <div className="w-14 h-14 rounded-full overflow-hidden shrink-0">
+        <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 justify-self-start">
           {hero.avatarUrl ? (
             <img
               src={hero.avatarUrl}
@@ -78,7 +81,7 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
         </div>
 
         {/* Info */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <h3 className="font-semibold text-lg truncate">{hero.name}</h3>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             <p className="text-sm text-[var(--color-text-muted)]">{hero.rank}</p>
@@ -96,21 +99,31 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
           </div>
         </div>
 
-        {/* Ribbon preview */}
-        <div className="hidden sm:block shrink-0">
-          {ribbonMedals.length > 0 && (
-            <RibbonRack medals={ribbonMedals} maxPerRow={3} scale={1.5} disableLinks />
-          )}
+        {/* Ribbon preview — fixed 11rem column; batch centered so midlines line up list-wide */}
+        <div
+          className="hidden sm:flex sm:w-full sm:min-w-0 sm:min-h-[3.25rem] sm:items-center sm:justify-center"
+          aria-hidden={ribbonMedals.length === 0}
+        >
+          {ribbonMedals.length > 0 ? (
+            <RibbonRack
+              medals={ribbonMedals}
+              rowLayout="rankListPyramid"
+              countryCode={hero.countryCode}
+              scale={1.5}
+              disableLinks
+            />
+          ) : null}
         </div>
 
-        {/* Score */}
-        <div className="flex shrink-0 items-center gap-3">
-          <div className="score-badge">{hero.score} pts</div>
-          {hasAdoptionState && availableForAdoption && (
-            <span className="hidden md:inline text-xs font-medium text-[var(--color-gold)]">
-              Adopt profile →
-            </span>
-          )}
+        {/* Score — fixed column; pts top row, “Adopt profile →” second row when shown */}
+        <div
+          className={`flex w-full shrink-0 flex-col items-end justify-center gap-0.5 sm:gap-1 ${
+            hasAdoptionState && availableForAdoption
+              ? "min-h-[3.25rem] sm:min-h-[4rem]"
+              : "min-h-[2.75rem] sm:min-h-[3.25rem]"
+          }`}
+        >
+          <div className="score-badge whitespace-nowrap">{hero.score} pts</div>
         </div>
       </div>
     </Link>

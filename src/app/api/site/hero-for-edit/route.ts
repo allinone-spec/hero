@@ -17,10 +17,11 @@ export async function GET(req: NextRequest) {
 
   await dbConnect();
   const hero = await Hero.findOne({ slug })
-    .select("_id slug name biography avatarUrl ownerUserId adoptionExpiry published medals")
+    .select("_id slug name branch countryCode rackGap ribbonMaxPerRow biography avatarUrl ownerUserId adoptionExpiry published medals")
     .populate({
       path: "medals.medalType",
-      select: "name shortName precedenceOrder ribbonColors ribbonImageUrl deviceLogic wikiSummary history awardCriteria imageUrl",
+      select:
+        "name shortName precedenceOrder ribbonColors ribbonImageUrl deviceLogic deviceRule countryCode inventoryCategory wikiSummary history awardCriteria imageUrl",
     })
     .lean();
 
@@ -37,6 +38,10 @@ export async function GET(req: NextRequest) {
     _id: hero._id.toString(),
     slug: hero.slug,
     name: hero.name,
+    branch: hero.branch || "",
+    countryCode: hero.countryCode || "US",
+    rackGap: hero.rackGap ?? 2,
+    ribbonMaxPerRow: hero.ribbonMaxPerRow ?? 0,
     biography: hero.biography || "",
     avatarUrl: hero.avatarUrl || "",
     published: hero.published,

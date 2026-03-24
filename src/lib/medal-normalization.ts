@@ -11,6 +11,22 @@ const WORD_NUMS: Record<string, number> = {
   ten: 10,
   eleven: 11,
   twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+};
+
+const ORDINAL_NUMS: Record<string, number> = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
 };
 
 function parseIntLike(raw: string | undefined): number | null {
@@ -18,6 +34,13 @@ function parseIntLike(raw: string | undefined): number | null {
   const cleaned = raw.trim().toLowerCase();
   if (/^\d+$/.test(cleaned)) return Number(cleaned);
   return WORD_NUMS[cleaned] ?? null;
+}
+
+function parseOrdinalLike(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const cleaned = raw.trim().toLowerCase();
+  if (/^\d+$/.test(cleaned)) return Number(cleaned);
+  return ORDINAL_NUMS[cleaned] ?? null;
 }
 
 function extractLeadingCount(raw: string): { name: string; count: number | null } {
@@ -92,6 +115,64 @@ function extractClusterCount(text: string): { text: string; totalCount: number |
   return { text, totalCount: null };
 }
 
+function extractCommonwealthDeviceCount(text: string): { text: string; totalCount: number | null } {
+  const numericPatterns: Array<{ re: RegExp }> = [
+    {
+      re: /\s+(?:with|and)\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|\d+)\s+bars?\b/i,
+    },
+    {
+      re: /\s+(?:with|and)\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|\d+)\s+clasps?\b/i,
+    },
+    {
+      re: /\s+(?:with|and)\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|\d+)\s+rosettes?\b/i,
+    },
+  ];
+
+  for (const { re } of numericPatterns) {
+    const match = text.match(re);
+    if (!match) continue;
+    const countToken = match[0]
+      .replace(/\s+(with|and)\s+/i, "")
+      .replace(/\s+(bars?|clasps?|rosettes?)\b/i, "")
+      .trim();
+    const n = /^(a|an)$/i.test(countToken) ? 1 : parseIntLike(countToken);
+    if (!n) continue;
+    return {
+      text: text.replace(re, "").trim(),
+      totalCount: 1 + n,
+    };
+  }
+
+  const ordinalPatterns: Array<{ re: RegExp }> = [
+    { re: /\s+(?:with|and)\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+bar\b/i },
+    { re: /\s+(?:with|and)\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+clasp\b/i },
+    { re: /\s+(?:with|and)\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+rosette\b/i },
+  ];
+
+  for (const { re } of ordinalPatterns) {
+    const match = text.match(re);
+    if (!match) continue;
+    const ordinal = parseOrdinalLike(match[1]);
+    if (!ordinal) continue;
+    return {
+      text: text.replace(re, "").trim(),
+      totalCount: ordinal + 1,
+    };
+  }
+
+  if (/\s+(?:with|and)\s+bar\b/i.test(text)) {
+    return { text: text.replace(/\s+(?:with|and)\s+bar\b/i, "").trim(), totalCount: 2 };
+  }
+  if (/\s+(?:with|and)\s+clasp\b/i.test(text)) {
+    return { text: text.replace(/\s+(?:with|and)\s+clasp\b/i, "").trim(), totalCount: 2 };
+  }
+  if (/\s+(?:with|and)\s+rosette\b/i.test(text)) {
+    return { text: text.replace(/\s+(?:with|and)\s+rosette\b/i, "").trim(), totalCount: 2 };
+  }
+
+  return { text, totalCount: null };
+}
+
 function cleanupMedalName(text: string): string {
   return text
     .replace(/\s+x\s*(\d+)$/i, "")
@@ -116,18 +197,26 @@ export interface NormalizedAwardText {
   hasValor: boolean;
 }
 
-export function normalizeAwardText(rawName: string, explicitCount = 1, explicitHasValor = false): NormalizedAwardText {
+export function normalizeAwardText(
+  rawName: string,
+  explicitCount = 1,
+  explicitHasValor = false
+): NormalizedAwardText {
   const leading = extractLeadingCount(rawName);
   const withValor = stripValor(leading.name);
   const withClusters = extractClusterCount(withValor.text);
-  const trailingCount = withClusters.text.match(/\s+x\s*(\d+)$/i);
+  const withCommonwealthDevices = extractCommonwealthDeviceCount(withClusters.text);
+  const trailingCount = withCommonwealthDevices.text.match(/\s+x\s*(\d+)$/i);
 
   let count = Math.max(1, explicitCount || 1);
   if (leading.count) count = Math.max(count, leading.count);
   if (withClusters.totalCount) count = Math.max(count, withClusters.totalCount);
+  if (withCommonwealthDevices.totalCount) {
+    count = Math.max(count, withCommonwealthDevices.totalCount);
+  }
   if (trailingCount?.[1]) count = Math.max(count, Number(trailingCount[1]));
 
-  const cleaned = singularizeMedalName(cleanupMedalName(withClusters.text));
+  const cleaned = singularizeMedalName(cleanupMedalName(withCommonwealthDevices.text));
 
   return {
     name: cleaned,

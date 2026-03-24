@@ -7,7 +7,9 @@ import { useRouter } from "next/navigation";
 import ImageUpload from "@/components/ui/ImageUpload";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
+import { normalizeAwardText } from "@/lib/medal-normalization";
 import { deriveShortNameFromMedalName, medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalTypeOption {
@@ -20,6 +22,8 @@ interface MedalTypeOption {
   ribbonImageUrl?: string;
   imageUrl?: string;
   otherNames?: string[];
+  deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
 }
 
 interface DeviceImageData {
@@ -449,6 +453,25 @@ const BRANCHES = [
   "U.S. Air Force",
   "U.S. Coast Guard",
   "U.S. Space Force",
+  "British Army",
+  "Royal Navy",
+  "Royal Marines",
+  "Royal Air Force",
+  "Canadian Army",
+  "Royal Canadian Navy",
+  "Royal Canadian Air Force",
+  "Australian Army",
+  "Royal Australian Navy",
+  "Royal Australian Air Force",
+  "New Zealand Army",
+  "Royal New Zealand Navy",
+  "Royal New Zealand Air Force",
+  "South African Army",
+  "South African Navy",
+  "South African Air Force",
+  "Indian Army",
+  "Indian Navy",
+  "Indian Air Force",
 ];
 
 type WikiStatus = "idle" | "loading" | "success" | "error";
@@ -1227,18 +1250,10 @@ function normalizeCombatType(input: unknown): CombatType {
       const parseDevices = (name: string) => {
         const devText = medalDevicesMap.get(name.toLowerCase()) || "";
         if (!devText) return { count: 1, hasValor: false, arrowheads: 0 };
-        const hasValor = /\bvalor\b|"v"|"v"\s*device|\bv\s+device\b/i.test(devText);
+        const normalized = normalizeAwardText(`${name} ${devText}`.trim());
         const arrowMatch = devText.match(/(\d+)\s*arrowhead/i);
         const arrowheads = arrowMatch ? parseInt(arrowMatch[1]) : /\barrowhead\b/i.test(devText) ? 1 : 0;
-        // Count from text like "with two Oak Leaf Clusters" or "3rd award"
-        const countWords: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-        let count = 1;
-        const numMatch = devText.match(/(\d+)(?:st|nd|rd|th)?\s*(?:award|oak leaf|bronze)/i);
-        if (numMatch) count = parseInt(numMatch[1]);
-        for (const [word, val] of Object.entries(countWords)) {
-          if (new RegExp(`\\b${word}\\b`, "i").test(devText)) { count = val; break; }
-        }
-        return { count, hasValor, arrowheads };
+        return { count: normalized.count, hasValor: normalized.hasValor, arrowheads };
       };
 
       // Build medals from ALL ribbon rack items (ribbons + other items).

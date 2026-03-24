@@ -6,6 +6,7 @@
 import fs from "fs";
 import path from "path";
 import { deriveShortNameFromMedalName } from "@/lib/medal-short-name";
+import { parseMedalDeviceRule } from "@/lib/medal-device-rules";
 
 export type ImportMedalRow = {
   medalId: string;
@@ -109,6 +110,11 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
           : await MedalType.findOne({ name: row.medalName }).lean();
 
         const shortName = deriveShortNameFromMedalName(row.medalName);
+        const deviceRule = parseMedalDeviceRule(row.deviceLogic, {
+          countryCode: row.countryCode,
+          inventoryCategory: row.inventoryCategory,
+          medalName: row.medalName,
+        });
         const basePoints =
           existingById?.basePoints ??
           existingByName?.basePoints ??
@@ -129,6 +135,7 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
           medalId: row.medalId,
           countryCode: row.countryCode,
           deviceLogic: row.deviceLogic,
+          deviceRule,
           vDeviceAllowed: row.vDeviceAllowed,
           inventoryCategory: row.inventoryCategory,
           ribbonColors:
@@ -145,6 +152,7 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
                 medalId: row.medalId,
                 countryCode: row.countryCode,
                 deviceLogic: row.deviceLogic,
+                deviceRule,
                 vDeviceAllowed: row.vDeviceAllowed,
                 inventoryCategory: row.inventoryCategory,
                 requiresValorDevice: row.vDeviceAllowed,
@@ -160,6 +168,7 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
                 medalId: row.medalId,
                 countryCode: row.countryCode,
                 deviceLogic: row.deviceLogic,
+                deviceRule,
                 vDeviceAllowed: row.vDeviceAllowed,
                 inventoryCategory: row.inventoryCategory,
                 requiresValorDevice: row.vDeviceAllowed,

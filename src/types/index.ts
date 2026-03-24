@@ -1,5 +1,6 @@
 export type { CombatSpecialty } from "@/lib/models/Hero";
 import type { CombatSpecialty } from "@/lib/models/Hero";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 export interface IMedalType {
   _id?: string;
@@ -16,6 +17,7 @@ export interface IMedalType {
   precedenceOrder: number;
   countryCode?: string;
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
   vDeviceAllowed?: boolean;
   ribbonColors: string[];       // Array of color hex codes for ribbon stripes
   description?: string;

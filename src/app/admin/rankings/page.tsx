@@ -149,14 +149,8 @@ export default async function AdminRankingsPage() {
                   </p>
                 )}
 
-                <div className="flex items-center gap-3 justify-center sm:justify-start">
+                <div className="flex justify-center sm:justify-start">
                   <span className="score-badge">{topHero.score} pts</span>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    View full profile →
-                  </span>
                 </div>
               </div>
             </div>

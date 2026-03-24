@@ -1,3 +1,4 @@
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import Hero from "@/lib/models/Hero";
 import { isAdoptionActive } from "@/lib/adoption";
 
@@ -18,6 +19,8 @@ export interface PublicHeroListItem {
       precedenceOrder: number;
       ribbonColors: string[];
       ribbonImageUrl?: string;
+      deviceLogic?: string;
+      deviceRule?: MedalDeviceRule;
     };
     count: number;
     hasValor: boolean;

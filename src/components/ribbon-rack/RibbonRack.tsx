@@ -1,6 +1,8 @@
 "use client";
 
 import { RIBBON_WIDTH, RIBBON_HEIGHT, RIBBON_GAP, MAX_RIBBONS_PER_ROW } from "./ribbon-data";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
+import { getRibbonRackProfile, sortRackMedals } from "@/lib/rack-engine";
 import {
   computeDevices,
   layoutDevices,
@@ -27,16 +29,56 @@ export interface RibbonMedal {
   deviceImages?: DeviceImage[];
   /** MedalType.deviceLogic — drives Bar / Rosette / Clasp style devices */
   deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  serviceBranch?: string;
   wikiSummary?: string;
 }
 
 interface RibbonRackProps {
   medals: RibbonMedal[];
   maxPerRow?: number;
+  gap?: number;
   scale?: number;
   disableLinks?: boolean;
+  countryCode?: string;
+  rowAlignment?: "flush" | "center" | "pyramid";
+  /**
+   * `rankListPyramid` — hero rank list: top row has 1–3 ribbons (by count mod 3), each row below has exactly 3;
+   * rows are centered under `rowAlignment` pyramid/center (max 3 columns).
+   */
+  rowLayout?: "default" | "rankListPyramid";
   /** When set, ribbon clicks open a quick view (e.g. modal) instead of navigating away */
   onRibbonClick?: (medal: RibbonMedal) => void;
+}
+
+function snapPosition(value: number): number {
+  return Math.round(value * 2) / 2;
+}
+
+function planRowSizes(totalRibbons: number, maxPerRow: number): number[] {
+  if (totalRibbons <= 0) return [];
+  const rowCount = Math.ceil(totalRibbons / maxPerRow);
+  const baseSize = Math.floor(totalRibbons / rowCount);
+  const remainder = totalRibbons % rowCount;
+  return Array.from({ length: rowCount }, (_, idx) => baseSize + (idx >= rowCount - remainder ? 1 : 0));
+}
+
+const RANK_LIST_PYRAMID_MAX_COLS = 3;
+
+/** Top row 1–3 ribbons; remaining rows are full rows of 3 (narrow top, wide bottom). */
+function planRankListPyramidRowSizes(totalRibbons: number): number[] {
+  if (totalRibbons <= 0) return [];
+  if (totalRibbons <= RANK_LIST_PYRAMID_MAX_COLS) return [totalRibbons];
+  const mod = totalRibbons % RANK_LIST_PYRAMID_MAX_COLS;
+  const firstRow = mod === 0 ? RANK_LIST_PYRAMID_MAX_COLS : mod;
+  const sizes = [firstRow];
+  let remaining = totalRibbons - firstRow;
+  while (remaining > 0) {
+    sizes.push(RANK_LIST_PYRAMID_MAX_COLS);
+    remaining -= RANK_LIST_PYRAMID_MAX_COLS;
+  }
+  return sizes;
 }
 
 // ── Global SVG defs (gradients + filter) ─────────────────────────────────────
@@ -53,20 +95,266 @@ function RackDefs() {
         <stop offset="100%" stopColor="#6E6E6E" />
       </radialGradient>
 
-      {/* Bronze star: golden highlight → rich dark brown */}
-      <radialGradient id="rr-bronze" cx="32%" cy="28%" r="68%" gradientUnits="objectBoundingBox">
+      {/* Gold repeat-award star */}
+      <radialGradient id="rr-gold" cx="32%" cy="28%" r="68%" gradientUnits="objectBoundingBox">
         <stop offset="0%"   stopColor="#FFE090" stopOpacity={0.98} />
         <stop offset="35%"  stopColor="#D98030" />
         <stop offset="75%"  stopColor="#9A4E18" />
         <stop offset="100%" stopColor="#5C2800" />
       </radialGradient>
 
+      {/* Bronze oak leaf cluster */}
+      <radialGradient id="rr-bronze" cx="32%" cy="28%" r="68%" gradientUnits="objectBoundingBox">
+        <stop offset="0%"   stopColor="#F2CC8F" stopOpacity={0.98} />
+        <stop offset="35%"  stopColor="#BC6C25" />
+        <stop offset="75%"  stopColor="#8C4C15" />
+        <stop offset="100%" stopColor="#5C2800" />
+      </radialGradient>
+
+      <radialGradient id="rr-service-bronze" cx="32%" cy="28%" r="68%" gradientUnits="objectBoundingBox">
+        <stop offset="0%"   stopColor="#F4D3A1" stopOpacity={0.98} />
+        <stop offset="32%"  stopColor="#B87333" />
+        <stop offset="72%"  stopColor="#7F4A1B" />
+        <stop offset="100%" stopColor="#4F2D12" />
+      </radialGradient>
+
+      <radialGradient id="rr-brass" cx="34%" cy="26%" r="70%" gradientUnits="objectBoundingBox">
+        <stop offset="0%"   stopColor="#FFF1B3" stopOpacity={0.98} />
+        <stop offset="38%"  stopColor="#D4AF37" />
+        <stop offset="78%"  stopColor="#8A6A17" />
+        <stop offset="100%" stopColor="#5E470E" />
+      </radialGradient>
+
+      <linearGradient id="rr-clasp" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#F7E39E" />
+        <stop offset="35%" stopColor="#D1AE45" />
+        <stop offset="65%" stopColor="#A07C21" />
+        <stop offset="100%" stopColor="#6B5213" />
+      </linearGradient>
+
       {/* Shared drop-shadow for all devices */}
       <filter id="rr-shadow" x="-60%" y="-60%" width="220%" height="220%">
         <feDropShadow dx="0.35" dy="0.55" stdDeviation="0.5"
           floodColor="#000" floodOpacity={0.55} />
       </filter>
+
+      <filter id="rr-soft-shadow" x="-60%" y="-60%" width="220%" height="220%">
+        <feDropShadow dx="0.2" dy="0.35" stdDeviation="0.32"
+          floodColor="#000" floodOpacity={0.35} />
+      </filter>
     </defs>
+  );
+}
+
+function MetallicStar({
+  cx,
+  cy,
+  fill,
+  highlight,
+  stroke,
+  outerRadius = 2.8,
+  innerRadius = 1.08,
+}: {
+  cx: number;
+  cy: number;
+  fill: string;
+  highlight: string;
+  stroke: string;
+  outerRadius?: number;
+  innerRadius?: number;
+}) {
+  return (
+    <g filter="url(#rr-soft-shadow)">
+      <polygon
+        points={starPoints(cx, cy, outerRadius, innerRadius)}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={0.26}
+        strokeLinejoin="round"
+      />
+      <polygon
+        points={starPoints(cx, cy, outerRadius * 0.5, innerRadius * 0.42)}
+        fill={highlight}
+        opacity={0.74}
+        stroke="rgba(255,255,255,0.24)"
+        strokeWidth={0.12}
+        strokeLinejoin="round"
+      />
+      <circle cx={cx - 0.2} cy={cy - 0.18} r={0.34} fill="rgba(255,255,255,0.4)" />
+    </g>
+  );
+}
+
+function OakLeafCluster({
+  cx,
+  cy,
+  fill,
+}: {
+  cx: number;
+  cy: number;
+  fill: string;
+}) {
+  const leaves = [
+    { dx: -1.95, dy: -0.28, rx: 1.18, ry: 1.66, rotate: -35 },
+    { dx: -0.66, dy: -1.02, rx: 1.14, ry: 1.58, rotate: -15 },
+    { dx: 0.74, dy: -0.98, rx: 1.14, ry: 1.58, rotate: 15 },
+    { dx: 2.02, dy: -0.1, rx: 1.18, ry: 1.66, rotate: 35 },
+    { dx: -0.42, dy: 0.92, rx: 1.06, ry: 1.34, rotate: -15 },
+    { dx: 0.9, dy: 1.0, rx: 1.06, ry: 1.34, rotate: 15 },
+  ];
+
+  return (
+    <g filter="url(#rr-soft-shadow)">
+      {leaves.map((leaf, idx) => (
+        <ellipse
+          key={idx}
+          cx={cx + leaf.dx}
+          cy={cy + leaf.dy}
+          rx={leaf.rx}
+          ry={leaf.ry}
+          transform={`rotate(${leaf.rotate} ${cx + leaf.dx} ${cy + leaf.dy})`}
+          fill={fill}
+          stroke="rgba(60,40,10,0.42)"
+          strokeWidth={0.2}
+        />
+      ))}
+      {leaves.map((leaf, idx) => (
+        <path
+          key={`vein-${idx}`}
+          d={`M ${cx + leaf.dx} ${cy + leaf.dy - leaf.ry * 0.6} L ${cx + leaf.dx} ${cy + leaf.dy + leaf.ry * 0.62}`}
+          transform={`rotate(${leaf.rotate} ${cx + leaf.dx} ${cy + leaf.dy})`}
+          stroke="rgba(255,255,255,0.22)"
+          strokeWidth={0.12}
+          strokeLinecap="round"
+        />
+      ))}
+      <path
+        d={`M ${cx - 0.2} ${cy + 0.85} L ${cx + 0.08} ${cy + 2.75}`}
+        stroke="rgba(60,40,10,0.6)"
+        strokeWidth={0.34}
+        strokeLinecap="round"
+      />
+      <circle cx={cx - 0.18} cy={cy - 0.12} r={0.28} fill="rgba(255,255,255,0.22)" />
+    </g>
+  );
+}
+
+function MapleLeafDevice({ cx, cy }: { cx: number; cy: number }) {
+  const path = [
+    `M ${cx} ${cy - 3.4}`,
+    `L ${cx + 0.8} ${cy - 1.8}`,
+    `L ${cx + 2.2} ${cy - 2.4}`,
+    `L ${cx + 1.7} ${cy - 0.9}`,
+    `L ${cx + 3.2} ${cy - 0.4}`,
+    `L ${cx + 1.8} ${cy + 0.45}`,
+    `L ${cx + 2.3} ${cy + 2.2}`,
+    `L ${cx + 0.6} ${cy + 1.3}`,
+    `L ${cx} ${cy + 3.4}`,
+    `L ${cx - 0.6} ${cy + 1.3}`,
+    `L ${cx - 2.3} ${cy + 2.2}`,
+    `L ${cx - 1.8} ${cy + 0.45}`,
+    `L ${cx - 3.2} ${cy - 0.4}`,
+    `L ${cx - 1.7} ${cy - 0.9}`,
+    `L ${cx - 2.2} ${cy - 2.4}`,
+    `L ${cx - 0.8} ${cy - 1.8}`,
+    "Z",
+  ].join(" ");
+
+  return (
+    <g filter="url(#rr-shadow)">
+      <path d={path} fill="url(#rr-brass)" stroke="rgba(58,39,10,0.5)" strokeWidth={0.25} />
+      <path
+        d={`M ${cx} ${cy - 2.6} L ${cx} ${cy + 2.4}`}
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth={0.22}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+function RosetteDevice({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <g filter="url(#rr-shadow)">
+      {Array.from({ length: 8 }, (_, idx) => {
+        const angle = (idx * 45 * Math.PI) / 180;
+        return (
+          <ellipse
+            key={idx}
+            cx={cx + Math.cos(angle) * 1.3}
+            cy={cy + Math.sin(angle) * 1.3}
+            rx={1.2}
+            ry={1.8}
+            transform={`rotate(${idx * 45} ${cx + Math.cos(angle) * 1.3} ${cy + Math.sin(angle) * 1.3})`}
+            fill="url(#rr-brass)"
+            stroke="rgba(80,58,12,0.42)"
+            strokeWidth={0.18}
+          />
+        );
+      })}
+      <circle cx={cx} cy={cy} r={1.15} fill="#F5E39F" stroke="rgba(95,73,17,0.45)" strokeWidth={0.2} />
+    </g>
+  );
+}
+
+function ClaspDevice({ cx, cy, width, height }: { cx: number; cy: number; width: number; height: number }) {
+  return (
+    <g filter="url(#rr-shadow)">
+      <rect
+        x={cx - width / 2}
+        y={cy - height / 2}
+        width={width}
+        height={height}
+        rx={0.45}
+        fill="url(#rr-clasp)"
+        stroke="rgba(83,61,12,0.55)"
+        strokeWidth={0.28}
+      />
+      <path
+        d={`M ${cx - width / 2 + 0.5} ${cy} H ${cx + width / 2 - 0.5}`}
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth={0.22}
+        strokeLinecap="round"
+      />
+      <path
+        d={`M ${cx} ${cy - height / 2 + 0.35} V ${cy + height / 2 - 0.35}`}
+        stroke="rgba(94,72,17,0.35)"
+        strokeWidth={0.18}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+function NumeralDevice({ cx, cy, value }: { cx: number; cy: number; value: number }) {
+  return (
+    <g filter="url(#rr-shadow)">
+      <text
+        x={cx}
+        y={cy + 0.35}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={6.2}
+        fontWeight="800"
+        fill="url(#rr-brass)"
+        stroke="rgba(52,34,8,0.75)"
+        strokeWidth={0.4}
+        paintOrder="stroke fill"
+      >
+        {value}
+      </text>
+      <text
+        x={cx}
+        y={cy - 0.2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fontSize={3.4}
+        fontWeight="700"
+        fill="rgba(255,255,255,0.35)"
+      >
+        {value}
+      </text>
+    </g>
   );
 }
 
@@ -97,40 +385,63 @@ function DeviceGroup({ devices, x, y, w, h }: {
           if (d.kind === "silver-star") {
             return (
               <g key={i}>
-                {/* paintOrder="stroke fill" draws the white stroke behind the fill,
-                    acting as a halo WITHOUT covering the ribbon's color stripes */}
-                <polygon
-                  points={starPoints(cx, cy, 3.1, 1.25)}
+                <MetallicStar
+                  cx={cx}
+                  cy={cy}
                   fill="url(#rr-silver)"
-                  // stroke="rgba(255,255,255,0.82)"
-                  strokeWidth={1.4}
-                  strokeLinejoin="round"
-                  paintOrder="stroke fill"
-                  filter="url(#rr-shadow)"
+                  highlight="rgba(255,255,255,0.74)"
+                  stroke="rgba(80,80,80,0.5)"
+                  outerRadius={2.72}
+                  innerRadius={1.02}
                 />
-                {/* Specular highlight */}
-                {/* <ellipse cx={cx - 0.7} cy={cy - 1.6} rx={1.0} ry={0.65}
-                  fill="rgba(255,255,255,0.72)" /> */}
               </g>
             );
           }
 
-          // ── Bronze star ────────────────────────────────────────
+          if (d.kind === "gold-star") {
+            return (
+              <g key={i}>
+                <MetallicStar
+                  cx={cx}
+                  cy={cy}
+                  fill="url(#rr-brass)"
+                  highlight="rgba(255,240,165,0.72)"
+                  stroke="rgba(92,70,18,0.55)"
+                  outerRadius={2.82}
+                  innerRadius={1.05}
+                />
+              </g>
+            );
+          }
+
           if (d.kind === "bronze-star") {
             return (
               <g key={i}>
-                <polygon
-                  points={starPoints(cx, cy, 3.1, 1.25)}
-                  fill="url(#rr-bronze)"
-                  // stroke="rgba(255,255,255,0.82)"
-                  strokeWidth={1.4}
-                  strokeLinejoin="round"
-                  paintOrder="stroke fill"
-                  filter="url(#rr-shadow)"
+                <MetallicStar
+                  cx={cx}
+                  cy={cy}
+                  fill="url(#rr-service-bronze)"
+                  highlight="rgba(255,220,170,0.56)"
+                  stroke="rgba(90,52,24,0.55)"
+                  outerRadius={2.72}
+                  innerRadius={1.02}
                 />
-                {/* Specular highlight */}
-                <ellipse cx={cx - 0.7} cy={cy - 1.6} rx={1.0} ry={0.65}
-                  fill="rgba(255,220,120,0.68)" />
+              </g>
+            );
+          }
+
+          if (d.kind === "silver-olc") {
+            return (
+              <g key={i} filter="url(#rr-shadow)">
+                <OakLeafCluster cx={cx} cy={cy - 0.1} fill="url(#rr-silver)" />
+              </g>
+            );
+          }
+
+          if (d.kind === "bronze-olc") {
+            return (
+              <g key={i} filter="url(#rr-shadow)">
+                <OakLeafCluster cx={cx} cy={cy - 0.1} fill="url(#rr-bronze)" />
               </g>
             );
           }
@@ -171,7 +482,7 @@ function DeviceGroup({ devices, x, y, w, h }: {
               <g key={i}>
                 <polygon
                   points={pts}
-                  fill="url(#rr-bronze)"
+                  fill="url(#rr-gold)"
                   // stroke="rgba(255,255,255,0.82)"
                   strokeWidth={1.4}
                   strokeLinejoin="round"
@@ -186,35 +497,34 @@ function DeviceGroup({ devices, x, y, w, h }: {
           }
 
           // ── Commonwealth-style devices (Bar / Rosette / Clasp) ──
+          if (d.kind === "maple-leaf") {
+            return (
+              <g key={i}>
+                <MapleLeafDevice cx={cx} cy={cy} />
+              </g>
+            );
+          }
+
+          if (d.kind === "numeral-device") {
+            return (
+              <g key={i}>
+                <NumeralDevice cx={cx} cy={cy} value={Math.max(2, d.value || 2)} />
+              </g>
+            );
+          }
+
           if (d.kind === "rosette") {
             return (
               <g key={i}>
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={2.4}
-                  fill="#C9A227"
-                  stroke="#5c4a10"
-                  strokeWidth={0.35}
-                  filter="url(#rr-shadow)"
-                />
-                <circle cx={cx - 0.5} cy={cy - 0.6} r={0.55} fill="rgba(255,255,255,0.35)" />
+                <RosetteDevice cx={cx} cy={cy} />
               </g>
             );
           }
 
           if (d.kind === "clasp") {
-            const rw = 2.8;
-            const rh = 3.6;
             return (
-              <g key={i} transform={`translate(${cx},${cy})`}>
-                <polygon
-                  points={`0,${-rh / 2} ${rw / 2},0 0,${rh / 2} ${-rw / 2},0`}
-                  fill="#D4AF37"
-                  stroke="#6a5a14"
-                  strokeWidth={0.35}
-                  filter="url(#rr-shadow)"
-                />
+              <g key={i}>
+                <ClaspDevice cx={cx} cy={cy} width={6} height={2.1} />
               </g>
             );
           }
@@ -222,17 +532,7 @@ function DeviceGroup({ devices, x, y, w, h }: {
           if (d.kind === "bar-device") {
             return (
               <g key={i}>
-                <rect
-                  x={cx - 3.2}
-                  y={cy - 0.85}
-                  width={6.4}
-                  height={1.7}
-                  rx={0.35}
-                  fill="#E8D28B"
-                  stroke="#6a5a14"
-                  strokeWidth={0.3}
-                  filter="url(#rr-shadow)"
-                />
+                <ClaspDevice cx={cx} cy={cy} width={7} height={1.8} />
               </g>
             );
           }
@@ -367,9 +667,13 @@ function SingleRibbon({
 
 export default function RibbonRack({
   medals,
-  maxPerRow = MAX_RIBBONS_PER_ROW,
+  maxPerRow,
+  gap,
   scale = 2,
   disableLinks = false,
+  countryCode,
+  rowAlignment,
+  rowLayout = "default",
   onRibbonClick,
 }: RibbonRackProps) {
   // Ensure every medal has at least a fallback ribbon color
@@ -380,16 +684,40 @@ export default function RibbonRack({
     return null;
   }
 
-  const sorted = [...withColors].sort((a, b) => a.precedenceOrder - b.precedenceOrder);
+  const inferredCountryCode =
+    countryCode || withColors.find((m) => m.countryCode)?.countryCode || "US";
+  const profile = getRibbonRackProfile(inferredCountryCode);
+  const resolvedMaxPerRow =
+    rowLayout === "rankListPyramid"
+      ? RANK_LIST_PYRAMID_MAX_COLS
+      : Math.max(
+          1,
+          maxPerRow != null && maxPerRow > 0
+            ? maxPerRow
+            : profile.defaultMaxPerRow ?? MAX_RIBBONS_PER_ROW,
+        );
+  const resolvedGap = Math.max(0, gap ?? profile.defaultGap ?? RIBBON_GAP);
+  const resolvedRowAlignment =
+    rowLayout === "rankListPyramid"
+      ? rowAlignment ?? "center"
+      : rowAlignment || profile.rowAlignment;
+  const sorted = sortRackMedals(withColors, { nationalCountryCode: inferredCountryCode });
 
+  const rowPlan =
+    rowLayout === "rankListPyramid"
+      ? planRankListPyramidRowSizes(sorted.length)
+      : planRowSizes(sorted.length, resolvedMaxPerRow);
   const rows: typeof sorted[] = [];
-  for (let i = 0; i < sorted.length; i += maxPerRow) {
-    rows.push(sorted.slice(i, i + maxPerRow));
+  let cursor = 0;
+  for (const rowSize of rowPlan) {
+    rows.push(sorted.slice(cursor, cursor + rowSize));
+    cursor += rowSize;
   }
+  const longestRowLength = rows.reduce((max, row) => Math.max(max, row.length), 0);
 
-  const rowHeight  = RIBBON_HEIGHT + RIBBON_GAP;
-  const totalWidth = maxPerRow * (RIBBON_WIDTH + RIBBON_GAP) - RIBBON_GAP;
-  const totalHeight = rows.length * rowHeight - RIBBON_GAP;
+  const rowHeight  = RIBBON_HEIGHT + resolvedGap;
+  const totalWidth = resolvedMaxPerRow * (RIBBON_WIDTH + resolvedGap) - resolvedGap;
+  const totalHeight = rows.length * rowHeight - resolvedGap;
 
   return (
     <svg
@@ -404,18 +732,25 @@ export default function RibbonRack({
       <RackDefs />
 
       {rows.map((row, rowIdx) => {
-        const rowWidth = row.length * (RIBBON_WIDTH + RIBBON_GAP) - RIBBON_GAP;
-        const offsetX  = (totalWidth - rowWidth) / 2;
+        const rowWidth = row.length * (RIBBON_WIDTH + resolvedGap) - resolvedGap;
+        const offsetX =
+          resolvedRowAlignment === "center"
+            ? (totalWidth - rowWidth) / 2
+            : resolvedRowAlignment === "pyramid" && row.length < longestRowLength
+              ? (totalWidth - rowWidth) / 2
+              : 0;
+        const snappedOffsetX = snapPosition(offsetX);
 
         return row.map((ribbon, colIdx) => {
-          const x = offsetX + colIdx * (RIBBON_WIDTH + RIBBON_GAP);
-          const y = rowIdx * rowHeight;
+          const x = snapPosition(snappedOffsetX + colIdx * (RIBBON_WIDTH + resolvedGap));
+          const y = snapPosition(rowIdx * rowHeight);
 
           const rawDevices = computeDevices(
             ribbon.count,
             ribbon.hasValor,
             ribbon.arrowheads ?? 0,
-            ribbon.deviceLogic
+            ribbon.deviceRule ?? ribbon.deviceLogic,
+            ribbon.serviceBranch
           );
           const devices = layoutDevices(rawDevices, RIBBON_WIDTH, RIBBON_HEIGHT);
 
