@@ -125,10 +125,14 @@ export async function ensureSeedAdmin() {
   );
 }
 
+export type VerifyCredentialsResult =
+  | { success: true; email: string; name: string }
+  | { success: false; error: string };
+
 export async function verifyCredentials(
   email: string,
   password: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<VerifyCredentialsResult> {
   await dbConnect();
   await ensureSeedAdmin();
 
@@ -152,7 +156,8 @@ export async function verifyCredentials(
   }
 
   await AdminUser.updateOne({ _id: user._id }, { lastLogin: new Date() });
-  return { success: true };
+  const name = String(user.name || "Admin").trim() || "Admin";
+  return { success: true, email: user.email, name };
 }
 
 export async function getGroupSlugForUser(email: string): Promise<string> {

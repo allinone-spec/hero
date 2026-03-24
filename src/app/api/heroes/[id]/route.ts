@@ -65,7 +65,7 @@ export async function PUT(
 
     try {
       const hero = await Hero.findByIdAndUpdate(id, patch, {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       }).populate("medals.medalType");
 
@@ -153,7 +153,7 @@ export async function PUT(
 
   try {
     const hero = await Hero.findByIdAndUpdate(id, body, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     }).populate("medals.medalType");
 

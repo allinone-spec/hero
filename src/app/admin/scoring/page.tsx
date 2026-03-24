@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { medalTextColor } from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface ScoringConfigForm {
   valorDevicePoints: number;
@@ -95,6 +98,7 @@ function RuleInput({
 
 export default function AdminScoringPage() {
   const { can } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [form, setForm] = useState<ScoringConfigForm>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -149,7 +153,12 @@ export default function AdminScoringPage() {
   };
 
   const handleRecalculate = async () => {
-    if (!confirm("Recalculate scores for ALL heroes using the current rules? Make sure you save first.")) return;
+    const ok = await confirm({
+      title: "Recalculate all scores",
+      message: "Recalculate scores for ALL heroes using the current rules? Make sure you save first.",
+      confirmLabel: "Recalculate",
+    });
+    if (!ok) return;
     setRecalculating(true);
     setRecalcResult("");
     const res = await fetch("/api/scoring-config/recalculate", { method: "POST" });
@@ -162,8 +171,14 @@ export default function AdminScoringPage() {
     }
   };
 
-  const handleReset = () => {
-    if (!confirm("Reset all rules to default values?")) return;
+  const handleReset = async () => {
+    const ok = await confirm({
+      title: "Reset scoring rules",
+      message: "Reset all rules to default values?",
+      danger: true,
+      confirmLabel: "Reset",
+    });
+    if (!ok) return;
     setForm(DEFAULTS);
   };
 
@@ -184,9 +199,16 @@ export default function AdminScoringPage() {
           <button
             onClick={handleSave}
             disabled={saving || !can("/admin/scoring", "canEdit")}
-            className="btn-primary text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-primary text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? "Saving..." : "Save Rules"}
+            {saving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Saving…
+              </>
+            ) : (
+              "Save Rules"
+            )}
           </button>
         </div>
       </div>
@@ -232,7 +254,7 @@ export default function AdminScoringPage() {
                       border: `2px solid ${CATEGORY_COLORS[mt.category] || "#9ca3af"}`,
                     }}
                   >
-                    {mt.shortName}
+                    {medalShortLabelForDisplay(mt.shortName, mt.name)}
                   </div>
                 )}
                 {/* Info */}
@@ -391,14 +413,22 @@ export default function AdminScoringPage() {
         <button
           onClick={handleRecalculate}
           disabled={recalculating || !can("/admin/scoring", "canEdit")}
-          className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-primary inline-flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {recalculating ? "Recalculating..." : "Recalculate All Hero Scores"}
+          {recalculating ? (
+            <>
+              <LoadingSpinner size="sm" />
+              Recalculating…
+            </>
+          ) : (
+            "Recalculate All Hero Scores"
+          )}
         </button>
         {recalcResult && (
           <p className="text-sm text-[var(--color-text-muted)] mt-3 animate-fade-in">{recalcResult}</p>
         )}
       </section>
+      {confirmDialog}
     </div>
   );
 }

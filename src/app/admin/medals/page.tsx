@@ -6,6 +6,9 @@ import Link from "next/link";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalTypeItem {
   _id: string;
@@ -410,10 +413,9 @@ function AutoPopulateModal({
 
         {status === "loading" && (
           <div className="text-center py-4 space-y-3">
-            <svg className="animate-spin w-8 h-8 mx-auto text-[var(--color-gold)]" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
+            <div className="flex justify-center">
+              <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
+            </div>
             <p className="text-sm text-[var(--color-text-muted)]">{progress}</p>
           </div>
         )}
@@ -451,6 +453,7 @@ function AutoPopulateModal({
 /* ── Main page ───────────────────────────────────────────── */
 export default function AdminMedalsPage() {
   const { can } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [medalTypes, setMedalTypes] = useState<MedalTypeItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [deleting, setDeleting]     = useState<string | null>(null);
@@ -517,7 +520,13 @@ export default function AdminMedalsPage() {
   const [deletedMedals, setDeletedMedals] = useState<MedalRef[]>([]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this medal type? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete medal type",
+      message: "Delete this medal type? This cannot be undone.",
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeleting(id);
     const res = await fetch(`/api/medal-types/${id}`, { method: "DELETE" });
     if (res.ok) {
@@ -607,9 +616,16 @@ export default function AdminMedalsPage() {
           type="button"
           onClick={handleAddMedal}
           disabled={!selectedMedalToAdd || addingMedal || !can("/admin/medals", "canCreate")}
-          className="btn-primary text-sm shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-primary text-sm shrink-0 inline-flex items-center justify-center gap-2 min-w-[4.5rem] disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {addingMedal ? "Adding…" : "Add"}
+          {addingMedal ? (
+            <>
+              <LoadingSpinner size="sm" />
+              Adding…
+            </>
+          ) : (
+            "Add"
+          )}
         </button>
       </div>
 
@@ -706,7 +722,7 @@ export default function AdminMedalsPage() {
                   className="h-10 w-10 rounded shrink-0 border border-[var(--color-border)] flex items-center justify-center text-xs font-bold text-[var(--color-text-muted)]"
                   style={{ backgroundColor: "var(--color-surface)" }}
                 >
-                  {mt.shortName}
+                  {medalShortLabelForDisplay(mt.shortName, mt.name)}
                 </div>
               )}
 
@@ -723,7 +739,7 @@ export default function AdminMedalsPage() {
               <div className="min-w-0">
                 <span className="font-semibold text-sm">{mt.name}</span>
                 <span className="text-xs text-[var(--color-text-muted)] ml-2">
-                  ({mt.shortName})
+                  ({medalShortLabelForDisplay(mt.shortName, mt.name)})
                 </span>
                 {mt.branch !== "All" && (
                   <span className="text-xs text-[var(--color-text-muted)] ml-2">
@@ -774,10 +790,10 @@ export default function AdminMedalsPage() {
               </button>
               <button
                 onClick={() => handleDelete(mt._id)}
-                className="btn-danger text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                className="btn-danger text-xs min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 disabled={deleting === mt._id || !can("/admin/medals", "canDelete")}
               >
-                {deleting === mt._id ? "..." : "Delete"}
+                {deleting === mt._id ? <LoadingSpinner size="xs" label="Deleting" /> : "Delete"}
               </button>
             </div>
           </div>
@@ -878,7 +894,9 @@ export default function AdminMedalsPage() {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate">{mt.name}</div>
-                            <div className="text-xs text-[var(--color-text-muted)]">{mt.shortName} &middot; {mt.branch}</div>
+                            <div className="text-xs text-[var(--color-text-muted)]">
+                              {medalShortLabelForDisplay(mt.shortName, mt.name)} &middot; {mt.branch}
+                            </div>
                           </div>
                         </button>
                       ))}
@@ -939,10 +957,17 @@ export default function AdminMedalsPage() {
                       setMerging(false);
                     }
                   }}
-                  className="btn-primary text-sm py-2 px-4"
+                  className="btn-primary text-sm py-2 px-4 inline-flex items-center justify-center gap-2"
                   disabled={merging}
                 >
-                  {merging ? "Merging..." : "Confirm Merge"}
+                  {merging ? (
+                    <>
+                      <LoadingSpinner size="sm" />
+                      Merging…
+                    </>
+                  ) : (
+                    "Confirm Merge"
+                  )}
                 </button>
               </div>
             )}
@@ -951,6 +976,7 @@ export default function AdminMedalsPage() {
         document.body
       )}
 
+      {confirmDialog}
     </div>
   );
 }

@@ -5,6 +5,7 @@
 
 import fs from "fs";
 import path from "path";
+import { deriveShortNameFromMedalName } from "@/lib/medal-short-name";
 
 export type ImportMedalRow = {
   medalId: string;
@@ -78,19 +79,6 @@ function defaultBasePoints(weight: number, invCat: string): number {
   return Math.max(2, Math.min(15, 25 - Math.floor(weight / 50)));
 }
 
-function shortNameFromMedalName(name: string): string {
-  const paren = name.match(/\(([A-Z]{2,6})\)\s*$/);
-  if (paren) return paren[1];
-  const words = name.split(/\s+/).filter(Boolean);
-  if (words.length <= 2) return name.slice(0, 8).toUpperCase();
-  return words
-    .slice(0, 3)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 6);
-}
-
 export type ImportResult = { upserted: number; skipped: number; errors: string[] };
 
 export async function importMedalInventoryFromDir(dir: string): Promise<ImportResult> {
@@ -120,7 +108,7 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
           ? null
           : await MedalType.findOne({ name: row.medalName }).lean();
 
-        const shortName = shortNameFromMedalName(row.medalName);
+        const shortName = deriveShortNameFromMedalName(row.medalName);
         const basePoints =
           existingById?.basePoints ??
           existingByName?.basePoints ??

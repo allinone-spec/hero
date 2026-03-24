@@ -92,7 +92,7 @@ export default function LandingPage() {
                 color: "#1a1a2e",
               }}
             >
-              Explore by country
+              Explore By Country
             </Link>
             <Link
               href="/rankings"
@@ -102,7 +102,7 @@ export default function LandingPage() {
                 color: "rgba(255,255,255,0.95)",
               }}
             >
-              Full rankings
+              All Heroes
             </Link>
             <Link
               href="/medals"

@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const user = await AdminUser.findByIdAndUpdate(
     id,
     { $set: update },
-    { new: true, select: "-passwordHash" }
+    { returnDocument: "after", select: "-passwordHash" }
   ).populate("group", "name slug").lean();
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });

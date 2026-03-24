@@ -25,7 +25,7 @@ export async function PUT(
     if (canEdit !== undefined) updates.canEdit = !!canEdit;
     if (canDelete !== undefined) updates.canDelete = !!canDelete;
 
-    const updated = await GroupPrivilege.findByIdAndUpdate(id, updates, { new: true }).lean();
+    const updated = await GroupPrivilege.findByIdAndUpdate(id, updates, { returnDocument: "after" }).lean();
     return NextResponse.json(updated);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";

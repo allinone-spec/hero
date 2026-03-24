@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { getSiteSession } from "@/lib/site-auth";
 import dbConnect from "@/lib/mongodb";
 import AdminUser from "@/lib/models/AdminUser";
+import { User } from "@/lib/models/User";
 import Contact from "@/lib/models/Contact";
 
-export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export async function POST(req: NextRequest) {
   const { name, email, message } = await req.json();
 
   if (!name?.trim() || !email?.trim() || !message?.trim()) {
@@ -19,6 +18,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!EMAIL_RE.test(String(email).trim())) {
+    return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+  }
+
   if (message.trim().length > 5000) {
     return NextResponse.json(
       { error: "Message must be under 5000 characters" },
@@ -26,32 +29,56 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const adminSession = await getSession();
+  const siteSession = adminSession ? null : await getSiteSession();
+
   await dbConnect();
 
-  // Verify user exists and is active
-  const user = await AdminUser.findOne({ email: session.email });
-  if (!user || !user.active) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let actorEmail: string;
+  let source: "admin" | "site" | "guest";
+
+  if (adminSession) {
+    const user = await AdminUser.findOne({ email: adminSession.email });
+    if (!user || !user.active) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    actorEmail = adminSession.email;
+    source = "admin";
+  } else if (siteSession) {
+    const siteUser = await User.findById(siteSession.sub).select("email").lean();
+    if (!siteUser?.email || siteUser.email !== siteSession.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (email.trim().toLowerCase() !== String(siteUser.email).toLowerCase()) {
+      return NextResponse.json(
+        { error: "Use the email on your account" },
+        { status: 403 }
+      );
+    }
+    actorEmail = siteSession.email;
+    source = "site";
+  } else {
+    actorEmail = email.trim();
+    source = "guest";
   }
 
-  // Save contact message to database
   await Contact.create({
     name: name.trim(),
     email: email.trim(),
     message: message.trim(),
   });
 
-  // Log the contact message as an activity
   const { logActivity } = await import("@/lib/activity-logger");
   await logActivity({
     action: "contact_message",
     category: "system",
     description: `Contact message from ${name.trim()} (${email.trim()})`,
-    userEmail: session.email,
+    userEmail: actorEmail,
     metadata: {
       contactName: name.trim(),
       contactEmail: email.trim(),
       message: message.trim(),
+      source,
     },
   });
 

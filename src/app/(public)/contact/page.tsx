@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 const CONTACT_EMAIL = "ablanchard@cogeco.ca";
 
@@ -70,8 +71,8 @@ export default function ContactPage() {
   // Loading state
   if (loggedIn === null) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <div className="inline-block w-6 h-6 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-2xl mx-auto px-4 py-20 flex justify-center">
+        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
       </div>
     );
   }
@@ -185,8 +186,8 @@ export default function ContactPage() {
         >
           {submitting ? (
             <>
-              <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Sending...
+              <LoadingSpinner size="sm" />
+              Sending…
             </>
           ) : (
             "Send Message"

@@ -15,21 +15,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error || "Invalid credentials" }, { status: 401 });
     }
 
-    const groupSlug = await getGroupSlugForUser(email.toLowerCase());
-    const token = createToken(email.toLowerCase(), groupSlug);
+    const groupSlug = await getGroupSlugForUser(result.email);
+    const token = createToken(result.email, groupSlug);
     const isSuperAdmin = groupSlug === "super-admin";
 
     await logActivity({
       action: "login",
       category: "auth",
       description: `User logged in`,
-      userEmail: email,
+      userEmail: result.email,
     });
 
     const isSecure = process.env.COOKIE_SECURE === "true" ||
       (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false");
 
-    const response = NextResponse.json({ success: true, isSuperAdmin });
+    const response = NextResponse.json({
+      success: true,
+      isSuperAdmin,
+      email: result.email,
+      name: result.name,
+      groupSlug,
+    });
     response.cookies.set("auth-token", token, {
       httpOnly: true,
       secure: isSecure,

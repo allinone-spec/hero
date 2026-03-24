@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ from?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -39,9 +40,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function HeroPage({ params }: Props) {
+export default async function HeroPage({ params, searchParams }: Props) {
   await dbConnect();
   const { slug } = await params;
+  const query = await searchParams;
+  const fromRaw = query.from;
+  const fromOk =
+    fromRaw === "my-heroes" || fromRaw === "rankings" || fromRaw === "heroes" ? fromRaw : undefined;
+  const profileBack =
+    fromOk === "my-heroes"
+      ? { href: "/my-heroes" as const, label: "< Back to My Heroes" as const }
+      : fromOk === "rankings"
+        ? { href: "/rankings" as const, label: "< Back to Rankings" as const }
+        : { href: "/rankings" as const, label: "< Back to Heroes" as const };
 
   // Run hero fetch and rank count in parallel
   const [hero, rankCount] = await Promise.all([
@@ -101,6 +112,8 @@ export default async function HeroPage({ params }: Props) {
         scoreBreakdown={scoreResult.breakdown}
         scoreTotal={scoreResult.total}
         rankPosition={rankCount}
+        profileBackHref={profileBack.href}
+        profileBackLabel={profileBack.label}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Group {
   _id: string;
@@ -97,8 +98,21 @@ function GroupModal({ group, onClose, onSave }: GroupModalProps) {
             <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Saving…" : isEdit ? "Save Changes" : "Create Group"}
+            <button
+              type="submit"
+              className="btn-primary inline-flex items-center justify-center gap-2"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Saving…
+                </>
+              ) : isEdit ? (
+                "Save Changes"
+              ) : (
+                "Create Group"
+              )}
             </button>
           </div>
         </form>
@@ -269,11 +283,18 @@ export default function GroupsPage() {
                 Cancel
               </button>
               <button
-                className="btn-danger"
+                className="btn-danger inline-flex items-center justify-center gap-2"
                 onClick={() => handleDelete(deleteId)}
                 disabled={deleteLoading}
               >
-                {deleteLoading ? "Deleting…" : "Delete"}
+                {deleteLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete"
+                )}
               </button>
             </div>
           </div>

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { writeAdminHint, writeSiteMemberHint } from "@/lib/client-session-hint";
 
 type LoginRole = "member" | "admin";
 
@@ -18,7 +19,6 @@ function safeAdminNext(raw: string | null): string | null {
 }
 
 export default function UnifiedLoginPage() {
-  const router = useRouter();
   const [role, setRole] = useState<LoginRole>("member");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,6 +26,11 @@ export default function UnifiedLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [memberNext, setMemberNext] = useState("/my-heroes");
+  /** One cookie per role — signing in again replaces it; show who is active for this role. */
+  const [existingSameRoleEmail, setExistingSameRoleEmail] = useState<string | null>(null);
+  const [needsEmailVerifyResend, setNeedsEmailVerifyResend] = useState(false);
+  const [resendStatus, setResendStatus] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -33,10 +38,37 @@ export default function UnifiedLoginPage() {
     if (r === "admin") setRole("admin");
     else if (r === "member") setRole("member");
     setMemberNext(safeMemberNext(params.get("next")));
+    if (params.get("verified") === "invalid") {
+      setError(
+        "That verification link is invalid or expired. Use “Resend verification email” with your sign-up address, or register again."
+      );
+      setNeedsEmailVerifyResend(true);
+    }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const opts: RequestInit = { cache: "no-store", credentials: "include" };
+    const url = role === "member" ? "/api/site/me" : "/api/auth/me";
+    fetch(url, opts)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const em = data?.email != null ? String(data.email) : null;
+        setExistingSameRoleEmail(em);
+      })
+      .catch(() => {
+        if (!cancelled) setExistingSameRoleEmail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   const syncRoleToUrl = useCallback((r: LoginRole) => {
     setRole(r);
+    setNeedsEmailVerifyResend(false);
+    setResendStatus("");
     const u = new URL(window.location.href);
     u.searchParams.set("role", r);
     window.history.replaceState({}, "", u.toString());
@@ -48,30 +80,48 @@ export default function UnifiedLoginPage() {
     setLoading(true);
     try {
       if (role === "member") {
+        setNeedsEmailVerifyResend(false);
         const res = await fetch("/api/site/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ email, password }),
         });
         const data = await res.json();
         if (!res.ok) {
           setError(data.error || "Login failed");
+          setNeedsEmailVerifyResend(data.code === "EMAIL_NOT_VERIFIED");
           return;
         }
-        router.push(memberNext);
-        router.refresh();
+        const u = data.user as { email?: string; role?: string } | undefined;
+        if (u?.email) {
+          writeSiteMemberHint({
+            email: String(u.email),
+            role: u.role === "owner" ? "owner" : "user",
+          });
+        }
+        window.location.assign(memberNext);
         return;
       }
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Login failed");
         return;
+      }
+      if (typeof data.email === "string" && typeof data.name === "string" && typeof data.groupSlug === "string") {
+        writeAdminHint({
+          email: data.email,
+          name: data.name,
+          groupSlug: data.groupSlug,
+          isSuperAdmin: Boolean(data.isSuperAdmin),
+        });
       }
       const fromQuery = safeAdminNext(new URLSearchParams(window.location.search).get("next"));
       const dest = fromQuery ?? (data.isSuperAdmin ? "/admin" : "/admin/submit");
@@ -128,14 +178,58 @@ export default function UnifiedLoginPage() {
 
       <p className="text-xs text-[var(--color-text-muted)] mb-4 leading-relaxed">
         {role === "member"
-          ? "For supporters and adopted-hero editing. Same email/password as your member account only — not your admin request."
+          ? "For supporters and adopted-hero editing. New accounts must verify email first (link in your inbox signs you in). Same password as your member account — not your admin request."
           : "For approved archive editors. Use the email and password from your admin account."}
       </p>
+
+      {existingSameRoleEmail && (
+        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-sm text-[var(--color-text)] mb-4 leading-relaxed">
+          You’re already signed in{role === "member" ? " as a site member" : " to the admin console"} as{" "}
+          <span className="font-semibold text-[var(--color-gold)]">{existingSameRoleEmail}</span>. Submitting this form
+          signs you in as the account below and replaces that session (only one {role === "member" ? "member" : "staff"}{" "}
+          session can be active in this browser).
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-4">
         {error && (
           <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
             {error}
+          </div>
+        )}
+        {role === "member" && needsEmailVerifyResend && (
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-sm space-y-2">
+            <p className="text-[var(--color-text-muted)]">
+              Enter the email you used to register, then resend the verification link.
+            </p>
+            <button
+              type="button"
+              disabled={resendLoading || !email.trim()}
+              onClick={async () => {
+                setResendLoading(true);
+                setResendStatus("");
+                try {
+                  const res = await fetch("/api/site/resend-verification", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  const d = await res.json();
+                  setResendStatus(d.message || (d.success ? "If that account needs verification, check your email." : ""));
+                  if (typeof d.debugVerifyUrl === "string" && process.env.NODE_ENV === "development") {
+                    setResendStatus((s) => `${s} Dev link: ${d.debugVerifyUrl}`);
+                  }
+                } catch {
+                  setResendStatus("Could not send. Try again later.");
+                } finally {
+                  setResendLoading(false);
+                }
+              }}
+              className="btn-secondary text-xs w-full sm:w-auto"
+            >
+              {resendLoading ? "Sending…" : "Resend verification email"}
+            </button>
+            {resendStatus && <p className="text-xs text-[var(--color-text-muted)]">{resendStatus}</p>}
           </div>
         )}
         <div>
@@ -147,7 +241,10 @@ export default function UnifiedLoginPage() {
             autoComplete="email"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setResendStatus("");
+            }}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
             placeholder="you@example.com"
           />
@@ -199,12 +296,19 @@ export default function UnifiedLoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60"
+          className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60 inline-flex items-center justify-center gap-2"
           style={{
             background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
           }}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? (
+            <>
+              <LoadingSpinner size="sm" />
+              Signing in…
+            </>
+          ) : (
+            "Sign in"
+          )}
         </button>
       </form>
 

@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const priv = await GroupPrivilege.findOneAndUpdate(
       { group: groupId, menu: menuId },
       { canView: !!canView, canCreate: !!canCreate, canEdit: !!canEdit, canDelete: !!canDelete },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     return NextResponse.json(priv, { status: 201 });

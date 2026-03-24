@@ -13,7 +13,13 @@ function clearOpts() {
   };
 }
 
-/** Clears admin panel JWT and site member JWT (single sign-out). */
+/** Clears staff/admin JWT only. Site member cookie is unchanged. */
+export function clearAuthTokenCookie(response: NextResponse) {
+  const o = clearOpts();
+  response.cookies.set("auth-token", "", o);
+}
+
+/** Clears both staff and site member sessions (only for intentional global sign-out). */
 export function clearAllSessionCookies(response: NextResponse) {
   const o = clearOpts();
   response.cookies.set("auth-token", "", o);

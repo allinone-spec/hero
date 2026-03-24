@@ -4,14 +4,8 @@ import dbConnect from "@/lib/mongodb";
 import { User } from "@/lib/models/User";
 import AdminUser from "@/lib/models/AdminUser";
 import { Resend } from "resend";
-
-function appOrigin(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    "http://localhost:3000";
-  return raw.replace(/\/$/, "");
-}
+import { getResendFrom } from "@/lib/resend-from";
+import { getPublicSiteUrl } from "@/lib/public-site-url";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,14 +47,14 @@ export async function POST(req: NextRequest) {
       await user.save();
     }
 
-    const resetUrl = `${appOrigin()}/reset-password?token=${encodeURIComponent(token)}`;
+    const resetUrl = `${getPublicSiteUrl(req)}/reset-password?token=${encodeURIComponent(token)}`;
 
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
       try {
         const resend = new Resend(resendKey);
-        await resend.emails.send({
-          from: process.env.RESEND_FROM || "Medals N Bongs <support@medalsnbongs.com>",
+        const { error: resendErr } = await resend.emails.send({
+          from: getResendFrom(),
           to: email,
           subject: "Reset your Medals N Bongs password",
           html: `
@@ -91,6 +85,9 @@ export async function POST(req: NextRequest) {
       </html>
       `,
         });
+        if (resendErr) {
+          console.error("Forgot-password Resend error:", resendErr.message, resendErr.name);
+        }
       } catch (err) {
         console.error("Forgot-password email error:", err);
       }

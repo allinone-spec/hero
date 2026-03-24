@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const user = await AdminUser.findOneAndUpdate(
       { email: session.email, coffeeBalance: { $gte: 1 } },
       { $inc: { coffeeBalance: -1 } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!user) {

@@ -19,7 +19,7 @@ export async function PUT(
 
   try {
     const war = await War.findByIdAndUpdate(id, body, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
     if (!war) {

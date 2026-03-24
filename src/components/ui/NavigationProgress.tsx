@@ -41,6 +41,12 @@ export default function NavigationProgress() {
   // Intercept link clicks → start loader
   useEffect(() => {
     const onLinkClick = (e: MouseEvent) => {
+      // New tab / new window (Ctrl/Cmd/Shift click, etc.) — current tab does not navigate,
+      // so pathname never changes and the loader would stick forever.
+      if (e.defaultPrevented) return;
+      if (e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
       const anchor = (e.target as Element)?.closest("a");
       if (!anchor) return;
       const href = anchor.getAttribute("href");

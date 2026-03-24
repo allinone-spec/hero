@@ -6,6 +6,7 @@ import "@/lib/models/MedalType";
 import type { Metadata } from "next";
 import MedalDetailView from "./MedalDetailView";
 import BackButton from "./BackButton";
+import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!medal) return { title: "Medal Not Found" };
 
+  const name = String(medal.name);
+  const shortLabel = medalShortLabelForDisplay(String(medal.shortName ?? ""), name);
+
   return {
-    title: `${medal.name} (${medal.shortName})`,
-    description: medal.description || `Details about the ${medal.name} military decoration.`,
+    title: `${name} (${shortLabel})`,
+    description: medal.description || `Details about the ${name} military decoration.`,
     openGraph: {
-      title: `${medal.name} — Medals N Bongs`,
-      description: medal.description || `${medal.name} — ${medal.category} decoration.`,
+      title: `${name} — Medals N Bongs`,
+      description: medal.description || `${name} — ${medal.category} decoration.`,
     },
-    keywords: [medal.name, medal.shortName, "military medal", medal.category, "military decoration"],
+    keywords: [name, shortLabel, "military medal", medal.category, "military decoration"],
   };
 }
 

@@ -22,7 +22,7 @@ export async function PUT(req: NextRequest) {
   const updated = await ScoringConfig.findOneAndUpdate(
     { key: "default" },
     { ...body, key: "default" },
-    { upsert: true, new: true, runValidators: true }
+    { upsert: true, returnDocument: "after", runValidators: true }
   );
 
   return NextResponse.json(updated);

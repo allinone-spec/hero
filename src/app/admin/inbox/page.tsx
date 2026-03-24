@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface ContactMessage {
   _id: string;
@@ -13,6 +15,7 @@ interface ContactMessage {
 }
 
 export default function InboxPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [contacts, setContacts] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -69,7 +72,12 @@ export default function InboxPage() {
 
   const handleDelete = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} message${selected.size !== 1 ? "s" : ""}?`)) return;
+    const ok = await confirm({
+      message: `Delete ${selected.size} message${selected.size !== 1 ? "s" : ""}?`,
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
 
     setDeleting(true);
     try {
@@ -91,6 +99,8 @@ export default function InboxPage() {
   if (loading) return <AdminLoader />;
 
   return (
+    <>
+      {confirmDialog}
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -125,8 +135,8 @@ export default function InboxPage() {
             >
               {deleting ? (
                 <>
-                  <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Deleting...
+                  <LoadingSpinner size="xs" />
+                  Deleting…
                 </>
               ) : (
                 <>Delete ({selected.size})</>
@@ -265,5 +275,6 @@ export default function InboxPage() {
         })}
       </div>
     </div>
+    </>
   );
 }

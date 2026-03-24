@@ -81,9 +81,11 @@ type SortOption = "score_desc" | "score_asc" | "name" | "medals_desc";
 function AvatarSearch({
   heroes,
   onQueryChange,
+  profileFrom,
 }: {
   heroes: HeroData[];
   onQueryChange: (q: string) => void;
+  profileFrom: "heroes" | "rankings";
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -105,7 +107,7 @@ function AvatarSearch({
   };
 
   const select = (hero: HeroData) => {
-    router.push(`/heroes/${hero.slug}`);
+    router.push(`/heroes/${hero.slug}?from=${profileFrom}`);
     setOpen(false);
     setQuery("");
     onQueryChange("");
@@ -211,7 +213,13 @@ function Pill({
 }
 
 /* ── Main component ──────────────────────────────────────── */
-export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
+export default function HeroListClient({
+  heroes,
+  profileFrom = "heroes",
+}: {
+  heroes: HeroData[];
+  profileFrom?: "heroes" | "rankings";
+}) {
   const searchParams = useSearchParams();
   const [search, setSearch]       = useState("");
   const [branch, setBranch]       = useState("All");
@@ -342,7 +350,11 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
         </div>
         {/* Row 1: search + sort */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <AvatarSearch heroes={heroes} onQueryChange={(q) => handleFilterChange(() => setSearch(q))} />
+            <AvatarSearch
+              heroes={heroes}
+              profileFrom={profileFrom}
+              onQueryChange={(q) => handleFilterChange(() => setSearch(q))}
+            />
             <select
               value={sort}
               onChange={(e) => handleFilterChange(() => setSort(e.target.value as typeof sort))}
@@ -381,7 +393,7 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
             <>
               {paginated.map((hero, idx) => (
                 <div key={hero._id} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(idx, 10) * 0.04}s` }}>
-                  <HeroCard rank={startRank + idx + 1} hero={hero} onClick={savePage} />
+                  <HeroCard rank={startRank + idx + 1} hero={hero} fromParam={profileFrom} onClick={savePage} />
                 </div>
               ))}
               <Pagination

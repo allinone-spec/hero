@@ -7,6 +7,8 @@ import AvatarFallback from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 /* ── Types ────────────────────────────────────────────────── */
 
@@ -111,6 +113,7 @@ const emptyImportForm: ImportFormData = {
 export default function AdminHeroesPage() {
   const router = useRouter();
   const { can } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [heroes, setHeroes] = useState<HeroItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -174,7 +177,13 @@ export default function AdminHeroesPage() {
   }, [heroes]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: "Delete hero",
+      message: `Delete ${name}? This cannot be undone.`,
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeleting(id);
     const res = await fetch(`/api/heroes/${id}`, { method: "DELETE" });
     if (res.ok) setHeroes((prev) => prev.filter((h) => h._id !== id));
@@ -735,9 +744,13 @@ export default function AdminHeroesPage() {
                 <button
                   onClick={() => handleDelete(hero._id, hero.name)}
                   disabled={deleting === hero._id || !can("/admin/heroes", "canDelete")}
-                  className="btn-danger text-xs py-1.5 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="btn-danger text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {deleting === hero._id ? "\u2026" : "Delete"}
+                  {deleting === hero._id ? (
+                    <LoadingSpinner size="xs" label="Deleting" />
+                  ) : (
+                    "Delete"
+                  )}
                 </button>
               </div>
             </div>
@@ -841,8 +854,8 @@ export default function AdminHeroesPage() {
                       >
                         {scraping ? (
                           <>
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            Importing...
+                            <LoadingSpinner size="sm" />
+                            Importing…
                           </>
                         ) : (
                           <>
@@ -914,7 +927,7 @@ export default function AdminHeroesPage() {
                           title="Generate an enhanced biography using AI"
                         >
                           {aiLoading ? (
-                            <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            <LoadingSpinner size="xs" />
                           ) : (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                               <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.45 2.1-1.17 2.83L12 12l-2.83-3.17A4 4 0 0 1 12 2z" />
@@ -1068,8 +1081,8 @@ export default function AdminHeroesPage() {
                     >
                       {importSaving ? (
                         <>
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          Saving...
+                          <LoadingSpinner size="sm" />
+                          Saving…
                         </>
                       ) : (
                         "Save Hero"
@@ -1082,6 +1095,7 @@ export default function AdminHeroesPage() {
           </div>
         </>
       )}
+      {confirmDialog}
     </div>
   );
 }

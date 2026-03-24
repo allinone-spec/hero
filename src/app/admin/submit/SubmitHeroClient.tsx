@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Suggestion {
   _id: string;
@@ -145,8 +146,8 @@ export default function SubmitHeroClient() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto py-20 text-center">
-        <div className="inline-block w-6 h-6 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-3xl mx-auto py-20 flex justify-center">
+        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
       </div>
     );
   }
@@ -211,8 +212,8 @@ export default function SubmitHeroClient() {
         >
           {buyingCoffee ? (
             <>
-              <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Redirecting...
+              <LoadingSpinner size="sm" />
+              Redirecting…
             </>
           ) : (
             "Buy 2 Coffees \u2014 $5"
@@ -242,8 +243,8 @@ export default function SubmitHeroClient() {
           >
             {submitting ? (
               <>
-                <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Submitting...
+                <LoadingSpinner size="md" />
+                Submitting…
               </>
             ) : (
               <>

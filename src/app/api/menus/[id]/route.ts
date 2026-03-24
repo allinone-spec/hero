@@ -27,7 +27,7 @@ export async function PUT(
     if (section?.trim()) updates.section = section.trim();
     if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder);
 
-    const updated = await Menu.findByIdAndUpdate(id, updates, { new: true }).lean();
+    const updated = await Menu.findByIdAndUpdate(id, updates, { returnDocument: "after" }).lean();
     return NextResponse.json(updated);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";

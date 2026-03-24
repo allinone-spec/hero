@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import type { RibbonMedal } from "@/components/ribbon-rack/RibbonRack";
 import MedalWikiModal from "@/components/medals/MedalWikiModal";
@@ -53,7 +54,12 @@ interface Props {
   scoreBreakdown: ScoreBreakdownItem[];
   scoreTotal: number;
   rankPosition: number;
+  profileBackHref: string;
+  profileBackLabel: string;
 }
+
+const profileBackNavClass =
+  "text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1";
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -86,26 +92,91 @@ function isUnitCitation(name: string): boolean {
   return /\bunit\b/i.test(name) || /\bpresidential.*citation\b/i.test(name);
 }
 
-function AdoptHeroCta({ heroId, hasOwner }: { heroId: string; hasOwner: boolean }) {
+function SupportAdoptPanel({
+  heroId,
+  ownerUserId,
+  heroSlug,
+}: {
+  heroId: string;
+  ownerUserId?: string | null;
+  heroSlug: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
-  const [memberSignedIn, setMemberSignedIn] = useState<boolean | null>(null);
+  /** null = session check not finished */
+  const [me, setMe] = useState<null | { signedIn: boolean; userId: string | null }>(null);
+
+  const ownerId = ownerUserId ? String(ownerUserId) : null;
+  const hasOwner = Boolean(ownerId);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/site/me", { cache: "no-store", credentials: "include" })
-      .then((r) => {
-        if (!cancelled) setMemberSignedIn(r.ok);
+      .then(async (r) => {
+        if (cancelled) return;
+        if (r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { id?: string };
+          setMe({ signedIn: true, userId: j.id ? String(j.id) : null });
+        } else {
+          setMe({ signedIn: false, userId: null });
+        }
       })
       .catch(() => {
-        if (!cancelled) setMemberSignedIn(false);
+        if (!cancelled) setMe({ signedIn: false, userId: null });
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (hasOwner) return null;
+  const iAmOwner = Boolean(ownerId && me?.signedIn && me.userId && ownerId === me.userId);
+
+  if (hasOwner && me === null) {
+    return (
+      <div
+        className="no-print mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/30 p-4"
+        aria-hidden
+      >
+        <div className="mb-2 h-3 w-36 rounded bg-[var(--color-border)]/60" />
+        <div className="h-3 w-full max-w-md rounded bg-[var(--color-border)]/40" />
+      </div>
+    );
+  }
+
+  if (hasOwner && iAmOwner) {
+    return (
+      <div className="no-print mt-6 rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-400 mb-2">
+          Support & adopt
+        </h3>
+        <p className="text-sm text-[var(--color-text)] mb-3">
+          You are the named supporter for this hero. You can edit the tribute biography and portrait from your adoption
+          benefits for as long as your adoption is active.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/heroes/${heroSlug}/edit`} className="btn-secondary text-sm">
+            Edit tribute
+          </Link>
+          <Link href="/my-heroes" className="btn-secondary text-sm">
+            My Heroes
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasOwner && !iAmOwner) {
+    return (
+      <div className="no-print mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/50 p-4">
+        <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--color-gold)] mb-2">
+          Support & adopt
+        </h3>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          This profile already has a named supporter. Adoptions are limited to one active supporter per hero.
+        </p>
+      </div>
+    );
+  }
 
   async function startCheckout() {
     setBusy(true);
@@ -137,7 +208,7 @@ function AdoptHeroCta({ heroId, hasOwner }: { heroId: string; hasOwner: boolean 
   }
 
   return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-4 mt-6">
+    <div className="no-print mt-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-4">
       <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--color-gold)] mb-2">
         Support & adopt
       </h3>
@@ -154,12 +225,12 @@ function AdoptHeroCta({ heroId, hasOwner }: { heroId: string; hasOwner: boolean 
         {busy ? "Redirecting…" : "Adopt this hero"}
       </button>
       {hint && <p className="text-xs text-red-300 mt-2">{hint}</p>}
-      {memberSignedIn === true && (
+      {me?.signedIn && (
         <p className="text-xs text-[var(--color-text-muted)] mt-2">
           You&apos;re signed in as a site member — use the button above to open secure checkout.
         </p>
       )}
-      {memberSignedIn === false && (
+      {me && !me.signedIn && (
         <p className="text-xs text-[var(--color-text-muted)] mt-2">
           <Link href="/login?role=member" className="text-[var(--color-gold)] hover:underline">
             Sign in
@@ -171,6 +242,47 @@ function AdoptHeroCta({ heroId, hasOwner }: { heroId: string; hasOwner: boolean 
   );
 }
 
+/** After Stripe Checkout, confirm adoption when webhooks are not delivered (e.g. local dev). */
+function StripeAdoptionReturnSync({ heroSlug }: { heroSlug: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const ran = useRef(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const adopted = searchParams.get("adopted");
+    const sessionId = searchParams.get("session_id");
+    if (adopted !== "1" || !sessionId || ran.current) return;
+    ran.current = true;
+
+    (async () => {
+      const res = await fetch("/api/stripe/verify-adoption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ sessionId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!res.ok) {
+        setVerifyError(
+          data.error ||
+            "Could not confirm adoption in the app. If you were charged, check My Heroes later or contact support.",
+        );
+        return;
+      }
+      router.replace(`/heroes/${heroSlug}`, { scroll: false });
+      router.refresh();
+    })();
+  }, [searchParams, router, heroSlug]);
+
+  if (!verifyError) return null;
+  return (
+    <p className="no-print mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+      {verifyError}
+    </p>
+  );
+}
+
 /* ── Component ──────────────────────────────────────────────────────────────── */
 
 export default function HeroDetailClient({
@@ -178,6 +290,8 @@ export default function HeroDetailClient({
   scoreBreakdown,
   scoreTotal,
   rankPosition,
+  profileBackHref,
+  profileBackLabel,
 }: Props) {
   const [ribbonModalMedal, setRibbonModalMedal] = useState<RibbonMedal | null>(null);
 
@@ -207,20 +321,15 @@ export default function HeroDetailClient({
     ? hero.biography.split(/\n\n+/).filter((p) => p.trim())
     : [];
 
-  const hasOwner = Boolean(hero.ownerUserId);
-
   return (
     <div className="animate-fade-in-up">
+      <Suspense fallback={null}>
+        <StripeAdoptionReturnSync heroSlug={hero.slug} />
+      </Suspense>
       {/* Navigation — hidden in print */}
       <div className="no-print mb-6 flex items-center justify-between">
-        <Link
-          href="/rankings"
-          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Back to Rankings
+        <Link href={profileBackHref} className={profileBackNavClass}>
+          {profileBackLabel}
         </Link>
         <button
           onClick={() => window.print()}
@@ -364,7 +473,7 @@ export default function HeroDetailClient({
 
       {/* ── Score Breakdown (web only) ──────────────────────────────────────── */}
       <div className="no-print mt-8">
-        <AdoptHeroCta heroId={hero._id} hasOwner={hasOwner} />
+        <SupportAdoptPanel heroId={hero._id} ownerUserId={hero.ownerUserId} heroSlug={hero.slug} />
         <ScoreBreakdown breakdown={scoreBreakdown} total={scoreTotal} />
       </div>
 

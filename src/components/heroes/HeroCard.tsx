@@ -29,10 +29,12 @@ interface HeroCardProps {
     rackGap?: number;
   };
   href?: string;
+  /** Query `from` on profile URL (heroes / rankings / my-heroes) for back navigation */
+  fromParam?: "heroes" | "rankings" | "my-heroes";
   onClick?: () => void;
 }
 
-export default function HeroCard({ rank, hero, href, onClick }: HeroCardProps) {
+export default function HeroCard({ rank, hero, href, fromParam = "heroes", onClick }: HeroCardProps) {
   const ribbonMedals = hero.medals
     .filter((m) => m.medalType)
     .map((m) => ({
@@ -47,8 +49,12 @@ export default function HeroCard({ rank, hero, href, onClick }: HeroCardProps) {
     }))
     .sort((a, b) => a.precedenceOrder - b.precedenceOrder);
 
+  const to =
+    href ||
+    `/heroes/${hero.slug}?from=${fromParam}`;
+
   return (
-    <Link href={href || `/heroes/${hero.slug}`} onClick={onClick}>
+    <Link href={to} onClick={onClick}>
       <div className="hero-card p-4 flex items-center gap-4">
         {/* Rank number */}
         <div className="rank-number">#{rank}</div>

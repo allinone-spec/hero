@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 type Shape = "circle" | "hexagon" | "shield";
 type IconType = "none" | "star" | "cross" | "eagle";
@@ -379,8 +380,19 @@ export default function MedalAvatarDesigner({ onClose, onSave }: DesignerProps) 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--color-border)]">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
-          <button onClick={handleSave} className="btn-primary" disabled={saving}>
-            {saving ? "Uploading..." : "Use This Design"}
+          <button
+            onClick={handleSave}
+            className="btn-primary inline-flex items-center justify-center gap-2"
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Uploading…
+              </>
+            ) : (
+              "Use This Design"
+            )}
           </button>
         </div>
       </div>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Suggestion {
   _id: string;
@@ -11,6 +13,7 @@ interface Suggestion {
 }
 
 export default function SuggestionsPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -81,7 +84,13 @@ export default function SuggestionsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this suggestion?")) return;
+    const ok = await confirm({
+      title: "Delete suggestion",
+      message: "Delete this suggestion?",
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/hero-suggestions/${id}`, { method: "DELETE" });
@@ -108,8 +117,8 @@ export default function SuggestionsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto py-20 text-center">
-        <div className="inline-block w-6 h-6 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-2xl mx-auto py-20 flex justify-center">
+        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
       </div>
     );
   }
@@ -165,8 +174,8 @@ export default function SuggestionsPage() {
           >
             {submitting ? (
               <>
-                <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Submitting...
+                <LoadingSpinner size="sm" />
+                Submitting…
               </>
             ) : (
               "Submit"
@@ -222,9 +231,9 @@ export default function SuggestionsPage() {
                 <button
                   onClick={() => handleDelete(s._id)}
                   disabled={deletingId === s._id}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0"
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0 min-w-[3.5rem] inline-flex items-center justify-center"
                 >
-                  {deletingId === s._id ? "..." : "Delete"}
+                  {deletingId === s._id ? <LoadingSpinner size="xs" className="text-red-400" label="Deleting" /> : "Delete"}
                 </button>
               </div>
             ))}
@@ -274,9 +283,9 @@ export default function SuggestionsPage() {
                 <button
                   onClick={() => handleDelete(s._id)}
                   disabled={deletingId === s._id}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0"
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0 min-w-[3.5rem] inline-flex items-center justify-center"
                 >
-                  {deletingId === s._id ? "..." : "Delete"}
+                  {deletingId === s._id ? <LoadingSpinner size="xs" className="text-red-400" label="Deleting" /> : "Delete"}
                 </button>
               </div>
             ))}
@@ -326,15 +335,16 @@ export default function SuggestionsPage() {
                 <button
                   onClick={() => handleDelete(s._id)}
                   disabled={deletingId === s._id}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0"
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0 min-w-[3.5rem] inline-flex items-center justify-center"
                 >
-                  {deletingId === s._id ? "..." : "Delete"}
+                  {deletingId === s._id ? <LoadingSpinner size="xs" className="text-red-400" label="Deleting" /> : "Delete"}
                 </button>
               </div>
             ))}
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

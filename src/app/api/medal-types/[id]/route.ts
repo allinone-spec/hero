@@ -32,7 +32,7 @@ export async function PUT(
 
   try {
     const updated = await MedalType.findByIdAndUpdate(id, body, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
     if (!updated) {

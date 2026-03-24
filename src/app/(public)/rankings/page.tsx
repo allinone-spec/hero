@@ -114,7 +114,7 @@ export default async function RankingsPage() {
       {/* ── Hero slideshow ───────────────────────────────── */}
       {slideshowHeroes.length > 0 && (
         <section>
-          <HeroSlideshow heroes={slideshowHeroes} />
+          <HeroSlideshow heroes={slideshowHeroes} profileFrom="heroes" />
         </section>
       )}
 
@@ -135,7 +135,7 @@ export default async function RankingsPage() {
         <section>
           <SectionTitle title="Top Ranked Hero" sub="Highest USM-25 score in the archive" />
 
-          <Link href={`/heroes/${topHero.slug}`} className="block group">
+          <Link href={`/heroes/${topHero.slug}?from=heroes`} className="block group">
             <div
               className="hero-card p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6"
               style={{
@@ -259,7 +259,7 @@ export default async function RankingsPage() {
           </div>
         </div>
         <Suspense>
-          <HeroListClient heroes={serialized} />
+          <HeroListClient heroes={serialized} profileFrom="heroes" />
         </Suspense>
       </section>
     </div>

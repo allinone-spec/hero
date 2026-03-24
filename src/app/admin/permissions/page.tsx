@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface PagePerm {
   _id: string;
@@ -37,6 +39,7 @@ const LEVEL_LABELS: Record<number, string> = {
 };
 
 export default function PermissionsPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [pages, setPages] = useState<PagePerm[]>([]);
   const [users, setUsers] = useState<UserPerm[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +106,12 @@ export default function PermissionsPage() {
   };
 
   const handleDeletePage = async (pageId: string) => {
-    if (!confirm("Delete this page permission entry?")) return;
+    const ok = await confirm({
+      message: "Delete this page permission entry?",
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeletingId(pageId);
     try {
       const res = await fetch(`/api/permissions/pages/${pageId}`, { method: "DELETE" });
@@ -150,6 +158,8 @@ export default function PermissionsPage() {
   const adminPages = pages.filter((p) => p.section === "admin");
 
   return (
+    <>
+      {confirmDialog}
     <div className="space-y-8">
       {/* Header */}
       <div>
@@ -217,8 +227,19 @@ export default function PermissionsPage() {
               </div>
             </div>
             {addError && <p className="text-xs text-red-400">{addError}</p>}
-            <button onClick={handleAddPage} disabled={adding} className="btn-primary text-xs py-1.5 px-4">
-              {adding ? "Adding..." : "Add Page"}
+            <button
+              onClick={handleAddPage}
+              disabled={adding}
+              className="btn-primary text-xs py-1.5 px-4 inline-flex items-center justify-center gap-2"
+            >
+              {adding ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Adding…
+                </>
+              ) : (
+                "Add Page"
+              )}
             </button>
           </div>
         )}
@@ -301,7 +322,7 @@ export default function PermissionsPage() {
                   ))}
                 </select>
                 {savingUserId === user._id && (
-                  <span className="inline-block w-3.5 h-3.5 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
+                  <LoadingSpinner size="sm" className="text-[var(--color-gold)]" label="Saving" />
                 )}
               </div>
             </div>
@@ -312,6 +333,7 @@ export default function PermissionsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -352,16 +374,14 @@ function PageRow({
             <option key={val} value={val}>{label}</option>
           ))}
         </select>
-        {saving && (
-          <span className="inline-block w-3.5 h-3.5 border-2 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin" />
-        )}
+        {saving && <LoadingSpinner size="sm" className="text-[var(--color-gold)]" />}
         {!page.isSystem && (
           <button
             onClick={() => onDelete(page._id)}
             disabled={deleting}
-            className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1"
+            className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 min-w-[3.25rem] inline-flex items-center justify-center"
           >
-            {deleting ? "..." : "Delete"}
+            {deleting ? <LoadingSpinner size="xs" className="text-red-400" label="Deleting" /> : "Delete"}
           </button>
         )}
       </div>

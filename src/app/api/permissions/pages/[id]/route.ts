@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const page = await PagePermission.findByIdAndUpdate(
     id,
     { requiredLevel },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!page) return NextResponse.json({ error: "Page not found" }, { status: 404 });

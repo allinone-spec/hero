@@ -66,7 +66,7 @@ export async function PATCH(
       const user = await AdminUser.findOneAndUpdate(
         { email: suggestion.submittedByEmail },
         { $inc: { coffeeBalance: 1 } },
-        { new: true }
+        { returnDocument: "after" }
       );
       if (user) {
         await CoffeeTransaction.create({

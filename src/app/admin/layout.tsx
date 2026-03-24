@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import ContactModal from "@/components/ui/ContactModal";
 import { PrivilegeContext, type MenuPrivilege } from "@/contexts/PrivilegeContext";
+import { clearAdminHint } from "@/lib/client-session-hint";
 
 /* ── 3-D ring loader ────────────────────────────────────── */
 function Loader3D() {
@@ -176,6 +177,219 @@ function HelpGuide({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+function formatAdminRoleLabel(groupSlug: string): string {
+  if (!groupSlug) return "Staff";
+  if (groupSlug === "super-admin") return "Super admin";
+  return groupSlug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function AdminAccountChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+      style={{ color: "var(--color-text-muted)" }}
+      aria-hidden
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/** Max admin nav items shown as tabs; rest go in "More" (avoids horizontal scroll for super admins). */
+const ADMIN_NAV_INLINE_COUNT = 5;
+
+type NavLinkItem = { href: string; label: string };
+
+function navLinkActive(pathname: string, href: string) {
+  return pathname === href || (href !== "/admin" && pathname.startsWith(href));
+}
+
+function AdminNavMoreMenu({
+  links,
+  pathname,
+  suggestionCount,
+}: {
+  links: NavLinkItem[];
+  pathname: string;
+  suggestionCount: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const activeInMenu = links.some((l) => navLinkActive(pathname, l.href));
+  const suggestionsInMenu = links.some((l) => l.href === "/admin/suggestions");
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`relative flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+          activeInMenu
+            ? "bg-(--color-gold)/10 text-(--color-gold)"
+            : "text-(--color-text-muted) hover:text-(--color-text)"
+        }`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        More
+        <AdminAccountChevron open={open} />
+        {suggestionsInMenu && suggestionCount > 0 && (
+          <span className="absolute -top-1 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1">
+            {suggestionCount > 99 ? "99+" : suggestionCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1 min-w-[12rem] max-h-[min(70vh,24rem)] overflow-y-auto rounded-xl border border-(--color-border) bg-(--color-surface) shadow-xl z-[60] py-1 animate-fade-in"
+          role="menu"
+        >
+          {links.map((link) => {
+            const active = navLinkActive(pathname, link.href);
+            const isSuggestions = link.href === "/admin/suggestions";
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={`relative flex items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-(--color-gold)/10 text-(--color-gold)"
+                    : "text-(--color-text-muted) hover:text-(--color-text) hover:bg-(--color-surface-hover)"
+                }`}
+              >
+                <span>{link.label}</span>
+                {isSuggestions && suggestionCount > 0 && (
+                  <span className="min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1 shrink-0">
+                    {suggestionCount > 99 ? "99+" : suggestionCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminAccountDropdown({
+  userName,
+  userEmail,
+  groupSlug,
+  isSuperAdmin,
+  onLogout,
+}: {
+  userName: string;
+  userEmail: string;
+  groupSlug: string;
+  isSuperAdmin: boolean;
+  onLogout: () => void;
+}) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg border border-(--color-border) bg-(--color-bg) hover:border-(--color-gold)/50 transition-colors max-w-[220px]"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <AvatarFallback name={userName} size={28} shape="rounded" />
+        <span className="truncate text-xs font-medium max-w-[5.5rem] sm:max-w-[7rem]" style={{ color: "var(--color-text)" }}>
+          {userName}
+        </span>
+        {isSuperAdmin && (
+          <span className="hidden sm:inline text-[9px] font-bold px-1 py-0.5 rounded shrink-0 bg-(--color-gold)/15 text-(--color-gold)">
+            SA
+          </span>
+        )}
+        <AdminAccountChevron open={open} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 w-72 rounded-xl border border-(--color-border) bg-(--color-surface) shadow-xl z-[60] py-1 animate-fade-in"
+          role="menu"
+        >
+          <div className="px-3 py-2 space-y-2 text-left">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-(--color-text-muted)">Staff account</p>
+            <p className="text-sm font-medium text-(--color-text) truncate" title={userName}>
+              {userName}
+            </p>
+            <p className="text-xs text-(--color-text-muted) truncate" title={userEmail}>
+              {userEmail}
+            </p>
+            <p className="text-xs text-(--color-text-muted)">
+              Role: <span className="font-semibold text-(--color-gold)">{formatAdminRoleLabel(groupSlug)}</span>
+            </p>
+          </div>
+          <div className="border-t border-(--color-border) p-2">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
+              className="btn-secondary text-sm w-full py-2"
+            >
+              Log out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface AccessibleMenu {
   path: string;
   label: string;
@@ -192,7 +406,11 @@ const PUBLIC_ADMIN_PATHS = ["/admin", "/admin/register"];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed]             = useState<boolean | null>(null);
+  /** After admin auth succeeds: false = no site-member cookie; true = both sessions (hide "As Site Member"). null = not loaded yet. */
+  const [siteMemberLoggedIn, setSiteMemberLoggedIn] = useState<boolean | null>(null);
   const [userName, setUserName]         = useState("Admin");
+  const [userEmail, setUserEmail]       = useState("");
+  const [groupSlug, setGroupSlug]       = useState("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [accessibleMenus, setAccessibleMenus] = useState<AccessibleMenu[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
@@ -202,18 +420,69 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [suggestionCount, setSuggestionCount] = useState(0);
   const pathname = usePathname();
   const router   = useRouter();
+  const reloadGenRef = useRef(0);
+
+  /** Full staff session sync (mount, tab focus, or after another tab signs in / switches account). */
+  const reloadAdminAuth = useCallback(() => {
+    const myId = ++reloadGenRef.current;
+    const opts: RequestInit = { cache: "no-store", credentials: "include" };
+
+    void fetch("/api/site/me", opts).then(async (r) => {
+      if (myId !== reloadGenRef.current) return;
+      let member = false;
+      if (r.ok) {
+        try {
+          const j = await r.json();
+          member = Boolean(j?.email);
+        } catch {
+          member = false;
+        }
+      }
+      setSiteMemberLoggedIn(member);
+    });
+
+    void fetch("/api/auth/me", opts)
+      .then(async (r) => {
+        if (myId !== reloadGenRef.current) return;
+        if (!r.ok) {
+          reloadGenRef.current += 1;
+          setAuthed(false);
+          setSiteMemberLoggedIn(null);
+          return;
+        }
+        try {
+          const data = await r.json();
+          setAuthed(true);
+          setUserName(data.name || "Admin");
+          setUserEmail(String(data.email || ""));
+          setGroupSlug(String(data.groupSlug || ""));
+          setIsSuperAdmin(data.isSuperAdmin || false);
+          setAccessibleMenus(data.accessibleMenus || []);
+        } catch {
+          reloadGenRef.current += 1;
+          setAuthed(false);
+          setSiteMemberLoggedIn(null);
+        }
+      })
+      .catch(() => {
+        if (myId !== reloadGenRef.current) return;
+        reloadGenRef.current += 1;
+        setAuthed(false);
+        setSiteMemberLoggedIn(null);
+      });
+  }, []);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((data) => {
-        setAuthed(true);
-        setUserName(data.name || "Admin");
-        setIsSuperAdmin(data.isSuperAdmin || false);
-        setAccessibleMenus(data.accessibleMenus || []);
-      })
-      .catch(() => setAuthed(false));
-  }, []);
+    reloadAdminAuth();
+  }, [reloadAdminAuth]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") reloadAdminAuth();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [reloadAdminAuth]);
 
   // Poll unread suggestion count every 30s
   useEffect(() => {
@@ -269,6 +538,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.replace("/admin");
   }, [authed, pathname, router]);
 
+  const refreshSession = useCallback(() => {
+    fetch("/api/auth/me", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        setUserName(data.name || "Admin");
+        setUserEmail(String(data.email || ""));
+        setGroupSlug(String(data.groupSlug || ""));
+        setIsSuperAdmin(data.isSuperAdmin || false);
+        setAccessibleMenus(data.accessibleMenus || []);
+      })
+      .catch(() => {});
+  }, []);
+
   const privilegeCtx = useMemo(() => {
     const privileges: MenuPrivilege[] = accessibleMenus.map((m) => ({
       path: m.path,
@@ -285,8 +567,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const p = privileges.find((x) => x.path === path);
         return p ? p[action] : false;
       },
+      refreshSession,
     };
-  }, [isSuperAdmin, accessibleMenus]);
+  }, [isSuperAdmin, accessibleMenus, refreshSession]);
+
+  const navLinks = useMemo(() => {
+    const sorted = [...accessibleMenus].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label)
+    );
+    return sorted.map((m) => ({ href: m.path, label: m.label }));
+  }, [accessibleMenus]);
+
+  const inlineNavLinks =
+    navLinks.length <= ADMIN_NAV_INLINE_COUNT ? navLinks : navLinks.slice(0, ADMIN_NAV_INLINE_COUNT);
+  const overflowNavLinks =
+    navLinks.length <= ADMIN_NAV_INLINE_COUNT ? [] : navLinks.slice(ADMIN_NAV_INLINE_COUNT);
+
+  /** Show while site session is unknown or absent (hides as soon as site `/me` reports a member). */
+  const showAsSiteMemberLink = Boolean(authed) && siteMemberLoggedIn !== true;
 
   if (authed === null) return <Loader3D />;
   if (!authed) {
@@ -294,8 +592,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // useEffect will router.replace("/admin"); don’t render protected children meanwhile
     return <Loader3D />;
   }
-
-  const navLinks = accessibleMenus.map((m) => ({ href: m.path, label: m.label }));
 
   return (
     <PrivilegeContext.Provider value={privilegeCtx}>
@@ -306,22 +602,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
             {/* Left: brand + nav */}
-            <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+            <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1 md:mr-3">
               <Link href="/admin" className="text-lg font-bold text-(--color-gold) shrink-0">
                 ★ Admin
               </Link>
 
-              {/* Desktop nav */}
-              <div className="hidden md:flex items-center gap-0.5 overflow-x-auto">
-                {navLinks.map((link) => {
-                  const active = pathname === link.href ||
-                    (link.href !== "/admin" && pathname.startsWith(link.href));
+              {/* Desktop nav — inline tabs + More dropdown (no horizontal scroll) */}
+              <div className="hidden md:flex items-center gap-0.5 min-w-0 flex-1 justify-start">
+                {inlineNavLinks.map((link) => {
+                  const active = navLinkActive(pathname, link.href);
                   const isSuggestions = link.href === "/admin/suggestions";
                   return (
                     <Link
                       key={link.href}
                       href={link.href}
-                      className={`relative px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                      className={`relative shrink-0 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                         active
                           ? "bg-(--color-gold)/10 text-(--color-gold)"
                           : "text-(--color-text-muted) hover:text-(--color-text)"
@@ -330,12 +625,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       {link.label}
                       {isSuggestions && suggestionCount > 0 && (
                         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1">
-                          {suggestionCount}
+                          {suggestionCount > 99 ? "99+" : suggestionCount}
                         </span>
                       )}
                     </Link>
                   );
                 })}
+                {overflowNavLinks.length > 0 && (
+                  <AdminNavMoreMenu
+                    links={overflowNavLinks}
+                    pathname={pathname}
+                    suggestionCount={suggestionCount}
+                  />
+                )}
               </div>
 
               {/* Mobile hamburger */}
@@ -398,35 +700,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ?
               </button>
               <ThemeToggle />
-              <Link
-                href="/"
-                className="hidden sm:block text-sm text-(--color-text-muted) hover:text-(--color-text) transition-colors px-2"
-              >
-                View Site
-              </Link>
+              {showAsSiteMemberLink && (
+                <Link
+                  href="/go/member"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden sm:block text-sm text-(--color-text-muted) hover:text-(--color-text) transition-colors px-2"
+                >
+                  As Site Member
+                </Link>
+              )}
 
-              {/* Current user chip */}
-              <div className="hidden sm:flex items-center gap-2 px-2 py-1 rounded-lg border border-(--color-border) bg-(--color-bg)">
-                <div className="w-6 h-6 rounded-full overflow-hidden">
-                  <AvatarFallback name={userName} size={24} />
-                </div>
-                <span className="text-xs font-medium max-w-24 truncate">{userName}</span>
-                {isSuperAdmin && (
-                  <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-(--color-gold)/15 text-(--color-gold)">
-                    SA
-                  </span>
-                )}
-              </div>
-
-              <button
-                onClick={async () => {
-                  await fetch("/api/auth/logout", { method: "POST" });
+              <AdminAccountDropdown
+                userName={userName}
+                userEmail={userEmail}
+                groupSlug={groupSlug}
+                isSuperAdmin={isSuperAdmin}
+                onLogout={async () => {
+                  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+                  clearAdminHint();
                   router.replace("/");
                 }}
-                className="btn-secondary text-xs sm:text-sm py-1.5 px-3 sm:px-4"
-              >
-                Logout
-              </button>
+              />
             </div>
           </div>
 
@@ -457,14 +752,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </Link>
                   );
                 })}
-                <div className="border-t border-(--color-border) pt-2 mt-2">
-                  <Link
-                    href="/"
-                    className="block px-3 py-2.5 rounded-lg text-sm text-(--color-text-muted) hover:text-(--color-text)"
-                  >
-                    View Public Site
-                  </Link>
-                </div>
+                {showAsSiteMemberLink && (
+                  <div className="border-t border-(--color-border) pt-2 mt-2">
+                    <Link
+                      href="/go/member"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block px-3 py-2.5 rounded-lg text-sm text-(--color-text-muted) hover:text-(--color-text)"
+                    >
+                      As Site Member
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           )}

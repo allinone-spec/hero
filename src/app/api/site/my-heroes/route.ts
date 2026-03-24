@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import { getSiteSession } from "@/lib/site-auth";
@@ -10,7 +11,12 @@ export async function GET() {
   }
 
   await dbConnect();
-  const heroes = await Hero.find({ ownerUserId: session.sub })
+  const sub = session.sub;
+  const ownerMatch: { ownerUserId: string | mongoose.Types.ObjectId }[] = [{ ownerUserId: sub }];
+  if (mongoose.Types.ObjectId.isValid(sub)) {
+    ownerMatch.push({ ownerUserId: new mongoose.Types.ObjectId(sub) });
+  }
+  const heroes = await Hero.find({ $or: ownerMatch })
     .select("slug name avatarUrl adoptionExpiry published score")
     .sort({ name: 1 })
     .lean();

@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const user = await AdminUser.findByIdAndUpdate(
     id,
     { permissionLevel },
-    { new: true, projection: { name: 1, email: 1, role: 1, permissionLevel: 1, active: 1, status: 1 } }
+    { returnDocument: "after", projection: { name: 1, email: 1, role: 1, permissionLevel: 1, active: 1, status: 1 } }
   );
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });

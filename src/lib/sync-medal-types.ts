@@ -36,7 +36,7 @@ async function run() {
     const result = await MedalType.findOneAndUpdate(
       { name: def.name },
       { $set: def },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
 
     // findOneAndUpdate returns the doc — check if it was newly created

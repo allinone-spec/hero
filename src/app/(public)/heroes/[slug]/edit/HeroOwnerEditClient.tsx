@@ -3,6 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import ImageUpload from "@/components/ui/ImageUpload";
+
+const profileOwnerBackClass =
+  "text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1";
+
+function ProfileOwnerBackChevron() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
 
 interface Props {
   slug: string;
@@ -101,8 +114,9 @@ export default function HeroOwnerEditClient({ slug }: Props) {
     return (
       <div className="max-w-md mx-auto py-16 text-center">
         <p className="text-red-300 mb-4">{error || "Not found"}</p>
-        <Link href="/my-heroes" className="text-[var(--color-gold)] hover:underline">
-          Back to my heroes
+        <Link href="/my-heroes" className={profileOwnerBackClass}>
+          <ProfileOwnerBackChevron />
+          Back to My Heroes
         </Link>
       </div>
     );
@@ -111,13 +125,14 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="mb-6">
-        <Link href="/my-heroes" className="text-sm text-[var(--color-gold)] hover:underline">
-          ← My heroes
+        <Link href="/my-heroes" className={profileOwnerBackClass}>
+          <ProfileOwnerBackChevron />
+          Back to My Heroes
         </Link>
         <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">Edit tribute: {name}</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          You can update the short biography and portrait image URL. Medal rack and scoring are managed by the archive
-          team.
+          You can update the short biography and portrait (upload an image or paste a public URL). Medal rack and scoring
+          are managed by the archive team.
           {!published && " This hero is not published yet; the public page may be unavailable."}
         </p>
       </div>
@@ -138,25 +153,45 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Avatar image URL</label>
+          <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Portrait</label>
+          <ImageUpload
+            value={avatarUrl}
+            onChange={setAvatarUrl}
+            folder="Heroes/TributePortraits"
+            label="portrait"
+            uploadUrl="/api/site/upload-tribute-image"
+            extraFormFields={{ slug }}
+            previewClassName="h-44 w-44 object-cover rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
+          />
+          <p className="text-xs text-[var(--color-text-muted)] mt-2 mb-1">
+            Or paste a public image URL (https). Invalid or broken links are cleared when the image fails to load.
+          </p>
           <input
-            type="url"
+            type="text"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
             placeholder="https://…"
+            autoComplete="off"
           />
         </div>
         <div className="flex gap-3">
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg px-5 py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60"
+            className="rounded-lg px-5 py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60 inline-flex items-center justify-center gap-2"
             style={{
               background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
             }}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Saving…
+              </>
+            ) : (
+              "Save"
+            )}
           </button>
           {published && (
             <Link

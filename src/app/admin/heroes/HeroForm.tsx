@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 
 import ImageUpload from "@/components/ui/ImageUpload";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
+import { deriveShortNameFromMedalName, medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalTypeOption {
   _id: string;
@@ -352,7 +354,7 @@ function MedalSelect({
                       {t.name}
                     </div>
                     <div style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>
-                      {t.shortName}
+                      {medalShortLabelForDisplay(t.shortName, t.name)}
                     </div>
                   </div>
 
@@ -1210,14 +1212,6 @@ function normalizeCombatType(input: unknown): CombatType {
     setError("");
 
     try {
-      const SKIP_WORDS = new Set(["of", "the", "and", "for", "with", "in", "to", "a"]);
-      const makeShortName = (n: string): string => {
-        const words = n.split(/\s+/).filter((w) => !SKIP_WORDS.has(w.toLowerCase()));
-        if (words.length === 0) return "?";
-        if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-        return words.map((w) => (w[0] || "").toUpperCase()).join("").slice(0, 6);
-      };
-
       const maxPrec = medalTypes.reduce((max, t) => Math.max(max, t.precedenceOrder || 0), 0);
       let precCounter = 0;
 
@@ -1288,7 +1282,7 @@ function normalizeCombatType(input: unknown): CombatType {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: cell.name,
-              shortName: makeShortName(cell.name),
+              shortName: deriveShortNameFromMedalName(cell.name),
               category: "other",
               basePoints: 0,
               valorPoints: 0,
@@ -1619,7 +1613,7 @@ function normalizeCombatType(input: unknown): CombatType {
               title="Generate biography using AI (requires hero name)"
             >
               {aiGenLoading ? (
-                <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <LoadingSpinner size="xs" />
               ) : (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.45 2.1-1.17 2.83L12 12l-2.83-3.17A4 4 0 0 1 12 2z" />
@@ -2671,8 +2665,21 @@ function normalizeCombatType(input: unknown): CombatType {
       {/* ── Sticky save bar ──────────────────────────────────── */}
       <div className="sticky bottom-0 z-30 -mx-4 sm:-mx-0 px-4 sm:px-0 py-3 bg-[var(--color-bg)]/95 backdrop-blur-sm border-t border-[var(--color-border)]">
         <div className="flex items-center gap-3">
-          <button type="submit" className="btn-primary px-6 sm:px-8" disabled={saving}>
-            {saving ? "Saving…" : isEdit ? "Update Hero" : "Create Hero"}
+          <button
+            type="submit"
+            className="btn-primary px-6 sm:px-8 inline-flex items-center justify-center gap-2"
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Saving…
+              </>
+            ) : isEdit ? (
+              "Update Hero"
+            ) : (
+              "Create Hero"
+            )}
           </button>
           <button
             type="button"

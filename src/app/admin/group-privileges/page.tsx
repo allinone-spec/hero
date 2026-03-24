@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Group {
   _id: string;
@@ -42,7 +44,8 @@ const FLAGS: { key: PrivFlag; label: string }[] = [
 ];
 
 export default function GroupPrivilegesPage() {
-  const { can } = usePrivileges();
+  const router = useRouter();
+  const { can, refreshSession } = usePrivileges();
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
@@ -57,7 +60,7 @@ export default function GroupPrivilegesPage() {
         setGroups(data);
         // Pre-select the first non-super-admin group
         const first = data.find((g: Group) => g.slug !== "super-admin");
-        if (first) setSelectedGroupId(first._id);
+        if (first) setSelectedGroupId(String(first._id));
       })
       .finally(() => setLoadingGroups(false));
   }, []);
@@ -81,8 +84,29 @@ export default function GroupPrivilegesPage() {
     return map;
   }, [matrix]);
 
-  const selectedGroup = groups.find((g) => g._id === selectedGroupId);
-  const isSuperAdmin = selectedGroup?.slug === "super-admin";
+  const selectedGroupIdStr = selectedGroupId ? String(selectedGroupId) : "";
+  const selectedGroup = selectedGroupIdStr
+    ? groups.find((g) => String(g._id) === selectedGroupIdStr)
+    : undefined;
+  const isSuperAdminGroup = selectedGroup?.slug === "super-admin";
+
+  const resyncAfterSuperAdminSave = useCallback(async () => {
+    if (!isSuperAdminGroup || !selectedGroupIdStr) return;
+    refreshSession();
+    router.refresh();
+    try {
+      const r = await fetch(
+        `/api/group-privileges?groupId=${encodeURIComponent(selectedGroupIdStr)}`,
+        { cache: "no-store" }
+      );
+      if (r.ok) {
+        const data = await r.json();
+        if (Array.isArray(data)) setMatrix(data);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isSuperAdminGroup, selectedGroupIdStr, refreshSession, router]);
 
   const handleToggle = useCallback(
     async (row: MatrixRow, flag: PrivFlag) => {
@@ -101,6 +125,7 @@ export default function GroupPrivilegesPage() {
             setMatrix((prev) =>
               prev.map((r) => r.menu._id === row.menu._id ? { ...r, privilege: updated } : r)
             );
+            await resyncAfterSuperAdminSave();
           }
         } else {
           const body: Record<string, unknown> = {
@@ -122,13 +147,14 @@ export default function GroupPrivilegesPage() {
             setMatrix((prev) =>
               prev.map((r) => r.menu._id === row.menu._id ? { ...r, privilege: created } : r)
             );
+            await resyncAfterSuperAdminSave();
           }
         }
       } finally {
         setSavingRow(null);
       }
     },
-    [selectedGroupId]
+    [selectedGroupId, router, resyncAfterSuperAdminSave]
   );
 
   const handleGrantAll = useCallback(
@@ -147,6 +173,7 @@ export default function GroupPrivilegesPage() {
             setMatrix((prev) =>
               prev.map((r) => r.menu._id === row.menu._id ? { ...r, privilege: updated } : r)
             );
+            await resyncAfterSuperAdminSave();
           }
         } else {
           const res = await fetch("/api/group-privileges", {
@@ -159,13 +186,14 @@ export default function GroupPrivilegesPage() {
             setMatrix((prev) =>
               prev.map((r) => r.menu._id === row.menu._id ? { ...r, privilege: created } : r)
             );
+            await resyncAfterSuperAdminSave();
           }
         }
       } finally {
         setSavingRow(null);
       }
     },
-    [selectedGroupId]
+    [selectedGroupId, router, resyncAfterSuperAdminSave]
   );
 
   const handleRevokeAll = useCallback(
@@ -184,12 +212,13 @@ export default function GroupPrivilegesPage() {
           setMatrix((prev) =>
             prev.map((r) => r.menu._id === row.menu._id ? { ...r, privilege: updated } : r)
           );
+          await resyncAfterSuperAdminSave();
         }
       } finally {
         setSavingRow(null);
       }
     },
-    []
+    [selectedGroupId, router, resyncAfterSuperAdminSave]
   );
 
   return (
@@ -215,7 +244,7 @@ export default function GroupPrivilegesPage() {
           >
             <option value="">— Select a group —</option>
             {groups.map((g) => (
-              <option key={g._id} value={g._id}>
+              <option key={String(g._id)} value={String(g._id)}>
                 {g.name}{g.isSystem ? " (System)" : ""}
               </option>
             ))}
@@ -224,7 +253,7 @@ export default function GroupPrivilegesPage() {
       </div>
 
       {/* Super Admin Note */}
-      {isSuperAdmin && (
+      {isSuperAdminGroup && (
         <div className="rounded-xl border border-[var(--color-gold)]/30 bg-[var(--color-gold)]/5 px-6 py-4 mb-6">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⭐</span>
@@ -284,7 +313,7 @@ export default function GroupPrivilegesPage() {
                         return (
                           <div key={f.key} className="flex justify-center">
                             {isSaving ? (
-                              <span className="w-4 h-4 rounded-full border-2 border-(--color-gold) border-t-transparent animate-spin" />
+                              <LoadingSpinner size="md" className="text-(--color-gold)" label="Saving" />
                             ) : (
                               <input
                                 type="checkbox"

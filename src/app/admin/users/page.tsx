@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import SiteMembersAdminPanel from "@/components/admin/SiteMembersAdminPanel";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Group {
   _id: string;
@@ -280,8 +283,19 @@ function ApproveModal({
         </div>
 
         <div className="flex gap-2 p-5 pt-0">
-          <button onClick={() => onApprove(groupId)} className="btn-primary flex-1" disabled={saving}>
-            {saving ? "Approving…" : "Approve & Activate"}
+          <button
+            onClick={() => onApprove(groupId)}
+            className="btn-primary flex-1 inline-flex items-center justify-center gap-2"
+            disabled={saving}
+          >
+            {saving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Approving…
+              </>
+            ) : (
+              "Approve & Activate"
+            )}
           </button>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
         </div>
@@ -292,8 +306,12 @@ function ApproveModal({
 }
 
 /* ── Main page ───────────────────────────────────────────── */
+type UsersMainTab = "staff" | "site";
+
 export default function AdminUsersPage() {
-  const { can } = usePrivileges();
+  const { can, isSuperAdmin } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const [mainTab, setMainTab] = useState<UsersMainTab>("staff");
   const [users, setUsers]               = useState<AdminUser[]>([]);
   const [pending, setPending]           = useState<AdminUser[]>([]);
   const [groups, setGroups]             = useState<Group[]>([]);
@@ -387,7 +405,13 @@ export default function AdminUsersPage() {
   };
 
   const handleReject = async (user: AdminUser) => {
-    if (!confirm(`Reject and delete the registration from ${user.name}?`)) return;
+    const ok = await confirm({
+      title: "Reject registration",
+      message: `Reject and delete the registration from ${user.name}?`,
+      danger: true,
+      confirmLabel: "Reject",
+    });
+    if (!ok) return;
     setDeleting(user._id);
     const res = await fetch(`/api/admin-users/${user._id}`, { method: "DELETE" });
     setDeleting(null);
@@ -411,7 +435,13 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (user: AdminUser) => {
-    if (!confirm(`Delete ${user.name}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: "Delete user",
+      message: `Delete ${user.name}? This cannot be undone.`,
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeleting(user._id);
     const res = await fetch(`/api/admin-users/${user._id}`, { method: "DELETE" });
     const data = await res.json();
@@ -431,7 +461,39 @@ export default function AdminUsersPage() {
 
   return (
     <div className="animate-fade-in-up space-y-8">
+      {isSuperAdmin && (
+        <div className="flex rounded-lg border border-[var(--color-border)] p-1 bg-[var(--color-bg)] gap-1 w-fit flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMainTab("staff")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              mainTab === "staff"
+                ? "bg-[var(--color-gold)]/15 text-[var(--color-gold)] border border-[var(--color-gold)]/35"
+                : "text-(--color-text-muted) hover:text-(--color-text)"
+            }`}
+          >
+            Staff (admin)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab("site")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              mainTab === "site"
+                ? "bg-[var(--color-gold)]/15 text-[var(--color-gold)] border border-[var(--color-gold)]/35"
+                : "text-(--color-text-muted) hover:text-(--color-text)"
+            }`}
+          >
+            Site Members
+          </button>
+        </div>
+      )}
 
+      {mainTab === "site" && isSuperAdmin ? (
+        <SiteMembersAdminPanel />
+      ) : null}
+
+      {mainTab === "staff" || !isSuperAdmin ? (
+        <>
       {/* Flash messages */}
       {success && (
         <div className="text-sm text-green-600 bg-green-500/10 border border-green-500/20 p-3 rounded-lg animate-fade-in">
@@ -491,9 +553,9 @@ export default function AdminUsersPage() {
                   <button
                     onClick={() => handleReject(user)}
                     disabled={deleting === user._id || !can("/admin/users", "canDelete")}
-                    className="btn-danger text-xs py-1.5 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-danger text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {deleting === user._id ? "…" : "Reject"}
+                    {deleting === user._id ? <LoadingSpinner size="xs" label="Rejecting" /> : "Reject"}
                   </button>
                 </div>
               </div>
@@ -566,9 +628,9 @@ export default function AdminUsersPage() {
                     onClick={() => handleDelete(user)}
                     disabled={isSelf || deleting === user._id || !can("/admin/users", "canDelete")}
                     title={isSelf ? "Cannot delete your own account" : "Delete user"}
-                    className="btn-danger text-xs py-1.5 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-danger text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {deleting === user._id ? "…" : "Delete"}
+                    {deleting === user._id ? <LoadingSpinner size="xs" label="Deleting" /> : "Delete"}
                   </button>
                 </div>
               </div>
@@ -609,6 +671,9 @@ export default function AdminUsersPage() {
           saving={saving}
         />
       )}
+        </>
+      ) : null}
+      {confirmDialog}
     </div>
   );
 }

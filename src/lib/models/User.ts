@@ -6,6 +6,10 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: "user" | "owner";
+  /** When explicitly false, member must verify email before login. Omitted/undefined = legacy accounts treated as verified. */
+  emailVerified?: boolean;
+  emailVerifyTokenHash?: string;
+  emailVerifyExpires?: Date;
   stripeCustomerId?: string;
   subscriptionStatus?: string;
   agreedToTermsAt?: Date;
@@ -22,6 +26,9 @@ const UserSchema: Schema<IUser> = new Schema({
   stripeCustomerId: { type: String },
   subscriptionStatus: { type: String },
   agreedToTermsAt: { type: Date },
+  emailVerified: { type: Boolean },
+  emailVerifyTokenHash: { type: String },
+  emailVerifyExpires: { type: Date },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
 });

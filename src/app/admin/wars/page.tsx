@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import { useAlert, useConfirm } from "@/components/ui/ConfirmDialog";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 
 /* ── Types ────────────────────────────────────────────────── */
@@ -29,6 +31,8 @@ const emptyForm = {
 
 export default function AdminWarsPage() {
   const { can } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { alertWith, dialog: alertDialog } = useAlert();
   const [wars, setWars]           = useState<War[]>([]);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -98,7 +102,12 @@ export default function AdminWarsPage() {
   /* ── Delete ──────────────────────────────────────────────── */
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      message: `Delete "${name}"? This cannot be undone.`,
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     try {
       await fetch(`/api/wars/${id}`, { method: "DELETE" });
       fetchWars();
@@ -124,7 +133,11 @@ export default function AdminWarsPage() {
   /* ── AI-powered war list import ──────────────────────────── */
 
   const handleAIImport = async () => {
-    if (!confirm("Fetch a war list from AI? This will NOT overwrite existing wars.")) return;
+    const ok = await confirm({
+      message: "Fetch a war list from AI? This will NOT overwrite existing wars.",
+      confirmLabel: "Fetch",
+    });
+    if (!ok) return;
     setAiLoading(true);
     setError("");
     try {
@@ -157,7 +170,10 @@ export default function AdminWarsPage() {
       }
 
       fetchWars();
-      alert(`Imported ${imported} new war(s). Cost: $${data.cost?.toFixed(6) || "0"}`);
+      await alertWith({
+        title: "Import complete",
+        message: `Imported ${imported} new war(s). Cost: $${data.cost?.toFixed(6) || "0"}`,
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "AI import failed");
     } finally {
@@ -168,6 +184,9 @@ export default function AdminWarsPage() {
   /* ── Render ──────────────────────────────────────────────── */
 
   return (
+    <>
+      {confirmDialog}
+      {alertDialog}
     <div className="animate-fade-in-up space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -184,14 +203,19 @@ export default function AdminWarsPage() {
             className="btn-secondary text-xs sm:text-sm py-2 px-3 sm:px-4 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {aiLoading ? (
-              <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <>
+                <LoadingSpinner size="sm" />
+                Working…
+              </>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.45 2.1-1.17 2.83L12 12l-2.83-3.17A4 4 0 0 1 12 2z" />
-                <path d="M12 12l6 6" /><path d="M12 12l-6 6" />
-              </svg>
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M12 2a4 4 0 0 1 4 4c0 1.1-.45 2.1-1.17 2.83L12 12l-2.83-3.17A4 4 0 0 1 12 2z" />
+                  <path d="M12 12l6 6" /><path d="M12 12l-6 6" />
+                </svg>
+                AI Import
+              </>
             )}
-            AI Import
           </button>
           <button
             onClick={() => { setEditId(null); setForm(emptyForm); setShowForm(true); setError(""); }}
@@ -287,8 +311,21 @@ export default function AdminWarsPage() {
               <button onClick={() => setShowForm(false)} className="btn-secondary text-sm py-2 px-4">
                 Cancel
               </button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary text-sm py-2 px-4">
-                {saving ? "Saving..." : editId ? "Update" : "Create"}
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary text-sm py-2 px-4 inline-flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    Saving…
+                  </>
+                ) : editId ? (
+                  "Update"
+                ) : (
+                  "Create"
+                )}
               </button>
             </div>
           </div>
@@ -375,5 +412,6 @@ export default function AdminWarsPage() {
         </p>
       )}
     </div>
+    </>
   );
 }

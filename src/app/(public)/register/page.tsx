@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import TermsOfEngagementModal from "@/components/auth/TermsOfEngagementModal";
@@ -10,7 +11,7 @@ type RegRole = "member" | "admin";
 export default function UnifiedRegisterPage() {
   const router = useRouter();
   const [role, setRole] = useState<RegRole>("member");
-  const [step, setStep] = useState<"form" | "success">("form");
+  const [step, setStep] = useState<"form" | "verifyEmail" | "success">("form");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,6 +22,8 @@ export default function UnifiedRegisterPage() {
   const [showTerms, setShowTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifyEmailSent, setVerifyEmailSent] = useState<boolean | null>(null);
+  const [debugVerifyUrl, setDebugVerifyUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -54,6 +57,7 @@ export default function UnifiedRegisterPage() {
       return;
     }
     setLoading(true);
+    setDebugVerifyUrl(null);
     try {
       const res = await fetch("/api/site/register", {
         method: "POST",
@@ -68,6 +72,12 @@ export default function UnifiedRegisterPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Registration failed");
+        return;
+      }
+      if (data.pendingVerification) {
+        setVerifyEmailSent(Boolean(data.emailSent));
+        setDebugVerifyUrl(typeof data.debugVerifyUrl === "string" ? data.debugVerifyUrl : null);
+        setStep("verifyEmail");
         return;
       }
       router.push("/login?role=member");
@@ -146,13 +156,68 @@ export default function UnifiedRegisterPage() {
 
       {role === "member" ? (
         <p className="text-xs text-[var(--color-text-muted)] mb-4 leading-relaxed">
-          For supporters and hero adoption. You can sign in immediately after registering. Password at least 8
-          characters.
+          For supporters and hero adoption. We&apos;ll email you a link to verify your address; clicking it signs you in
+          automatically. Password at least 8 characters.
         </p>
       ) : (
         <p className="text-xs text-[var(--color-text-muted)] mb-4 leading-relaxed">
           Request access to the archive admin panel. An administrator must approve your account before you can sign in.
         </p>
+      )}
+
+      {role === "member" && step === "verifyEmail" && (
+        <div className="space-y-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <h2 className="text-lg font-semibold text-[var(--color-text)]">Check your email</h2>
+          <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+            We sent a verification link to <span className="text-[var(--color-gold)] font-medium">{email}</span>. Open
+            the email, open the link, then click <strong>Verify email and sign in</strong> on our site — you won&apos;t need
+            to enter your password again.
+          </p>
+          {verifyEmailSent === false && (
+            <p className="text-sm text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
+              Email could not be sent (check server email settings). Use &quot;Resend&quot; below or contact support.
+            </p>
+          )}
+          {debugVerifyUrl && (
+            <p className="text-xs text-[var(--color-text-muted)] break-all">
+              Dev only:{" "}
+              <a href={debugVerifyUrl} className="text-[var(--color-gold)] underline">
+                verification link
+              </a>
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                setError("");
+                try {
+                  const res = await fetch("/api/site/resend-verification", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  const d = await res.json();
+                  setVerifyEmailSent(Boolean(d.emailSent));
+                  if (typeof d.debugVerifyUrl === "string") setDebugVerifyUrl(d.debugVerifyUrl);
+                } catch {
+                  setError("Could not resend");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="btn-secondary text-sm"
+            >
+              Resend verification email
+            </button>
+            <Link href="/login?role=member" className="btn-secondary text-sm inline-flex items-center">
+              Back to sign in
+            </Link>
+          </div>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+        </div>
       )}
 
       {role === "member" && step === "form" && (
@@ -244,12 +309,19 @@ export default function UnifiedRegisterPage() {
           <button
             type="submit"
             disabled={loading || !agreed}
-            className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60"
+            className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60 inline-flex items-center justify-center gap-2"
             style={{
               background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
             }}
           >
-            {loading ? "Creating…" : "Register"}
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Creating…
+              </>
+            ) : (
+              "Register"
+            )}
           </button>
         </form>
       )}
@@ -353,12 +425,19 @@ export default function UnifiedRegisterPage() {
           <button
             type="submit"
             disabled={loading || !agreed}
-            className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60"
+            className="w-full rounded-lg py-2.5 font-semibold text-[var(--color-badge-text)] disabled:opacity-60 inline-flex items-center justify-center gap-2"
             style={{
               background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))",
             }}
           >
-            {loading ? "Submitting…" : "Submit request"}
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Submitting…
+              </>
+            ) : (
+              "Submit request"
+            )}
           </button>
         </form>
       )}

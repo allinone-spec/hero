@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { medalTextColor } from "@/components/ui/AvatarFallback";
 import Pagination from "@/components/ui/Pagination";
+import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalType {
   _id: string;
@@ -210,7 +211,7 @@ export default function MedalListClient({ medals }: { medals: MedalType[] }) {
                           border: `3px solid ${cc.border}`,
                         }}
                       >
-                        {mt.shortName}
+                        {medalShortLabelForDisplay(mt.shortName, mt.name)}
                       </div>
                     ) : (
                       <div
@@ -223,7 +224,7 @@ export default function MedalListClient({ medals }: { medals: MedalType[] }) {
                           border: `3px solid ${cc.border}`,
                         }}
                       >
-                        {mt.shortName}
+                        {medalShortLabelForDisplay(mt.shortName, mt.name)}
                       </div>
                     )}
                   </div>
@@ -234,7 +235,7 @@ export default function MedalListClient({ medals }: { medals: MedalType[] }) {
                       {mt.name}
                     </h3>
                     <p className="text-xs text-[var(--color-text-muted)] mt-1 font-mono">
-                      {mt.shortName}
+                      {medalShortLabelForDisplay(mt.shortName, mt.name)}
                     </p>
                   </div>
 

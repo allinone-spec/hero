@@ -48,7 +48,7 @@ export async function PUT(
     if (name?.trim()) updates.name = name.trim();
     if (description !== undefined) updates.description = description.trim();
 
-    const updated = await Group.findByIdAndUpdate(id, updates, { new: true }).lean();
+    const updated = await Group.findByIdAndUpdate(id, updates, { returnDocument: "after" }).lean();
     return NextResponse.json(updated);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error";

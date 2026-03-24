@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       const user = await AdminUser.findOneAndUpdate(
         { email },
         { $inc: { coffeeBalance: coffeeAmount } },
-        { new: true }
+        { returnDocument: "after" }
       );
 
       if (user) {

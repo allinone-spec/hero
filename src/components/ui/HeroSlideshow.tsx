@@ -30,7 +30,14 @@ interface SlideshowHero {
   rackGap?: number;
 }
 
-export default function HeroSlideshow({ heroes }: { heroes: SlideshowHero[] }) {
+export default function HeroSlideshow({
+  heroes,
+  profileFrom = "heroes",
+}: {
+  heroes: SlideshowHero[];
+  /** Matches navbar "Heroes" list context vs spotlight "rankings" */
+  profileFrom?: "heroes" | "rankings";
+}) {
   const [current, setCurrent] = useState(0);
   const [fading, setFading] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -152,7 +159,7 @@ export default function HeroSlideshow({ heroes }: { heroes: SlideshowHero[] }) {
             <div className="flex items-center gap-3 justify-center sm:justify-start flex-wrap">
               <span className="score-badge text-sm">{hero.score} pts</span>
               <Link
-                href={`/heroes/${hero.slug}`}
+                href={`/heroes/${hero.slug}?from=${profileFrom}`}
                 className="btn-secondary text-sm"
               >
                 View Profile →

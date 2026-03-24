@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import AvatarFallback, { medalTextColor } from "@/components/ui/AvatarFallback";
+import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -95,6 +96,7 @@ export default function MedalDetailView({
   heroes: HeroEntry[];
 }) {
   const cc = CATEGORY_ACCENT[medal.category] ?? CATEGORY_ACCENT.other;
+  const shortLabel = medalShortLabelForDisplay(medal.shortName, medal.name);
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
   // Identify front image — fall back to ribbon image if no medal image
@@ -220,7 +222,7 @@ export default function MedalDetailView({
                     boxShadow: `0 8px 40px ${cc.glow}`,
                   }}
                 >
-                  {medal.shortName}
+                  {shortLabel}
                 </div>
               ) : (
                 <div
@@ -231,7 +233,7 @@ export default function MedalDetailView({
                     border: `4px solid ${cc.border}`,
                   }}
                 >
-                  {medal.shortName}
+                  {shortLabel}
                 </div>
               )}
             </div>
@@ -257,7 +259,7 @@ export default function MedalDetailView({
             {medal.name}
           </h1>
           <p className="text-sm font-mono text-[var(--color-text-muted)] mb-4">
-            {medal.shortName}
+            {shortLabel}
             {medal.branch !== "All" && ` — ${medal.branch}`}
           </p>
 

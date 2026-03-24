@@ -7,6 +7,8 @@ import Group from "@/lib/models/Group";
 import GroupPrivilege from "@/lib/models/GroupPrivilege";
 import type { IMenu } from "@/lib/models/Menu";
 
+export const dynamic = "force-dynamic";
+
 const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function GET() {

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface Suggestion {
   _id: string;
@@ -15,6 +17,7 @@ interface Suggestion {
 
 export default function SuggestionsPage() {
   const { can } = usePrivileges();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -39,7 +42,13 @@ export default function SuggestionsPage() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this suggestion?")) return;
+    const ok = await confirm({
+      title: "Delete suggestion",
+      message: "Delete this suggestion?",
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/hero-suggestions/${id}`, { method: "DELETE" });
@@ -154,9 +163,9 @@ export default function SuggestionsPage() {
                       <Link
                         href={`/admin/heroes/new?wikiUrl=${encodeURIComponent(s.wikipediaUrl)}`}
                         onClick={() => handleUpdateStatus(s._id, "reviewed")}
-                        className="btn-primary text-xs py-1.5 px-3"
+                        className="btn-primary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5"
                       >
-                        {updatingId === s._id ? "..." : "Accept"}
+                        {updatingId === s._id ? <LoadingSpinner size="xs" label="Accepting" /> : "Accept"}
                       </Link>
                     ) : (
                       <span className="btn-primary text-xs py-1.5 px-3 opacity-40 cursor-not-allowed">
@@ -166,24 +175,25 @@ export default function SuggestionsPage() {
                     <button
                       onClick={() => handleUpdateStatus(s._id, "denied")}
                       disabled={updatingId === s._id || !can("/admin/suggestions", "canEdit")}
-                      className="btn-secondary text-xs py-1.5 px-3 text-yellow-400 hover:text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="btn-secondary text-xs py-1.5 px-3 min-w-[4rem] inline-flex items-center justify-center gap-1.5 text-yellow-400 hover:text-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {updatingId === s._id ? "..." : "Deny"}
+                      {updatingId === s._id ? <LoadingSpinner size="xs" label="Denying" /> : "Deny"}
                     </button>
                   </>
                 )}
                 <button
                   onClick={() => handleDelete(s._id)}
                   disabled={deletingId === s._id || !can("/admin/suggestions", "canDelete")}
-                  className="btn-secondary text-xs py-1.5 px-3 text-red-400 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="btn-secondary text-xs py-1.5 px-3 min-w-[4.25rem] inline-flex items-center justify-center gap-1.5 text-red-400 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {deletingId === s._id ? "..." : "Delete"}
+                  {deletingId === s._id ? <LoadingSpinner size="xs" label="Deleting" /> : "Delete"}
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

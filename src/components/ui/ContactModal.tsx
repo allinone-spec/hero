@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 const CONTACT_EMAIL = "ablanchard@cogeco.ca";
 
@@ -18,14 +19,19 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
   const [success, setSuccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Pre-fill name/email from session
+  // Pre-fill name/email from admin or site member session
   useEffect(() => {
     if (open && !loaded) {
-      fetch("/api/auth/me")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => {
-          if (data?.email) setEmail(data.email);
-          if (data?.name) setName(data.name);
+      const sessionOpts: RequestInit = { cache: "no-store", credentials: "include" };
+      Promise.all([
+        fetch("/api/auth/me", sessionOpts).then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/site/me", sessionOpts).then((r) => (r.ok ? r.json() : null)),
+      ])
+        .then(([admin, site]) => {
+          const emailVal = admin?.email ?? site?.email;
+          const nameVal = admin?.name ?? (typeof site?.email === "string" ? site.email.split("@")[0] : "");
+          if (emailVal) setEmail(String(emailVal));
+          if (nameVal) setName(String(nameVal));
           setLoaded(true);
         })
         .catch(() => setLoaded(true));
@@ -94,6 +100,7 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
     setError("");
     setSuccess(false);
     setMessage("");
+    setLoaded(false);
     onClose();
   };
 
@@ -103,12 +110,12 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm animate-fade-in"
         onClick={handleClose}
       />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      {/* Modal — z above sticky public nav (z-50) and admin nav */}
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 pointer-events-none">
         <div
           className="pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl animate-scale-in"
           onClick={(e) => e.stopPropagation()}
@@ -194,8 +201,8 @@ export default function ContactModal({ open, onClose }: ContactModalProps) {
             >
               {submitting ? (
                 <>
-                  <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Sending...
+                  <LoadingSpinner size="sm" />
+                  Sending…
                 </>
               ) : (
                 "Send Message"

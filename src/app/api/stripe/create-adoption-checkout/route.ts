@@ -82,6 +82,8 @@ export async function POST(req: NextRequest) {
   try {
     checkout = await stripe.checkout.sessions.create({
       mode: "payment",
+      /** Prefill email so Link / Checkout can match the member account and send receipts. */
+      ...(session.email ? { customer_email: session.email } : {}),
       line_items: [
         {
           price_data: {
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${origin}/heroes/${hero.slug}?adopted=1`,
+      success_url: `${origin}/heroes/${hero.slug}?adopted=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/heroes/${hero.slug}?adopted=0`,
       metadata: {
         heroId: hero._id.toString(),
@@ -103,6 +105,13 @@ export async function POST(req: NextRequest) {
         userEmail: session.email,
       },
       client_reference_id: session.sub,
+      ...(session.email
+        ? {
+            payment_intent_data: {
+              receipt_email: session.email,
+            },
+          }
+        : {}),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Checkout failed";

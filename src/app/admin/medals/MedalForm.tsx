@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import ImageUpload from "@/components/ui/ImageUpload";
 import MedalAvatarDesigner from "@/components/ui/MedalAvatarDesigner";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 export interface MedalFormState {
   name: string;
@@ -94,11 +95,8 @@ function FetchImageButton({
       >
         {fetching ? (
           <>
-            <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            Fetching...
+            <LoadingSpinner size="sm" />
+            Fetching…
           </>
         ) : (
           <>
@@ -436,8 +434,19 @@ export default function MedalForm({
       )}
 
       <div className="flex gap-2 pt-2">
-        <button type="submit" className="btn-primary" disabled={saving}>
-          {saving ? "Saving..." : submitLabel}
+        <button
+          type="submit"
+          className="btn-primary inline-flex items-center justify-center gap-2"
+          disabled={saving}
+        >
+          {saving ? (
+            <>
+              <LoadingSpinner size="sm" />
+              Saving…
+            </>
+          ) : (
+            submitLabel
+          )}
         </button>
         <button type="button" className="btn-secondary" onClick={onCancel}>
           Cancel
