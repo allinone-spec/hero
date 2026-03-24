@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import type { RibbonMedal } from "@/components/ribbon-rack/RibbonRack";
-import MedalWikiModal from "@/components/medals/MedalWikiModal";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { ScoreBreakdownItem } from "@/types";
@@ -293,14 +291,12 @@ export default function HeroDetailClient({
   profileBackHref,
   profileBackLabel,
 }: Props) {
-  const [ribbonModalMedal, setRibbonModalMedal] = useState<RibbonMedal | null>(null);
-
   const sortedMedals = [...hero.medals]
     .filter((m) => m.medalType)
     .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
 
   const ribbonMedals = sortedMedals.map((m) => ({
-    medalId: m.medalType._id,
+    medalId: String(m.medalType._id),
     name: m.medalType.name,
     count: m.count,
     precedenceOrder: m.medalType.precedenceOrder,
@@ -444,12 +440,7 @@ export default function HeroDetailClient({
                   Ribbon Rack
                 </h2>
                 <div className="flex justify-center">
-                  <RibbonRack
-                    medals={ribbonMedals}
-                    maxPerRow={rackMaxPerRow}
-                    scale={3}
-                    onRibbonClick={(m) => setRibbonModalMedal(m)}
-                  />
+                  <RibbonRack medals={ribbonMedals} maxPerRow={rackMaxPerRow} scale={3} />
                 </div>
               </div>
             )}
@@ -477,18 +468,6 @@ export default function HeroDetailClient({
         <ScoreBreakdown breakdown={scoreBreakdown} total={scoreTotal} />
       </div>
 
-      <MedalWikiModal
-        medal={
-          ribbonModalMedal
-            ? {
-                medalId: ribbonModalMedal.medalId,
-                name: ribbonModalMedal.name,
-                wikiSummary: ribbonModalMedal.wikiSummary,
-              }
-            : null
-        }
-        onClose={() => setRibbonModalMedal(null)}
-      />
     </div>
   );
 }
