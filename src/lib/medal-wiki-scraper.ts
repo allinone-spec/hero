@@ -3,8 +3,9 @@
 // extracting summary, history, award criteria, appearance, images, and infobox data.
 
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+import { resolveMedalWikipediaTitle, WIKIPEDIA_EN_API_HEADERS } from "@/lib/wikipedia-medal-title";
 
-const WIKI_HEADERS = { "User-Agent": "HeroesArchive/1.0 (educational research)" };
+const WIKI_HEADERS = WIKIPEDIA_EN_API_HEADERS;
 const MAX_SECTION_LENGTH = 3000;
 
 export interface ScrapedMedalImage {
@@ -57,45 +58,6 @@ function truncateText(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   const cut = text.lastIndexOf("\n", maxLen);
   return (cut > maxLen * 0.5 ? text.slice(0, cut) : text.slice(0, maxLen)) + "...";
-}
-
-/* ── Find Wikipedia article title ─────────────────────── */
-
-async function findWikiTitle(medalName: string): Promise<string | null> {
-  const baseName = medalName.replace(/\s*\([^)]*\)\s*$/, "").trim();
-  const variants = [medalName, baseName, `${baseName} (United States)`, `${baseName} (medal)`];
-
-  for (const term of variants) {
-    try {
-      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(term)}&format=json&redirects=1`;
-      const res = await fetchWithTimeout(url);
-      const data = await res.json();
-      const pages = data?.query?.pages;
-      if (!pages) continue;
-      const page = Object.values(pages)[0] as { pageid?: number; title?: string; missing?: boolean };
-      if (page?.pageid && !page.missing) return page.title!;
-    } catch { /* try next variant */ }
-  }
-
-  // Fallback: search API
-  try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(medalName)}&limit=3&format=json`;
-    const res = await fetchWithTimeout(searchUrl);
-    const [, titles] = await res.json();
-    if (Array.isArray(titles) && titles.length > 0) {
-      // Verify the first result actually exists
-      const verifyUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&format=json&redirects=1`;
-      const verifyRes = await fetchWithTimeout(verifyUrl);
-      const verifyData = await verifyRes.json();
-      const pages = verifyData?.query?.pages;
-      if (pages) {
-        const page = Object.values(pages)[0] as { pageid?: number; title?: string; missing?: boolean };
-        if (page?.pageid && !page.missing) return page.title!;
-      }
-    }
-  } catch { /* give up */ }
-
-  return null;
 }
 
 /* ── Fetch article sections list ──────────────────────── */
@@ -259,7 +221,7 @@ function findSectionIndex(sections: WikiSection[], pattern: RegExp): string | nu
 /* ── Main scraper function ────────────────────────────── */
 
 export async function scrapeMedalWikipedia(medalName: string): Promise<ScrapedMedalData | null> {
-  const title = await findWikiTitle(medalName);
+  const title = await resolveMedalWikipediaTitle(medalName);
   if (!title) return null;
 
   const wikipediaUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`;

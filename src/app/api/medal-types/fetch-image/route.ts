@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { askAI } from "@/lib/openai";
-
-/* ── Fetch with timeout ────────────────────────────────── */
-
-const WIKI_HEADERS = { "User-Agent": "HeroesArchive/1.0 (educational research)" };
-
-async function fetchWithTimeout(url: string, ms = 8000): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    return await fetch(url, { headers: WIKI_HEADERS, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { resolveMedalWikipediaTitleWithFallback } from "@/lib/wikipedia-medal-title";
+import { getWikipediaMedalOrRibbonImageUrl } from "@/lib/wikipedia-article-images";
 
 /* ── Cache (15 min TTL) ──────────────────────────────── */
 
@@ -53,90 +41,6 @@ async function normalizeWithGemini(medalName: string, userEmail: string): Promis
   }
 }
 
-/* ── Step 2: Find Wikipedia article title ────────────── */
-
-async function findWikiTitle(medalName: string): Promise<string | null> {
-  const baseName = medalName.replace(/\s*\([^)]*\)\s*$/, "").trim();
-  const variants = [medalName, baseName, `${baseName} (United States)`, `${baseName} (medal)`];
-
-  for (const term of variants) {
-    try {
-      const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(term)}&format=json&redirects=1`;
-      const res = await fetchWithTimeout(url);
-      const data = await res.json();
-      const pages = data?.query?.pages;
-      if (!pages) continue;
-      const page = Object.values(pages)[0] as { pageid?: number; title?: string; missing?: boolean };
-      if (page?.pageid && !page.missing) return page.title!;
-    } catch { /* try next variant */ }
-  }
-
-  // Fallback: opensearch
-  try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(medalName)}&limit=5&format=json`;
-    const res = await fetchWithTimeout(searchUrl);
-    const [, titles] = await res.json();
-    if (Array.isArray(titles) && titles.length > 0) return titles[0];
-  } catch { /* give up */ }
-
-  return null;
-}
-
-/* ── Step 3a: Medal image via pageimages API ─────────── */
-
-async function getPageImage(title: string): Promise<string | null> {
-  const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&piprop=original|thumbnail&pithumbsize=800&format=json`;
-  const res = await fetchWithTimeout(url);
-  const data = await res.json();
-  const pages = data?.query?.pages;
-  if (!pages) return null;
-  const page = Object.values(pages)[0] as {
-    original?: { source: string };
-    thumbnail?: { source: string };
-  };
-  const originalUrl = page?.original?.source;
-  const thumbUrl = page?.thumbnail?.source;
-  if (!originalUrl && !thumbUrl) return null;
-  if (originalUrl && /\.svg($|\?)/i.test(originalUrl) && thumbUrl) return thumbUrl;
-  return originalUrl || thumbUrl || null;
-}
-
-/* ── Step 3b: Ribbon image via article images API ────── */
-
-async function getRibbonImage(title: string): Promise<string | null> {
-  // List all images on the article
-  const url = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=images&format=json`;
-  const res = await fetchWithTimeout(url);
-  const data = await res.json();
-  const pages = data?.query?.pages;
-  if (!pages) return null;
-  const page = Object.values(pages)[0] as { images?: { title: string }[] };
-  const images = page?.images || [];
-
-  // Find an image with "ribbon" in the filename
-  for (const img of images) {
-    const lower = img.title.toLowerCase();
-    if (lower.includes("flag") || lower.includes("commons-logo") || lower.includes("wiki")) continue;
-    if (lower.includes("ribbon")) {
-      // Resolve Commons filename → direct image URL
-      const filename = img.title.replace(/^File:/i, "").replace(/ /g, "_");
-      const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(`File:${filename}`)}&prop=imageinfo&iiprop=url&iiurlwidth=800&format=json`;
-      const commonsRes = await fetchWithTimeout(commonsUrl);
-      const commonsData = await commonsRes.json();
-      const commonsPages = commonsData?.query?.pages;
-      if (!commonsPages) continue;
-      const commonsPage = Object.values(commonsPages)[0] as { imageinfo?: { url: string; thumburl?: string }[] };
-      const info = commonsPage?.imageinfo?.[0];
-      if (!info?.url) continue;
-      // For SVGs, use rendered PNG thumbnail
-      if (/\.svg($|\?)/i.test(info.url) && info.thumburl) return info.thumburl;
-      return info.url;
-    }
-  }
-
-  return null;
-}
-
 /* ── Route handler ───────────────────────────────────── */
 
 export async function POST(req: NextRequest) {
@@ -161,11 +65,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: cached, source: "cache" });
     }
 
-    // Step 1: Normalize name with Gemini
+    // Step 1: Optional Gemini normalization (can garble good names — we fall back to original)
     const normalized = await normalizeWithGemini(medalName, userEmail);
 
-    // Step 2: Find Wikipedia article
-    const title = await findWikiTitle(normalized);
+    // Step 2: Resolve article (variants + CirrusSearch + OpenSearch + verify pageid)
+    const title = await resolveMedalWikipediaTitleWithFallback(medalName, normalized);
     if (!title) {
       return NextResponse.json(
         { error: `No Wikipedia article found for "${medalName}". Try uploading manually.` },
@@ -173,10 +77,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 3: Fetch image URL via API
-    const imageUrl = isRibbon
-      ? await getRibbonImage(title)
-      : await getPageImage(title);
+    // Step 3: pageimages + scored scan of up to 500 File: embeds (old code used imlimit=10)
+    const imageUrl = await getWikipediaMedalOrRibbonImageUrl(title, medalName, isRibbon ? "ribbon" : "medal");
 
     if (!imageUrl) {
       const label = isRibbon ? "ribbon" : "medal";
