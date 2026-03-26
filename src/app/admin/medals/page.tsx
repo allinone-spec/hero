@@ -30,6 +30,7 @@ interface MedalTypeItem {
   imageUrl: string;
   ribbonImageUrl: string;
   countryCode?: string;
+  wikiLastFetched?: string | null;
   wikiImages?: { url?: string }[];
 }
 
@@ -46,6 +47,48 @@ type SortOption =
   | "shortName"
   | "valor_points_desc"
   | "category";
+
+function wikiFreshnessLabel(lastFetched: string | null | undefined): {
+  text: string;
+  className: string;
+  title: string;
+} {
+  if (!lastFetched) {
+    return {
+      text: "Wiki: never",
+      className: "bg-red-500/10 text-red-300 border-red-500/30",
+      title: "Wikipedia content has not been fetched yet",
+    };
+  }
+  const dt = new Date(lastFetched);
+  if (Number.isNaN(dt.getTime())) {
+    return {
+      text: "Wiki: unknown",
+      className: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+      title: "Last wiki refresh date is invalid",
+    };
+  }
+  const ageDays = Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
+  if (ageDays <= 7) {
+    return {
+      text: ageDays <= 0 ? "Wiki: today" : `Wiki: ${ageDays}d`,
+      className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+      title: `Last refreshed ${dt.toLocaleString()}`,
+    };
+  }
+  if (ageDays <= 30) {
+    return {
+      text: `Wiki: ${ageDays}d`,
+      className: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+      title: `Last refreshed ${dt.toLocaleString()}`,
+    };
+  }
+  return {
+    text: `Wiki: ${ageDays}d`,
+    className: "bg-red-500/10 text-red-300 border-red-500/30",
+    title: `Last refreshed ${dt.toLocaleString()}`,
+  };
+}
 
 /* ── Standard US military decorations reference list ───── */
 interface MedalRef { name: string; imageUrl: string }
@@ -475,6 +518,139 @@ function AutoPopulateModal({
   );
 }
 
+/* ── Wiki refresh modal ─────────────────────────────────── */
+function RefreshWikiModal({
+  onClose,
+  onComplete,
+}: {
+  onClose: () => void;
+  onComplete: (medals: MedalTypeItem[]) => void;
+}) {
+  const [status, setStatus] = useState<"confirm" | "loading" | "done" | "error">("confirm");
+  const [message, setMessage] = useState("");
+  const [progress, setProgress] = useState("");
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const handleRun = async () => {
+    setStatus("loading");
+    setProgress("Refreshing existing medal wiki content (summary, criteria, history, appearance)...");
+    try {
+      const res = await fetch("/api/medal-types/fetch-wiki", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bulk: true, forceAll: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus("error");
+        setMessage(data.error || "Wiki refresh failed");
+        return;
+      }
+
+      setProgress(`Done! ${data.success ?? 0} medals updated, ${data.failed ?? 0} failed.`);
+      if (Array.isArray(data.errors) && data.errors.length > 0) {
+        setMessage(`Sample errors: ${data.errors.slice(0, 3).join(" | ")}`);
+      } else {
+        setMessage("Tip: open a medal to verify imported sections.");
+      }
+      setStatus("done");
+
+      const refreshRes = await fetch("/api/medal-types");
+      const refreshData = await refreshRes.json();
+      if (refreshRes.ok && Array.isArray(refreshData)) {
+        onComplete(refreshData);
+      }
+    } catch {
+      setStatus("error");
+      setMessage("Network error. Please try again.");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in"
+      onClick={(e) => {
+        if (e.target !== e.currentTarget || status === "loading" || status === "done") return;
+        onClose();
+      }}
+    >
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-2xl w-full max-w-md animate-scale-in p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
+            style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))", color: "#1a1a2e" }}
+          >
+            W
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Refresh Medal Wiki Content</h2>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Re-imports long summary and key sections for existing medals
+            </p>
+          </div>
+        </div>
+
+        {status === "confirm" && (
+          <>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+              This re-runs wiki import for all medals in your catalog. It updates summary,
+              criteria, history, appearance, and gallery images where found.
+            </p>
+            <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-3 text-xs text-[var(--color-text-muted)]">
+              This can take a while on large catalogs; safe to run repeatedly when scraper rules improve.
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleRun} className="btn-primary flex-1">
+                Run Refresh
+              </button>
+              <button onClick={onClose} className="btn-secondary">Cancel</button>
+            </div>
+          </>
+        )}
+
+        {status === "loading" && (
+          <div className="text-center py-4 space-y-3">
+            <div className="flex justify-center text-[var(--color-gold)]">
+              <AdminLoaderOrbit size={48} variant="brand" />
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">{progress}</p>
+          </div>
+        )}
+
+        {status === "done" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-green-500">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span className="font-semibold">Refresh complete</span>
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">{progress}</p>
+            {message && <p className="text-xs text-[var(--color-text-muted)]">{message}</p>}
+            <button onClick={onClose} className="btn-primary w-full">Done</button>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="space-y-3">
+            <div className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
+              {message}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleRun} className="btn-primary flex-1">Retry</button>
+              <button onClick={onClose} className="btn-secondary">Close</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────── */
 export default function AdminMedalsPage() {
   const { can } = usePrivileges();
@@ -483,6 +659,7 @@ export default function AdminMedalsPage() {
   const [loading, setLoading]       = useState(true);
   const [deleting, setDeleting]     = useState<string | null>(null);
   const [showAutoPopulate, setShowAutoPopulate] = useState(false);
+  const [showRefreshWiki, setShowRefreshWiki] = useState(false);
   const [selectedMedalToAdd, setSelectedMedalToAdd] = useState("");
   const [addingMedal, setAddingMedal] = useState(false);
 
@@ -686,6 +863,20 @@ export default function AdminMedalsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Medal Types ({medalTypes.length})</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRefreshWiki(true)}
+            disabled={!can("/admin/medals", "canEdit")}
+            className="btn-secondary text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Refresh Wikipedia content for existing medals"
+          >
+            <span
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+              style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))", color: "#1a1a2e" }}
+            >
+              W
+            </span>
+            Refresh Wiki
+          </button>
           <button
             onClick={() => setShowAutoPopulate(true)}
             disabled={!can("/admin/medals", "canCreate")}
@@ -906,6 +1097,17 @@ export default function AdminMedalsPage() {
                 {mt.category}
               </span>
               <span className="score-badge text-xs">{mt.valorPoints ?? mt.basePoints} pts</span>
+              {(() => {
+                const freshness = wikiFreshnessLabel(mt.wikiLastFetched);
+                return (
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${freshness.className}`}
+                    title={freshness.title}
+                  >
+                    {freshness.text}
+                  </span>
+                );
+              })()}
               {mt.requiresValorDevice && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">V</span>
               )}
@@ -964,6 +1166,14 @@ export default function AdminMedalsPage() {
       {showAutoPopulate && (
         <AutoPopulateModal
           onClose={() => setShowAutoPopulate(false)}
+          onComplete={(medals) => {
+            setMedalTypes(medals);
+          }}
+        />
+      )}
+      {showRefreshWiki && (
+        <RefreshWikiModal
+          onClose={() => setShowRefreshWiki(false)}
           onComplete={(medals) => {
             setMedalTypes(medals);
           }}

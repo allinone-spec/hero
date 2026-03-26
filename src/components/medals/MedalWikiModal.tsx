@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
+import { isCatalogDescriptionRedundant, splitWikiParagraphs } from "@/lib/medal-wiki-display";
 
 export interface MedalModalData {
   medalId?: string;
@@ -26,19 +27,53 @@ interface Props {
   onClose: () => void;
 }
 
+function WikiSection({
+  title,
+  paras,
+  muted,
+}: {
+  title: string;
+  paras: string[];
+  muted?: boolean;
+}) {
+  if (paras.length === 0) return null;
+  return (
+    <div className="mb-4">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">{title}</h3>
+      <div
+        className={`space-y-3 text-sm leading-relaxed ${muted ? "text-[var(--color-text-muted)]" : "text-[var(--color-text)]"}`}
+      >
+        {paras.map((p, i) => (
+          <p key={i} className="whitespace-pre-wrap">
+            {p}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MedalWikiModal({ medal, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   if (!medal) return null;
 
-  const hasWikiBody =
-    Boolean(medal.wikiSummary?.trim()) ||
-    Boolean(medal.description?.trim()) ||
-    Boolean(medal.history?.trim()) ||
-    Boolean(medal.awardCriteria?.trim()) ||
-    Boolean(medal.appearance?.trim()) ||
-    Boolean(medal.established?.trim());
+  const summaryParas = splitWikiParagraphs(medal.wikiSummary);
+  const criteriaParas = splitWikiParagraphs(medal.awardCriteria);
+  const historyParas = splitWikiParagraphs(medal.history);
+  const appearanceParas = splitWikiParagraphs(medal.appearance);
+  const descTrim = medal.description?.trim() ?? "";
+  const showCatalogDescription =
+    descTrim.length > 0 &&
+    !isCatalogDescriptionRedundant(descTrim, medal.wikiSummary?.trim() ?? "");
+
+  const hasProseSections =
+    summaryParas.length > 0 ||
+    criteriaParas.length > 0 ||
+    historyParas.length > 0 ||
+    appearanceParas.length > 0 ||
+    showCatalogDescription;
 
   const ribbonOnly =
     medal.ribbonImageUrl &&
@@ -54,7 +89,7 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
       <div
-        className="max-w-lg max-h-[90vh] overflow-y-auto w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] shadow-xl p-6"
+        className="max-w-2xl max-h-[90vh] overflow-y-auto w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] shadow-xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-start gap-4 mb-3">
@@ -124,43 +159,21 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
           </div>
         ) : null}
 
-        {medal.description?.trim() ? (
-          <p className="text-sm text-[var(--color-text)] leading-relaxed whitespace-pre-wrap mb-4">{medal.description.trim()}</p>
+        <WikiSection title="Summary" paras={summaryParas} />
+        <WikiSection title="How it is awarded" paras={criteriaParas} muted />
+        <WikiSection title="History" paras={historyParas} muted />
+        <WikiSection title="Appearance" paras={appearanceParas} muted />
+
+        {showCatalogDescription ? (
+          <WikiSection title="Catalog description" paras={splitWikiParagraphs(descTrim)} muted />
         ) : null}
 
-        {medal.wikiSummary?.trim() ? (
-          <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap mb-4">
-            {medal.wikiSummary.trim()}
+        {!hasProseSections ? (
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">
+            No detailed write-up is stored for this medal yet. Use{" "}
+            <span className="text-[var(--color-text)]">Fetch from Wikipedia</span> in admin to import summary, criteria,
+            and history.
           </p>
-        ) : !medal.description?.trim() && !hasWikiBody ? (
-          <p className="text-sm text-[var(--color-text-muted)] mb-4">No summary is stored for this medal yet.</p>
-        ) : null}
-
-        {medal.appearance?.trim() ? (
-          <div className="mb-4">
-            <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">Appearance</h3>
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
-              {medal.appearance.trim()}
-            </p>
-          </div>
-        ) : null}
-
-        {medal.history?.trim() ? (
-          <div className="mb-4">
-            <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">History</h3>
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
-              {medal.history.trim()}
-            </p>
-          </div>
-        ) : null}
-
-        {medal.awardCriteria?.trim() ? (
-          <div className="mb-5">
-            <h3 className="mb-1 text-xs font-bold uppercase tracking-widest text-[var(--color-gold)]">Criteria</h3>
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed whitespace-pre-wrap">
-              {medal.awardCriteria.trim()}
-            </p>
-          </div>
         ) : null}
 
         <div className="flex flex-wrap gap-3 justify-end pt-1">

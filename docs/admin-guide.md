@@ -66,6 +66,25 @@ Admin preview of published ordering and ribbon display for QA.
 
 Medal types: points, ribbons, valor rules, gallery links as configured.
 
+#### Refreshing existing medal wiki content
+
+Use this when medal pages or ribbon-click modal text is too short, outdated, or missing.
+
+1. Open **`/admin/medals`**.
+2. Click **Refresh Wiki** in the header.
+3. Confirm **Run Refresh**.
+4. Wait for completion, then open a medal to verify:
+   - Summary
+   - How It Is Awarded
+   - History
+   - Appearance
+   - Gallery images (when available)
+
+Notes:
+- The refresh is safe to run more than once.
+- On large catalogs, it may take a while (Wikipedia fetch + image upload).
+- For one-off fixes, you can still refresh an individual medal from its edit workflow.
+
 ### USM-25 & Scoring
 
 Reference material and **scoring config**; **recalculate** all heroes when permitted.

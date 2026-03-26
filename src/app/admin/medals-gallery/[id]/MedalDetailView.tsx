@@ -6,6 +6,7 @@ import AvatarFallback, { medalTextColor } from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 import { getMedalPrimaryImageUrl } from "@/lib/medal-primary-image-url";
+import { isCatalogDescriptionRedundant, splitWikiParagraphs } from "@/lib/medal-wiki-display";
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -145,25 +146,22 @@ export default function MedalDetailView({
     }
   }
 
-  // Split content into paragraphs
-  const summaryParas = medal.wikiSummary
-    ? medal.wikiSummary.split(/\n\n+/).filter((p) => p.trim())
-    : [];
-  const historyParas = medal.history
-    ? medal.history.split(/\n\n+/).filter((p) => p.trim())
-    : [];
-  const criteriaParas = medal.awardCriteria
-    ? medal.awardCriteria.split(/\n\n+/).filter((p) => p.trim())
-    : [];
-  const appearanceParas = medal.appearance
-    ? medal.appearance.split(/\n\n+/).filter((p) => p.trim())
-    : [];
+  const summaryParas = splitWikiParagraphs(medal.wikiSummary);
+  const historyParas = splitWikiParagraphs(medal.history);
+  const criteriaParas = splitWikiParagraphs(medal.awardCriteria);
+  const appearanceParas = splitWikiParagraphs(medal.appearance);
+
+  const descTrim = medal.description?.trim() ?? "";
+  const showCatalogDescription =
+    descTrim.length > 0 && !isCatalogDescriptionRedundant(descTrim, medal.wikiSummary?.trim() ?? "");
+  const catalogParas = showCatalogDescription ? splitWikiParagraphs(descTrim) : [];
 
   const hasWikiContent =
     summaryParas.length > 0 ||
     historyParas.length > 0 ||
     criteriaParas.length > 0 ||
-    appearanceParas.length > 0;
+    appearanceParas.length > 0 ||
+    catalogParas.length > 0;
 
   return (
     <div className="animate-fade-in-up">
@@ -377,15 +375,45 @@ export default function MedalDetailView({
         </div>
       )}
 
-      {/* ── About / Summary ─────────────────────────────────── */}
-      {(summaryParas.length > 0 || medal.description) && (
+      {/* ── About: wiki summary + optional catalog description ─ */}
+      {(summaryParas.length > 0 || catalogParas.length > 0) && (
         <div className="mt-8">
           <SectionHeading accent={cc.text}>About This Medal</SectionHeading>
           <ContentCard borderColor={cc.border}>
             <div className="space-y-4 text-sm sm:text-base leading-relaxed text-[var(--color-text-muted)]">
-              {summaryParas.length > 0
-                ? summaryParas.map((p, i) => <p key={i}>{p.trim()}</p>)
-                : medal.description && <p>{medal.description}</p>}
+              {summaryParas.length > 0 ? (
+                <div>
+                  {(catalogParas.length > 0 ||
+                    criteriaParas.length > 0 ||
+                    historyParas.length > 0 ||
+                    appearanceParas.length > 0) && (
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-gold)] mb-3">
+                      Summary
+                    </p>
+                  )}
+                  <div className="space-y-4">
+                    {summaryParas.map((p, i) => (
+                      <p key={i}>{p}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {catalogParas.length > 0 ? (
+                <div
+                  className={
+                    summaryParas.length > 0
+                      ? "space-y-4 pt-6 mt-2 border-t border-[var(--color-border)]"
+                      : "space-y-4"
+                  }
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-gold)] mb-1">
+                    Catalog description
+                  </p>
+                  {catalogParas.map((p, i) => (
+                    <p key={`cat-${i}`}>{p}</p>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </ContentCard>
         </div>
@@ -502,9 +530,11 @@ export default function MedalDetailView({
       )}
 
       {/* No wiki content notice */}
-      {!hasWikiContent && !medal.description && (
+      {!hasWikiContent && (
         <div className="mt-8 text-center py-8 text-sm text-[var(--color-text-muted)]">
-          No detailed information available yet for this medal.
+          No detailed information available yet for this medal. Run{" "}
+          <span className="text-[var(--color-text)]">Fetch from Wikipedia</span> on the medal to import summary, criteria,
+          and history.
         </div>
       )}
     </div>

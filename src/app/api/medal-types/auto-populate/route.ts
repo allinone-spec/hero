@@ -63,6 +63,28 @@ const USER_PROMPT = `Generate one JSON array: U.S. decorations in correct U.S. p
 
 Output: a single JSON array only, fully closed with ].`;
 
+const SINGLE_SYSTEM_PROMPT = `You are an expert on military decorations.
+Return exactly ONE JSON object for the requested medal with this schema:
+{
+  "name": "Full name",
+  "shortName": "Short label or acronym",
+  "category": "valor" | "service" | "foreign" | "other",
+  "basePoints": number,
+  "valorPoints": number,
+  "requiresValorDevice": boolean,
+  "inherentlyValor": boolean,
+  "tier": number,
+  "branch": "All" | "Army" | "Navy" | "Navy/Marine Corps" | "Air Force" | "Coast Guard" | "Marine Corps",
+  "precedenceOrder": number,
+  "countryCode": "ISO alpha-2 or UN/NATO",
+  "description": "One short phrase (under 80 chars)"
+}
+
+Rules:
+- Use U.S. valor scoring only for U.S. valor medals.
+- Non-U.S. awards should usually be category "foreign" and 0 points unless clearly U.S. valor-device scoring applies.
+- Return ONLY one JSON object, no markdown, no commentary.`;
+
 interface MedalData {
   name: string;
   shortName: string;
@@ -76,6 +98,33 @@ interface MedalData {
   precedenceOrder: number;
   countryCode?: string;
   description: string;
+}
+
+function parseSingleMedalJson(raw: string): MedalData {
+  let s = raw.trim();
+  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  const tryParse = (text: string): unknown => JSON.parse(text.replace(/,(\s*[\]}])/g, "$1"));
+  let parsed: unknown;
+  try {
+    parsed = tryParse(s);
+  } catch {
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence?.[1]) {
+      parsed = tryParse(fence[1].trim());
+    } else {
+      const start = s.indexOf("{");
+      const end = s.lastIndexOf("}");
+      if (start >= 0 && end > start) parsed = tryParse(s.slice(start, end + 1));
+      else throw new Error("PARSE_FAIL_SINGLE");
+    }
+  }
+
+  if (Array.isArray(parsed)) {
+    if (!parsed[0] || typeof parsed[0] !== "object") throw new Error("NOT_OBJECT_SINGLE");
+    return parsed[0] as MedalData;
+  }
+  if (!parsed || typeof parsed !== "object") throw new Error("NOT_OBJECT_SINGLE");
+  return parsed as MedalData;
 }
 
 function normalizeCountryCode(raw: unknown): string | undefined {
@@ -202,7 +251,7 @@ function parseMedalCatalogJson(raw: string): MedalData[] {
   return parsed as MedalData[];
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -210,6 +259,77 @@ export async function POST() {
 
   try {
     await dbConnect();
+    const body = await req.json().catch(() => ({}));
+    const singleMedalId = typeof body?.medalId === "string" ? body.medalId.trim() : "";
+
+    if (singleMedalId) {
+      const medal = await MedalType.findById(singleMedalId);
+      if (!medal) {
+        return NextResponse.json({ error: "Medal not found" }, { status: 404 });
+      }
+
+      const singleUserPrompt = `Generate one JSON object for this medal name: "${medal.name}".
+Current values (for context):
+- shortName: ${medal.shortName || ""}
+- category: ${medal.category || ""}
+- basePoints: ${medal.basePoints ?? 0}
+- valorPoints: ${medal.valorPoints ?? 0}
+- branch: ${medal.branch || "All"}
+- precedenceOrder: ${medal.precedenceOrder ?? 99}
+`;
+
+      const result = await askAI(SINGLE_SYSTEM_PROMPT, singleUserPrompt, session.email, {
+        json: true,
+        maxTokens: 1200,
+        thinkingBudget: 0,
+        model: medalCatalogGeminiModel(),
+      });
+
+      await AIUsage.create({
+        userEmail: session.email,
+        action: "auto_populate_single_medal",
+        aiModel: result.model,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        totalTokens: result.totalTokens,
+        estimatedCost: result.estimatedCost,
+        inputPreview: `Auto-populate medal: ${medal.name}`,
+      });
+
+      let aiMedal: MedalData;
+      try {
+        aiMedal = parseSingleMedalJson(result.content);
+      } catch {
+        return NextResponse.json({ error: "AI response could not be parsed for single medal." }, { status: 500 });
+      }
+
+      const validCategories = ["valor", "service", "foreign", "other"];
+      const category = validCategories.includes(aiMedal.category) ? aiMedal.category : medal.category;
+      const countryCode = normalizeCountryCode(aiMedal.countryCode) || medal.countryCode || "US";
+
+      medal.shortName = aiMedal.shortName || medal.shortName;
+      medal.category = category;
+      medal.basePoints = aiMedal.basePoints ?? medal.basePoints;
+      medal.valorPoints = aiMedal.valorPoints ?? medal.valorPoints;
+      medal.requiresValorDevice = aiMedal.requiresValorDevice ?? medal.requiresValorDevice;
+      medal.inherentlyValor = aiMedal.inherentlyValor ?? medal.inherentlyValor;
+      medal.tier = aiMedal.tier ?? medal.tier;
+      medal.branch = aiMedal.branch || medal.branch || "All";
+      medal.precedenceOrder = aiMedal.precedenceOrder ?? medal.precedenceOrder;
+      medal.countryCode = countryCode;
+      if (aiMedal.description && (!medal.description || medal.description.length < 10)) {
+        medal.description = aiMedal.description;
+      }
+      await medal.save();
+
+      return NextResponse.json({
+        success: true,
+        medalId: medal._id.toString(),
+        updatedName: medal.name,
+        tokens: result.totalTokens,
+        cost: result.estimatedCost,
+      });
+    }
 
     // JSON catalog: use Flash when GEMINI_MODEL is thinking-only Pro; thinkingBudget 0 skipped for those models in askAI.
     const result = await askAI(SYSTEM_PROMPT, USER_PROMPT, session.email, {

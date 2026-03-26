@@ -6,7 +6,9 @@ import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 import { resolveMedalWikipediaTitle, WIKIPEDIA_EN_API_HEADERS } from "@/lib/wikipedia-medal-title";
 
 const WIKI_HEADERS = WIKIPEDIA_EN_API_HEADERS;
-const MAX_SECTION_LENGTH = 3000;
+/** Per-field cap after merge (MongoDB + UI); keeps very long articles bounded */
+const MAX_SECTION_LENGTH = 48_000;
+const INTRO_EXTRACT_CHARS = 25_000;
 
 export interface ScrapedMedalImage {
   url: string;
@@ -37,6 +39,8 @@ async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
 
 function stripHtml(html: string): string {
   return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>\s*<p[^>]*>/gi, "\n\n")
     .replace(/<\/li>\s*<li[^>]*>/gi, "\n")
@@ -57,7 +61,29 @@ function stripHtml(html: string): string {
 function truncateText(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   const cut = text.lastIndexOf("\n", maxLen);
-  return (cut > maxLen * 0.5 ? text.slice(0, cut) : text.slice(0, maxLen)) + "...";
+  return (cut > maxLen * 0.5 ? text.slice(0, cut) : text.slice(0, maxLen)) + "…";
+}
+
+/** Prefer the longer usable plain-text intro (REST summary vs MediaWiki extracts). */
+function pickLongerPlainText(a: string, b: string): string {
+  const na = a.replace(/\s+/g, " ").trim();
+  const nb = b.replace(/\s+/g, " ").trim();
+  if (na.length >= nb.length) return na || nb;
+  return nb || na;
+}
+
+/** Intro via action=query&prop=extracts — much longer than REST /page/summary extract. */
+async function fetchIntroExtractPlain(title: string, maxChars: number): Promise<string> {
+  const url =
+    `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(title)}` +
+    `&explaintext=1&exintro=1&exchars=${maxChars}&format=json`;
+  const res = await fetchWithTimeout(url);
+  const data = await res.json();
+  const pages = data?.query?.pages;
+  if (!pages) return "";
+  const page = Object.values(pages)[0] as { extract?: string; missing?: boolean };
+  if (!page || page.missing) return "";
+  return String(page.extract || "").trim();
 }
 
 /* ── Fetch article sections list ──────────────────────── */
@@ -207,15 +233,40 @@ async function fetchArticleImages(title: string, medalName: string): Promise<Scr
 
 /* ── Section matching helpers ─────────────────────────── */
 
-const HISTORY_PATTERNS = /^(history|background|origin)/i;
-const CRITERIA_PATTERNS = /^(award criteria|criteria|eligibility|qualification|requirements)/i;
-const APPEARANCE_PATTERNS = /^(appearance|design|description|physical description|medal design)/i;
+/** Match section heading line (Wikipedia TOC); multiple sections are merged in document order */
+const HISTORY_SECTION_RE =
+  /^(history|background|origin|origins|creation|establishment|development|precedence|former versions)/i;
+const CRITERIA_SECTION_RE =
+  /^(award criteria|criteria|eligibility|qualification|requirements|recipient|recipients|notable recipients|presentation|presentations|award process|selection|how (it )?is (awarded|earned|presented|conferred)|statutes|regulations)/i;
+/** Avoid bare "Description" — often duplicates the lead; keep design-forward headings */
+const APPEARANCE_SECTION_RE =
+  /^(appearance|design|physical description|medal design|ribbon|obverse|reverse|insignia|device)/i;
 
-function findSectionIndex(sections: WikiSection[], pattern: RegExp): string | null {
+function sectionIndicesMatching(sections: WikiSection[], pattern: RegExp): string[] {
+  const hits: { ord: number; index: string }[] = [];
   for (const s of sections) {
-    if (pattern.test(s.line)) return s.index;
+    if (!pattern.test(s.line.trim())) continue;
+    const ord = parseInt(String(s.index), 10);
+    hits.push({ ord: Number.isFinite(ord) ? ord : 999, index: s.index });
   }
-  return null;
+  hits.sort((a, b) => a.ord - b.ord);
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const h of hits) {
+    if (seen.has(h.index)) continue;
+    seen.add(h.index);
+    ordered.push(h.index);
+  }
+  return ordered;
+}
+
+async function fetchMergedSectionTexts(title: string, sectionIndices: string[]): Promise<string> {
+  if (sectionIndices.length === 0) return "";
+  const parts = await Promise.all(sectionIndices.map((idx) => fetchSectionText(title, idx)));
+  return parts
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /* ── Main scraper function ────────────────────────────── */
@@ -233,22 +284,23 @@ export async function scrapeMedalWikipedia(medalName: string): Promise<ScrapedMe
     fetchEstablished(title),
   ]);
 
-  // Find relevant section indices
-  const historyIdx = findSectionIndex(sections, HISTORY_PATTERNS);
-  const criteriaIdx = findSectionIndex(sections, CRITERIA_PATTERNS);
-  const appearanceIdx = findSectionIndex(sections, APPEARANCE_PATTERNS);
+  const historyIdxs = sectionIndicesMatching(sections, HISTORY_SECTION_RE);
+  const criteriaIdxs = sectionIndicesMatching(sections, CRITERIA_SECTION_RE);
+  const appearanceIdxs = sectionIndicesMatching(sections, APPEARANCE_SECTION_RE);
 
-  // Fetch section content in parallel
-  const [historyRaw, criteriaRaw, appearanceRaw, images] = await Promise.all([
-    historyIdx ? fetchSectionText(title, historyIdx) : Promise.resolve(""),
-    criteriaIdx ? fetchSectionText(title, criteriaIdx) : Promise.resolve(""),
-    appearanceIdx ? fetchSectionText(title, appearanceIdx) : Promise.resolve(""),
+  const [introExtract, historyRaw, criteriaRaw, appearanceRaw, images] = await Promise.all([
+    fetchIntroExtractPlain(title, INTRO_EXTRACT_CHARS),
+    fetchMergedSectionTexts(title, historyIdxs),
+    fetchMergedSectionTexts(title, criteriaIdxs),
+    fetchMergedSectionTexts(title, appearanceIdxs),
     fetchArticleImages(title, medalName),
   ]);
 
+  const wikiSummary = truncateText(pickLongerPlainText(introExtract, summary), MAX_SECTION_LENGTH);
+
   return {
     wikipediaUrl,
-    wikiSummary: truncateText(summary, MAX_SECTION_LENGTH),
+    wikiSummary,
     history: truncateText(historyRaw, MAX_SECTION_LENGTH),
     awardCriteria: truncateText(criteriaRaw, MAX_SECTION_LENGTH),
     appearance: truncateText(appearanceRaw, MAX_SECTION_LENGTH),

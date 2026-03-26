@@ -43,9 +43,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Bulk mode: scrape all medals without wiki content
+    // Bulk mode: default refreshes never-fetched medals.
+    // Set forceAll=true to refresh all existing medals.
     if (body.bulk === true) {
-      const medals = await MedalType.find({ wikiLastFetched: null }).select("_id name").lean();
+      const query = body.forceAll === true ? {} : { wikiLastFetched: null };
+      const medals = await MedalType.find(query).select("_id name").lean();
       let success = 0;
       let failed = 0;
       const errors: string[] = [];
