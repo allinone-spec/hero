@@ -20,6 +20,12 @@ export function normalizeWikimediaImageUrl(raw: string | undefined | null): stri
   let u = String(raw).trim();
   if (!u) return "";
   if (u.startsWith("//")) u = `https:${u}`;
+  // Stored without scheme — browser would resolve as relative to /medals/[id] and break the image
+  const hasSchemeOrRoot =
+    /^(https?:|\/\/|data:)/i.test(u) || u.startsWith("/");
+  if (!hasSchemeOrRoot && /\b(wikipedia|wikimedia)\.org\b/i.test(u)) {
+    u = `https://${u.replace(/^\/+/, "")}`;
+  }
   try {
     const parsed = new URL(u);
     if (parsed.protocol === "http:" && isWikimediaHttpHost(parsed.hostname)) {

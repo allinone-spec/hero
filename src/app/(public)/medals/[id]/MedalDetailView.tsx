@@ -5,6 +5,7 @@ import Link from "next/link";
 import AvatarFallback, { medalTextColor } from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { getMedalPrimaryImageUrl } from "@/lib/medal-primary-image-url";
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -101,8 +102,8 @@ export default function MedalDetailView({
   const shortLabel = medalShortLabelForDisplay(medal.shortName, medal.name);
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
-  // Identify front image — fall back to ribbon image if no medal image
-  const rawFront = medal.imageUrl || medal.ribbonImageUrl || null;
+  // Same source order as MedalDisplayThumb (incl. wikiImages when imageUrl empty)
+  const rawFront = getMedalPrimaryImageUrl(medal);
   const frontUrl = rawFront ? normalizeWikimediaImageUrl(rawFront) || rawFront : null;
 
   // Remaining gallery images (exclude front)

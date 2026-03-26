@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { getFirstWikiImageUrl } from "@/lib/medal-primary-image-url";
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 
 export interface MedalThumbSources {
@@ -35,10 +36,9 @@ export function MedalDisplayThumb({
   imgClassName?: string;
 }) {
   const label = medalShortLabelForDisplay(shortName, name);
-  const primary = (imageUrl || "").trim();
-  const ribbonImg = (ribbonImageUrl || "").trim();
-  const wiki0 =
-    Array.isArray(wikiImages) && wikiImages[0]?.url ? String(wikiImages[0].url).trim() : "";
+  const primary = normalizeWikimediaImageUrl((imageUrl || "").trim());
+  const ribbonImg = normalizeWikimediaImageUrl((ribbonImageUrl || "").trim());
+  const wiki0 = normalizeWikimediaImageUrl(getFirstWikiImageUrl(wikiImages) || "");
 
   const [failedPrimary, setFailedPrimary] = useState(false);
   const [failedRibbon, setFailedRibbon] = useState(false);
@@ -134,9 +134,7 @@ export function MedalDisplayThumbRow(s: MedalThumbSources & { borderColor: strin
   const label = medalShortLabelForDisplay(s.shortName, s.name);
   const primary = normalizeWikimediaImageUrl((s.imageUrl || "").trim());
   const ribbonImg = normalizeWikimediaImageUrl((s.ribbonImageUrl || "").trim());
-  const wiki0 = normalizeWikimediaImageUrl(
-    Array.isArray(s.wikiImages) && s.wikiImages[0]?.url ? String(s.wikiImages[0].url).trim() : ""
-  );
+  const wiki0 = normalizeWikimediaImageUrl(getFirstWikiImageUrl(s.wikiImages) || "");
 
   const [failedPrimary, setFailedPrimary] = useState(false);
   const [failedRibbon, setFailedRibbon] = useState(false);
