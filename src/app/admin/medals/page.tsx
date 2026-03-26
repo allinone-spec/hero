@@ -651,6 +651,121 @@ function RefreshWikiModal({
   );
 }
 
+/* ── Import medals script modal ─────────────────────────── */
+function ImportMedalsModal({
+  onClose,
+  onComplete,
+}: {
+  onClose: () => void;
+  onComplete: (medals: MedalTypeItem[]) => void;
+}) {
+  const [status, setStatus] = useState<"confirm" | "loading" | "done" | "error">("confirm");
+  const [message, setMessage] = useState("");
+  const [output, setOutput] = useState("");
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  const handleRun = async () => {
+    setStatus("loading");
+    setMessage("Running: npm run import-medals");
+    setOutput("");
+    try {
+      const res = await fetch("/api/admin/run-import-medals", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus("error");
+        setMessage(data.error || "import-medals failed");
+        setOutput(String(data.output || ""));
+        return;
+      }
+      setStatus("done");
+      setMessage("import-medals finished successfully.");
+      setOutput(String(data.output || ""));
+
+      const refreshRes = await fetch("/api/medal-types");
+      const refreshData = await refreshRes.json();
+      if (refreshRes.ok && Array.isArray(refreshData)) onComplete(refreshData);
+    } catch {
+      setStatus("error");
+      setMessage("Network error while running import-medals.");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in"
+      onClick={(e) => {
+        if (e.target !== e.currentTarget || status === "loading") return;
+        onClose();
+      }}
+    >
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl shadow-2xl w-full max-w-2xl animate-scale-in p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+            style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))", color: "#1a1a2e" }}
+          >
+            CLI
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Run Import Medals</h2>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Executes <code>npm run import-medals</code> on the server
+            </p>
+          </div>
+        </div>
+
+        {status === "confirm" && (
+          <>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+              This runs your medal inventory import script and refreshes the medal table after completion.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={handleRun} className="btn-primary flex-1">Run Import</button>
+              <button onClick={onClose} className="btn-secondary">Cancel</button>
+            </div>
+          </>
+        )}
+
+        {status === "loading" && (
+          <div className="text-center py-4 space-y-3">
+            <div className="flex justify-center text-[var(--color-gold)]">
+              <AdminLoaderOrbit size={48} variant="brand" />
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">{message}</p>
+          </div>
+        )}
+
+        {(status === "done" || status === "error") && (
+          <>
+            <div className={`text-sm rounded-lg border p-3 ${
+              status === "done"
+                ? "text-green-400 bg-green-500/10 border-green-500/20"
+                : "text-red-400 bg-red-500/10 border-red-500/20"
+            }`}>
+              {message}
+            </div>
+            {output ? (
+              <pre className="max-h-72 overflow-auto text-xs bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-3 whitespace-pre-wrap">
+                {output}
+              </pre>
+            ) : null}
+            <div className="flex gap-2">
+              {status === "error" && (
+                <button onClick={handleRun} className="btn-primary flex-1">Retry</button>
+              )}
+              <button onClick={onClose} className="btn-secondary flex-1">Close</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────── */
 export default function AdminMedalsPage() {
   const { can } = usePrivileges();
@@ -660,6 +775,7 @@ export default function AdminMedalsPage() {
   const [deleting, setDeleting]     = useState<string | null>(null);
   const [showAutoPopulate, setShowAutoPopulate] = useState(false);
   const [showRefreshWiki, setShowRefreshWiki] = useState(false);
+  const [showImportMedals, setShowImportMedals] = useState(false);
   const [selectedMedalToAdd, setSelectedMedalToAdd] = useState("");
   const [addingMedal, setAddingMedal] = useState(false);
 
@@ -863,6 +979,14 @@ export default function AdminMedalsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Medal Types ({medalTypes.length})</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportMedals(true)}
+            disabled={!can("/admin/medals", "canEdit")}
+            className="btn-secondary text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Run npm run import-medals"
+          >
+            Import Medals
+          </button>
           <button
             onClick={() => setShowRefreshWiki(true)}
             disabled={!can("/admin/medals", "canEdit")}
@@ -1174,6 +1298,14 @@ export default function AdminMedalsPage() {
       {showRefreshWiki && (
         <RefreshWikiModal
           onClose={() => setShowRefreshWiki(false)}
+          onComplete={(medals) => {
+            setMedalTypes(medals);
+          }}
+        />
+      )}
+      {showImportMedals && (
+        <ImportMedalsModal
+          onClose={() => setShowImportMedals(false)}
           onComplete={(medals) => {
             setMedalTypes(medals);
           }}

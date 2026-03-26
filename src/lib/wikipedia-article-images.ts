@@ -39,15 +39,74 @@ function isServiceRibbonFilename(lower: string): boolean {
   return !/(obverse|reverse|front|back)/i.test(lower);
 }
 
-function scoreImageFile(lower: string, medalLower: string, kind: "medal" | "ribbon"): number {
+const NAME_STOPWORDS = new Set([
+  "the",
+  "of",
+  "and",
+  "for",
+  "with",
+  "medal",
+  "service",
+  "award",
+  "decoration",
+  "ribbon",
+  "cross",
+  "star",
+  "order",
+  "badge",
+]);
+
+function medalKeywords(medalLower: string): string[] {
+  return medalLower
+    .split(/[^a-z0-9]+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 2 && !NAME_STOPWORDS.has(w));
+}
+
+function coreMedalKeywords(medalLower: string): string[] {
+  // Prefer the semantic core before "for ..." or parenthetical qualifiers.
+  const core = medalLower
+    .replace(/\(.*?\)/g, " ")
+    .split(/\bfor\b/i)[0]
+    .trim();
+  const words = core
+    .split(/[^a-z0-9]+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 2 && !NAME_STOPWORDS.has(w));
+  return words;
+}
+
+function scoreImageFile(
+  lower: string,
+  medalLower: string,
+  kind: "medal" | "ribbon",
+  keys: string[],
+  coreKeys: string[],
+): { score: number; matchCount: number; coreMatchCount: number } {
   let score = 0;
-  const words = medalLower.split(/\s+/).filter((w) => w.length > 3);
-  for (const w of words) {
-    if (lower.includes(w)) score += 1;
+  let matchCount = 0;
+  let coreMatchCount = 0;
+  for (const w of keys) {
+    if (lower.includes(w)) {
+      score += 2;
+      matchCount += 1;
+    }
+  }
+  for (const w of coreKeys) {
+    if (lower.includes(w)) {
+      score += 7; // strongly prefer files matching medal core name
+      coreMatchCount += 1;
+    }
   }
   if (/medal|cross|decoration|award|obverse|reverse|heart|dsm|ndsm|moh|badge/i.test(lower)) score += 2;
   if (/\bribbon\b/i.test(lower)) score += kind === "ribbon" ? 5 : -4;
   if (kind === "medal" && /\.(png|jpe?g)$/i.test(lower) && !isServiceRibbonFilename(lower)) score += 2;
+
+  // Strong boost for close title matches in filenames.
+  const compactTitle = medalLower.replace(/[^a-z0-9]+/g, "");
+  const compactFile = lower.replace(/[^a-z0-9]+/g, "");
+  if (compactTitle && compactFile.includes(compactTitle)) score += 20;
+
   // Prefer canonical service-ribbon filenames (not random "ribbon" mentions in other graphics)
   if (kind === "ribbon" && /\bribbon\b/i.test(lower)) {
     if (/_ribbon\.(svg|png|webp)($|\?)/i.test(lower) || /service.?ribbon|ribbon_bar|ribbon\.svg($|\?)/i.test(lower)) {
@@ -55,7 +114,7 @@ function scoreImageFile(lower: string, medalLower: string, kind: "medal" | "ribb
     }
     if (/(obverse|reverse)\.(png|jpe?g|webp)/i.test(lower) && !/_ribbon/i.test(lower)) score -= 15;
   }
-  return score;
+  return { score, matchCount, coreMatchCount };
 }
 
 function pickImageUrl(info: { url?: string; thumburl?: string; mime?: string }): string | null {
@@ -77,6 +136,8 @@ export async function getWikipediaMedalOrRibbonImageUrl(
   kind: "medal" | "ribbon",
 ): Promise<string | null> {
   const medalLower = medalNameForScoring.trim().toLowerCase();
+  const keys = medalKeywords(medalLower);
+  const coreKeys = coreMedalKeywords(medalLower);
 
   // 1) pageimages — almost always the obverse / infobox medal, not the service ribbon
   if (kind === "medal") {
@@ -135,9 +196,21 @@ export async function getWikipediaMedalOrRibbonImageUrl(
       continue;
     }
 
-    const score = scoreImageFile(lower, medalLower, kind);
+    const { score, matchCount, coreMatchCount } = scoreImageFile(
+      lower,
+      medalLower,
+      kind,
+      keys,
+      coreKeys,
+    );
     if (kind === "ribbon") {
-      if (/ribbon/i.test(lower)) candidates.push({ title: img.title, score: Math.max(score, 1) });
+      // For ribbons, require some medal-specific match when possible.
+      // This avoids unrelated ribbons from the same article.
+      const requireSpecificMatch = coreKeys.length > 0 ? coreKeys.length > 0 : keys.length > 0;
+      const hasSpecificMatch = coreKeys.length > 0 ? coreMatchCount > 0 : matchCount > 0;
+      if (!requireSpecificMatch || hasSpecificMatch) {
+        if (/ribbon/i.test(lower)) candidates.push({ title: img.title, score: Math.max(score, 1) });
+      }
     } else if (score >= 1) {
       candidates.push({ title: img.title, score });
     }
@@ -148,7 +221,22 @@ export async function getWikipediaMedalOrRibbonImageUrl(
       if (!img.title?.startsWith("File:")) continue;
       const lower = img.title.toLowerCase();
       if (shouldSkipFilename(lower)) continue;
-      if (/\bribbon\b/i.test(lower)) candidates.push({ title: img.title, score: 1 });
+      const fallbackScore = /\bribbon\b/i.test(lower) ? 1 : 0;
+      if (fallbackScore > 0) candidates.push({ title: img.title, score: fallbackScore });
+    }
+  }
+
+  // Final guardrail for ribbons:
+  // when we know the medal core tokens, prefer filenames that contain ALL core tokens.
+  if (kind === "ribbon" && coreKeys.length > 0 && candidates.length > 0) {
+    const strict = candidates.filter((c) => {
+      const low = c.title.toLowerCase();
+      return coreKeys.every((k) => low.includes(k));
+    });
+    if (strict.length > 0) {
+      strict.sort((a, b) => b.score - a.score);
+      candidates.length = 0;
+      candidates.push(...strict);
     }
   }
 

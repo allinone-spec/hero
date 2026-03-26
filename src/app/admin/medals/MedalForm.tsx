@@ -177,6 +177,9 @@ export default function MedalForm({
 }) {
   const [showDesigner, setShowDesigner] = useState(false);
   const [designerTarget, setDesignerTarget] = useState<"medal" | "ribbon">("medal");
+  const wikiHref = values.name.trim()
+    ? `https://en.wikipedia.org/wiki/${encodeURIComponent(values.name.trim().replace(/\s+/g, "_"))}`
+    : "https://en.wikipedia.org/wiki/Main_Page";
 
   return (
     <form
@@ -388,6 +391,17 @@ export default function MedalForm({
             </button>
           </div>
           <UrlInputField onConfirm={(url) => onChange({ ...values, imageUrl: url })} />
+          <p className="text-[11px] text-[var(--color-text-muted)]">
+            Note: auto-fetched images may be incorrect. Check the Wikipedia medal page and paste the exact image URL if needed.
+          </p>
+          <a
+            href={wikiHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--color-gold)] hover:underline inline-flex"
+          >
+            Open Wikipedia page
+          </a>
         </div>
 
         {/* Ribbon Image */}
@@ -416,6 +430,17 @@ export default function MedalForm({
             </button>
           </div>
           <UrlInputField onConfirm={(url) => onChange({ ...values, ribbonImageUrl: url })} />
+          <p className="text-[11px] text-[var(--color-text-muted)]">
+            Note: auto-fetched ribbon images may be incorrect. Check the Wikipedia medal page and paste the exact ribbon URL if needed.
+          </p>
+          <a
+            href={wikiHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--color-gold)] hover:underline inline-flex"
+          >
+            Open Wikipedia page
+          </a>
         </div>
       </div>
 
