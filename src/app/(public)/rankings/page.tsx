@@ -4,6 +4,7 @@ import Link from "next/link";
 import HeroListClient from "../HeroListClient";
 import HeroSlideshow from "@/components/ui/HeroSlideshow";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import type { Metadata } from "next";
 import { getPublishedHeroesForPublicList } from "@/lib/public-heroes";
@@ -119,7 +120,7 @@ export default async function RankingsPage() {
               {/* Avatar */}
               <div className="shrink-0">
                 {topHero.avatarUrl ? (
-                  <img
+                  <SafeWikimediaImg
                     src={topHero.avatarUrl}
                     alt={topHero.name}
                     className="w-32 h-32 rounded-2xl object-cover shadow-xl"

@@ -4,8 +4,9 @@ import MedalTypeModel from "@/lib/models/MedalType";
 import AIUsage from "@/lib/models/AIUsage";
 import { analyzeHero, fetchHeroFromAI } from "@/lib/openai";
 import { scrapeWikipediaHero } from "@/lib/wikipedia-scraper";
-import { normalizeMetadataTags } from "@/lib/metadata-tags";
+import { deriveHeroMetadataTags } from "@/lib/derive-hero-metadata-tags";
 import { matchAiMedalsToDatabase } from "@/lib/match-ai-medals";
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 // Stage 1 clerk path: match-ai-medals uses normalizeAwardText (see @/lib/award-clerk).
 
 cloudinary.config({
@@ -69,57 +70,6 @@ type ProgressCallback = (step: string, percent: number) => void | Promise<void>;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function deriveMetadataTags(input: {
-  branch?: string;
-  combatType?: string;
-  wars?: string[];
-  gender?: string;
-  current?: string[];
-}): string[] {
-  const out = new Set<string>(normalizeMetadataTags(input.current ?? []));
-  const branch = String(input.branch || "").toLowerCase();
-  const combatType = String(input.combatType || "").toLowerCase();
-  const wars = Array.isArray(input.wars) ? input.wars.map((w) => String(w).toLowerCase()) : [];
-  const gender = String(input.gender || "").toLowerCase();
-
-  if (gender === "female") out.add("female");
-  if (gender === "male") out.add("male");
-
-  if (branch.includes("army")) out.add("army");
-  if (branch.includes("navy")) out.add("navy");
-  if (branch.includes("marine")) out.add("usmc");
-  if (branch.includes("air force")) out.add("usaf");
-  if (branch.includes("coast guard")) out.add("coast_guard");
-  if (branch.includes("space force")) out.add("space_force");
-
-  if (combatType === "submarine") out.add("submariner");
-  if (combatType === "surface") {
-    out.add("surface_commander");
-    out.add("surface_warfare");
-  }
-  if (combatType === "aviation") {
-    out.add("aviator");
-    out.add("pilot");
-  }
-  if (combatType === "airborne") out.add("paratrooper");
-  if (combatType === "special_operations") out.add("special_operations");
-  if (combatType === "infantry" || combatType === "armor" || combatType === "artillery") {
-    out.add("ground_combat");
-  }
-
-  for (const war of wars) {
-    if (war.includes("world war i")) out.add("wwi");
-    if (war.includes("world war ii")) out.add("wwii");
-    if (war.includes("korean war") || war === "korea") out.add("korea");
-    if (war.includes("vietnam")) out.add("vietnam");
-    if (war.includes("iraq")) out.add("iraq");
-    if (war.includes("afghanistan")) out.add("afghanistan");
-    if (war.includes("terror")) out.add("war_on_terror");
-  }
-
-  return [...out];
-}
-
 function normalizeCountryCode(raw?: string, branch?: string): string {
   const allowed = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
   const direct = String(raw || "").trim().toUpperCase();
@@ -147,25 +97,40 @@ export function extractHeroNameFromUrl(url: string): string | null {
   }
 }
 
-/** Upload a Wikipedia image URL to Cloudinary */
+/** Upload a Wikipedia image URL to Cloudinary; on failure or missing Cloudinary, return normalized direct URL */
 async function uploadWikiImageToCloudinary(imageUrl: string): Promise<string> {
-  if (!imageUrl) return "";
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) return "";
-  const buffer = Buffer.from(await imgRes.arrayBuffer());
+  const normalized = normalizeWikimediaImageUrl(imageUrl);
+  if (!normalized) return "";
 
-  const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream(
-        { folder: "Heroes/Heroes", resource_type: "image" },
-        (error, uploadResult) => {
-          if (error || !uploadResult) reject(error ?? new Error("Upload failed"));
-          else resolve(uploadResult as { secure_url: string });
-        }
-      )
-      .end(buffer);
-  });
-  return result.secure_url;
+  const hasCloudinary = Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+  );
+  if (!hasCloudinary) return normalized;
+
+  try {
+    const imgRes = await fetch(normalized, {
+      headers: { "User-Agent": "HeroesArchive/1.0 (educational research)" },
+    });
+    if (!imgRes.ok) return normalized;
+
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          { folder: "Heroes/Heroes", resource_type: "image" },
+          (error, uploadResult) => {
+            if (error || !uploadResult) reject(error ?? new Error("Upload failed"));
+            else resolve(uploadResult as { secure_url: string });
+          }
+        )
+        .end(buffer);
+    });
+    return result.secure_url;
+  } catch {
+    return normalized;
+  }
 }
 
 /** Fetch hero photo from Wikipedia pageimages API + upload to Cloudinary */
@@ -242,7 +207,9 @@ export async function runHeroImportPipeline(
   ].filter(Boolean).join("\n");
 
   const [avatarUrl, aiResult] = await Promise.all([
-    uploadWikiImageToCloudinary(scraped.avatarUrl || "").catch(() => ""),
+    uploadWikiImageToCloudinary(scraped.avatarUrl || "").catch(() =>
+      normalizeWikimediaImageUrl(scraped.avatarUrl || "")
+    ),
     analyzeHero(scrapedContext, dbMedalNames, userEmail).catch((err) => {
       console.warn("Gemini validation failed, proceeding with scraper data only:", err);
       return null;
@@ -328,12 +295,13 @@ export async function runHeroImportPipeline(
     devices: "",
   }));
 
-  const metadataTags = deriveMetadataTags({
+  const metadataTags = deriveHeroMetadataTags({
     branch: scraped.branch,
     combatType,
     wars: mergedWars,
     gender: aiParsed.gender,
     current: aiParsed.metadataTags,
+    medals: matchedMain.map((m) => ({ name: m.name, count: m.count })),
   });
   await progress("Done!", 100);
 
@@ -475,12 +443,13 @@ async function aiFallbackPipeline(
     }
   }
 
-  const metadataTags = deriveMetadataTags({
+  const metadataTags = deriveHeroMetadataTags({
     branch: aiParsed.branch,
     combatType: aiParsed.combatSpecialty,
     wars: aiWars,
     gender: aiParsed.gender,
     current: aiParsed.metadataTags,
+    medals: fbMatched.map((m) => ({ name: m.name, count: m.count })),
   });
   await progress("Done!", 100);
 

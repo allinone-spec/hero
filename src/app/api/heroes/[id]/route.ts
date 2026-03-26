@@ -1,8 +1,11 @@
+import mongoose from "mongoose";
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import HeroImportBatch from "@/lib/models/HeroImportBatch";
 import MedalTypeModel from "@/lib/models/MedalType";
 import ScoringConfig from "@/lib/models/ScoringConfig";
+import CaretakerQueueItem from "@/lib/models/CaretakerQueueItem";
 import { assertHeroOwnerAccess } from "@/lib/hero-access";
 import { getSession, requirePrivilege } from "@/lib/auth";
 import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
@@ -13,6 +16,7 @@ import {
   ScoringConfig as IScoringConfig,
 } from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
+import { deriveHeroMetadataTags } from "@/lib/derive-hero-metadata-tags";
 
 export async function GET(
   req: NextRequest,
@@ -145,6 +149,14 @@ export async function PUT(
         existing.wars?.length ?? 0,
         Boolean(existing.multiServiceOrMultiWar)
       );
+      const ca = existing.combatAchievements as { type?: string } | undefined;
+      patch.metadataTags = deriveHeroMetadataTags({
+        branch: existing.branch,
+        combatType: ca?.type,
+        wars: existing.wars,
+        current: Array.isArray(existing.metadataTags) ? existing.metadataTags : [],
+        medals: medalData.map((m) => ({ name: m.name, count: m.count })),
+      });
     }
 
     if (Object.keys(patch).length === 0) {
@@ -293,6 +305,24 @@ export async function DELETE(
   if (!hero) {
     return NextResponse.json({ error: "Hero not found" }, { status: 404 });
   }
+
+  const queueLinked = await CaretakerQueueItem.find({ createdHeroId: hero._id })
+    .select("batchId status")
+    .lean();
+  const batchDecrements = new Map<string, number>();
+  for (const row of queueLinked) {
+    if (row.batchId && row.status === "approved") {
+      const bid = String(row.batchId);
+      batchDecrements.set(bid, (batchDecrements.get(bid) ?? 0) + 1);
+    }
+  }
+  for (const [batchId, dec] of batchDecrements) {
+    if (!mongoose.Types.ObjectId.isValid(batchId)) continue;
+    await HeroImportBatch.findByIdAndUpdate(batchId, [
+      { $set: { approvedRows: { $max: [0, { $subtract: ["$approvedRows", dec] }] } } },
+    ]);
+  }
+  await CaretakerQueueItem.deleteMany({ createdHeroId: hero._id });
 
   await logActivity({
     action: "delete",

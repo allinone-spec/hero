@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 const CONTACT_EMAIL = "ablanchard@cogeco.ca";
@@ -78,11 +79,7 @@ export default function ContactPage() {
 
   // Loading state
   if (loggedIn === null) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 py-20 flex justify-center">
-        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
-      </div>
-    );
+    return <AdminLoader label="Loading…" />;
   }
 
   // Not signed in

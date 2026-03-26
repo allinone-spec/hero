@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import HeroCard from "@/components/heroes/HeroCard";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import Pagination from "@/components/ui/Pagination";
 
 const SPECIALTY_LABELS: Record<string, string> = {
@@ -174,7 +175,7 @@ function AvatarSearch({
             >
               <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
                 {hero.avatarUrl ? (
-                  <img src={hero.avatarUrl} alt={hero.name} className="w-full h-full object-cover" />
+                  <SafeWikimediaImg src={hero.avatarUrl} alt={hero.name} className="w-full h-full object-cover" />
                 ) : (
                   <AvatarFallback name={hero.name} size={36} />
                 )}

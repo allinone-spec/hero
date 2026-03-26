@@ -2,6 +2,8 @@
 // Fetches and parses a Wikipedia page for a military hero, extracting name,
 // rank, branch, biography, wars, and awards from the standard military infobox.
 
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+
 export interface ScrapedMedal {
   rawName: string;
   devices: string;
@@ -1237,7 +1239,9 @@ export async function scrapeWikipediaHero(url: string): Promise<ScrapedHero> {
     const imgData = await imageRes.json();
     const pages = imgData.query?.pages ?? {};
     const page = Object.values(pages)[0] as { thumbnail?: { source?: string } } | undefined;
-    avatarUrl = page?.thumbnail?.source ?? undefined;
+    const rawThumb = page?.thumbnail?.source;
+    const n = rawThumb ? normalizeWikimediaImageUrl(rawThumb) : "";
+    avatarUrl = n || undefined;
   }
 
   // ── Parse infobox ────────────────────────────────────────────────────────

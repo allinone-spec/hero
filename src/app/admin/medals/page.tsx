@@ -8,6 +8,8 @@ import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { MedalDisplayThumbRow } from "@/components/medals/MedalDisplayThumb";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 import { countryOptionLabel } from "@/lib/country-display";
 
@@ -28,6 +30,7 @@ interface MedalTypeItem {
   imageUrl: string;
   ribbonImageUrl: string;
   countryCode?: string;
+  wikiImages?: { url?: string }[];
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -190,7 +193,7 @@ function MedalPickerDropdown({
         {selected ? (
           <>
             {selected.imageUrl ? (
-              <img src={selected.imageUrl} alt="" className="w-6 h-6 object-contain rounded shrink-0" />
+              <SafeWikimediaImg src={selected.imageUrl} alt="" className="w-6 h-6 object-contain rounded shrink-0" />
             ) : (
               <span className="w-6 h-6 rounded bg-[var(--color-gold)]/20 flex items-center justify-center text-[10px] font-bold text-[var(--color-gold)] shrink-0">★</span>
             )}
@@ -306,7 +309,11 @@ function MedalPickerDropdown({
                   >
                     {/* Medal image or placeholder */}
                     {medal.imageUrl ? (
-                      <img src={medal.imageUrl} alt="" style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, flexShrink: 0 }} />
+                      <SafeWikimediaImg
+                        src={medal.imageUrl}
+                        alt=""
+                        style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, flexShrink: 0 }}
+                      />
                     ) : (
                       <span
                         style={{
@@ -862,43 +869,18 @@ export default function AdminMedalsPage() {
             className="hero-card p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
           >
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              {/* Medal image */}
-              {mt.imageUrl ? (
-                <img
-                  src={mt.imageUrl}
-                  alt={mt.name}
-                  className="h-10 w-10 object-contain rounded shrink-0"
-                />
-              ) : mt.ribbonColors?.length > 0 ? (
-                <div
-                  className="h-10 w-10 rounded shrink-0 overflow-hidden shadow-sm"
-                  style={{ border: "1px solid rgba(128,128,128,0.15)" }}
-                >
-                  <svg width="100%" height="100%" viewBox="0 0 40 40" preserveAspectRatio="none">
-                    {mt.ribbonColors.map((color, ci) => (
-                      <rect
-                        key={ci}
-                        x={(40 / mt.ribbonColors.length) * ci}
-                        y={0}
-                        width={40 / mt.ribbonColors.length}
-                        height={40}
-                        fill={color}
-                      />
-                    ))}
-                  </svg>
-                </div>
-              ) : (
-                <div
-                  className="h-10 w-10 rounded shrink-0 border border-[var(--color-border)] flex items-center justify-center text-xs font-bold text-[var(--color-text-muted)]"
-                  style={{ backgroundColor: "var(--color-surface)" }}
-                >
-                  {medalShortLabelForDisplay(mt.shortName, mt.name)}
-                </div>
-              )}
+              <MedalDisplayThumbRow
+                imageUrl={mt.imageUrl}
+                ribbonImageUrl={mt.ribbonImageUrl}
+                wikiImages={mt.wikiImages}
+                ribbonColors={mt.ribbonColors}
+                shortName={mt.shortName}
+                name={mt.name}
+                borderColor="var(--color-border)"
+              />
 
-              {/* Ribbon image (small) */}
               {mt.ribbonImageUrl && (
-                <img
+                <SafeWikimediaImg
                   src={mt.ribbonImageUrl}
                   alt={`${mt.name} ribbon`}
                   className="h-5 w-10 object-contain rounded-sm shrink-0"
@@ -1057,7 +1039,7 @@ export default function AdminMedalsPage() {
                           className="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors flex items-center gap-3"
                         >
                           {mt.ribbonImageUrl ? (
-                            <img src={mt.ribbonImageUrl} alt="" className="w-8 h-3 object-contain" />
+                            <SafeWikimediaImg src={mt.ribbonImageUrl} alt="" className="w-8 h-3 object-contain" />
                           ) : (
                             <div className="w-8 h-3 bg-[var(--color-bg)] rounded" />
                           )}

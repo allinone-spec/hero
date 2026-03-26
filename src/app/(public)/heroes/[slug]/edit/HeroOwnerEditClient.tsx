@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ImageUpload from "@/components/ui/ImageUpload";
 import { describeMedalDevices, getMedalDeviceFamilyLabel } from "@/lib/medal-device-rules";
@@ -21,10 +22,20 @@ function ProfileOwnerBackChevron() {
   );
 }
 
-function describeOwnerMedalAdjustment(
-  medal: OwnerMedalEntry,
-  branch: string
-): string {
+function RemoveMedalIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  );
+}
+
+/** Extra rack detail when devices apply; omit when empty so we don’t duplicate the family label. */
+function ownerMedalRackFragment(medal: OwnerMedalEntry, branch: string): string | null {
   const detail = describeMedalDevices({
     count: medal.count,
     hasValor: medal.hasValor,
@@ -32,7 +43,8 @@ function describeOwnerMedalAdjustment(
     deviceRule: medal.medalType.deviceRule ?? medal.medalType.deviceLogic,
     serviceBranch: branch,
   });
-  return detail ? `Displays ${detail.replace(/^w\/\s*/, "")}` : "Displays with no repeat-award device";
+  if (!detail) return null;
+  return detail.replace(/^w\/\s*/, "");
 }
 
 interface Props {
@@ -129,11 +141,12 @@ export default function HeroOwnerEditClient({ slug }: Props) {
       setError("");
       setLoading(true);
       try {
-        const [res, medalsRes] = await Promise.all([
-          fetch(`/api/site/hero-for-edit?slug=${encodeURIComponent(slug)}`),
-          fetch("/api/medal-types", { cache: "no-store" }),
-        ]);
+        const res = await fetch(`/api/site/hero-for-edit?slug=${encodeURIComponent(slug)}`);
         const data = await res.json();
+        const cc = (data.countryCode || "US").toString().trim().toUpperCase() || "US";
+        const medalsRes = await fetch(`/api/medal-types?countryCode=${encodeURIComponent(cc)}`, {
+          cache: "no-store",
+        });
         const medalData = medalsRes.ok ? await medalsRes.json() : [];
         if (cancelled) return;
         if (res.status === 401) {
@@ -252,9 +265,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   }
 
   if (loading) {
-    return (
-      <div className="text-center py-16 text-[var(--color-text-muted)]">Loading…</div>
-    );
+    return <AdminLoader label="Loading tribute editor…" />;
   }
 
   if (error === "signin") {
@@ -292,8 +303,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         </Link>
         <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">Edit tribute: {name}</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          You can update the short biography, portrait, and medal list. The ribbon rack preview re-renders from the
-          same precedence engine used on the public page.
+          You can update the short biography, portrait, and medal list. The medal dropdown lists{" "}
+          <strong>{countryCode}</strong> inventory first, then other countries. The rack preview updates immediately
+          from the same precedence engine as the public page; saving also refreshes tags (e.g. double MOH / multiple
+          Purple Hearts) from your medal rows.
           {!published && " This hero is not published yet; the public page may be unavailable."}
         </p>
       </div>
@@ -353,16 +366,20 @@ export default function HeroOwnerEditClient({ slug }: Props) {
             autoComplete="off"
           />
         </div>
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 p-4">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Medals</label>
-            <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/50 p-4 sm:p-5 shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-base font-semibold text-[var(--color-text)]">Medals</h2>
+            <p className="mt-0.5 text-xs text-[var(--color-text-muted)] leading-relaxed">
+              Add rows, set how many times this award appears, and toggle the <strong className="text-[var(--color-text)]">V</strong> device when
+              earned with valor. The rack preview below matches the public page.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
               <select
                 value={selectedMedalId}
                 onChange={(e) => setSelectedMedalId(e.target.value)}
-                className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-text)] focus:border-[var(--color-gold)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/20"
               >
-                <option value="">Add a medal from inventory…</option>
+                <option value="">Choose medal ({countryCode} first, then others)…</option>
                 {catalog.map((medal) => (
                   <option key={medal._id} value={medal._id}>
                     {medal.name}
@@ -373,74 +390,109 @@ export default function HeroOwnerEditClient({ slug }: Props) {
                 type="button"
                 onClick={addMedal}
                 disabled={!selectedMedalId}
-                className="rounded-lg border border-[var(--color-gold)]/50 bg-[var(--color-gold)]/10 px-4 py-2 text-sm font-medium text-[var(--color-gold)] disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-[var(--color-gold)]/45 bg-[var(--color-gold)]/12 px-4 py-2.5 text-sm font-semibold text-[var(--color-gold)] transition-colors hover:bg-[var(--color-gold)]/20 disabled:pointer-events-none disabled:opacity-45"
               >
-                Add medal
+                Add to list
               </button>
             </div>
           </div>
 
           {medals.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">
-              No medals selected yet. Add medals from the dropdown to rebuild the rack.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {medals.map((medal) => (
-                <div
-                  key={medal.medalType._id}
-                  className="grid gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 md:grid-cols-[minmax(0,1fr)_120px_120px_auto]"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-[var(--color-text)]">{medal.medalType.name}</div>
-                    <div className="text-xs text-[var(--color-text-muted)]">
-                      Precedence {medal.medalType.precedenceOrder}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--color-text-muted)]">
-                      {getMedalDeviceFamilyLabel(medal.medalType.deviceRule ?? medal.medalType.deviceLogic, branch)}
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)]/80">
-                      {describeOwnerMedalAdjustment(medal, branch)}
-                    </div>
-                  </div>
-                  <label className="text-sm text-[var(--color-text-muted)]">
-                    Count
-                    <input
-                      type="number"
-                      min={1}
-                      value={medal.count}
-                      onChange={(e) =>
-                        updateMedal(medal.medalType._id, { count: Math.max(1, Number(e.target.value) || 1) })
-                      }
-                      className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
-                    />
-                    <span className="mt-1 block text-[11px] text-[var(--color-text-muted)]/80">
-                      Total awards or clasp/bar count for this medal.
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2 self-end text-sm text-[var(--color-text-muted)]">
-                    <input
-                      type="checkbox"
-                      checked={medal.hasValor}
-                      onChange={(e) =>
-                        updateMedal(medal.medalType._id, {
-                          hasValor: e.target.checked,
-                          valorDevices: e.target.checked ? Math.max(1, medal.valorDevices || 1) : 0,
-                        })
-                      }
-                    />
-                    Valor
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => removeMedal(medal.medalType._id)}
-                    className="rounded-lg border border-red-500/35 px-3 py-2 text-sm text-red-300"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+            <div className="rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-bg)]/60 px-4 py-8 text-center">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                No medals yet. Pick one from the dropdown and tap <span className="font-medium text-[var(--color-text)]">Add to list</span>.
+              </p>
             </div>
+          ) : (
+            <ul className="space-y-2.5">
+              {medals.map((medal) => {
+                const family = getMedalDeviceFamilyLabel(
+                  medal.medalType.deviceRule ?? medal.medalType.deviceLogic,
+                  branch
+                );
+                const rackFrag = ownerMedalRackFragment(medal, branch);
+                return (
+                <li
+                  key={medal.medalType._id}
+                  className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3.5 py-3 sm:px-4 sm:py-3.5"
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[15px] font-semibold tracking-tight text-[var(--color-text)]">
+                        {medal.medalType.name}
+                      </div>
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+                        <span className="inline-flex items-center rounded-md bg-[var(--color-border)]/20 px-1.5 py-0.5 font-medium tabular-nums text-[var(--color-text-muted)]">
+                          #{medal.medalType.precedenceOrder}
+                        </span>
+                        <span className="mx-1.5 text-[var(--color-border)]">·</span>
+                        <span>{family}</span>
+                        {rackFrag ? (
+                          <>
+                            <span className="mx-1.5 text-[var(--color-border)]">·</span>
+                            <span className="text-[var(--color-text-muted)]/90">{rackFrag}</span>
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeMedal(medal.medalType._id)}
+                      className="shrink-0 rounded-lg p-2 text-[var(--color-text-muted)] opacity-35 transition-all hover:border hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-300 hover:opacity-100 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-400/35 group-hover:opacity-60"
+                      title={`Remove ${medal.medalType.name}`}
+                      aria-label={`Remove ${medal.medalType.name} from list`}
+                    >
+                      <RemoveMedalIcon className="transition-transform active:scale-95" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[var(--color-border)]/50 pt-3">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor={`medal-count-${medal.medalType._id}`}
+                        className="whitespace-nowrap text-xs font-medium text-[var(--color-text-muted)]"
+                      >
+                        Count
+                      </label>
+                      <input
+                        id={`medal-count-${medal.medalType._id}`}
+                        type="number"
+                        min={1}
+                        value={medal.count}
+                        title="How many times this award appears (bars, stars, or total awards)."
+                        onChange={(e) =>
+                          updateMedal(medal.medalType._id, { count: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                        className="h-9 w-[4.25rem] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-center text-sm tabular-nums text-[var(--color-text)] focus:border-[var(--color-gold)]/45 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/18"
+                      />
+                    </div>
+
+                    <label
+                      className="flex cursor-pointer select-none items-center gap-2 text-sm text-[var(--color-text)]"
+                      title="Earned with valor — affects scoring and the V on the rack."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={medal.hasValor}
+                        onChange={(e) =>
+                          updateMedal(medal.medalType._id, {
+                            hasValor: e.target.checked,
+                            valorDevices: e.target.checked ? Math.max(1, medal.valorDevices || 1) : 0,
+                          })
+                        }
+                        className="h-4 w-4 shrink-0 rounded border-[var(--color-border)] bg-[var(--color-surface)] focus:ring-2 focus:ring-[var(--color-gold)]/30 focus:ring-offset-0"
+                        style={{ accentColor: "var(--color-gold)" }}
+                      />
+                      <span>
+                        V device
+                        <span className="ml-1 text-xs font-normal text-[var(--color-text-muted)]">(valor)</span>
+                      </span>
+                    </label>
+                  </div>
+                </li>
+                );
+              })}
+            </ul>
           )}
         </div>
         {ribbonMedals.length > 0 && (

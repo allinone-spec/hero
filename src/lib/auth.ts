@@ -26,6 +26,7 @@ const SYSTEM_MENUS = [
   { name: "group-privileges", path: "/admin/group-privileges", label: "Group Privileges", section: "System",   sortOrder: 9 },
   { name: "logs",             path: "/admin/logs",             label: "Logs",             section: "Reports",  sortOrder: 10 },
   { name: "ai-usage",         path: "/admin/ai-usage",         label: "AI Usage",         section: "Reports",  sortOrder: 11 },
+  { name: "marketplace",      path: "/admin/marketplace",      label: "Marketplace",      section: "Reports",  sortOrder: 12 },
 ];
 
 let _seeded = false;

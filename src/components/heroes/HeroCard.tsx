@@ -3,6 +3,7 @@
 import Link from "next/link";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { buildRibbonRackMedals } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
@@ -70,7 +71,7 @@ export default function HeroCard({ rank, hero, href, fromParam = "heroes", onCli
         {/* Avatar */}
         <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 justify-self-start">
           {hero.avatarUrl ? (
-            <img
+            <SafeWikimediaImg
               src={hero.avatarUrl}
               alt={hero.name}
               className="w-full h-full object-cover"

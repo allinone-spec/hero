@@ -1,6 +1,6 @@
 "use client";
 
-import { AdminLoaderOrbit } from "@/components/ui/AdminLoader";
+import { AdminLoaderOrbit, ADMIN_PAGE_LOADER_ORBIT_PX } from "@/components/ui/AdminLoader";
 
 type SpinnerSize = "xs" | "sm" | "md" | "lg";
 
@@ -8,7 +8,7 @@ const pixel: Record<SpinnerSize, number> = {
   xs: 14,
   sm: 18,
   md: 26,
-  lg: 44,
+  lg: ADMIN_PAGE_LOADER_ORBIT_PX,
 };
 
 type LoadingSpinnerProps = {

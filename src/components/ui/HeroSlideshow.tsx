@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AvatarFallback from "./AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import { buildRibbonRackMedals } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
@@ -110,7 +111,7 @@ export default function HeroSlideshow({
           {/* Avatar */}
           <div style={{ animation: "float 4s ease-in-out infinite" }} className="shrink-0">
             {hero.avatarUrl ? (
-              <img
+              <SafeWikimediaImg
                 src={hero.avatarUrl}
                 alt={hero.name}
                 className="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl object-cover shadow-2xl"

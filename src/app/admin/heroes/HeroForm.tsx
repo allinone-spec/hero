@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import ImageUpload from "@/components/ui/ImageUpload";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
@@ -1440,8 +1441,11 @@ function normalizeCombatType(input: unknown): CombatType {
   }
 
   return (
-    <div className="flex gap-4 items-start">
-    <form onSubmit={handleSubmit} className={`space-y-4 sm:space-y-5 ${showWikiPage ? "w-1/2 min-w-0" : "max-w-3xl"}`}>
+    <div className="flex w-full gap-4 items-start justify-center">
+    <form
+      onSubmit={handleSubmit}
+      className={`space-y-4 sm:space-y-5 ${showWikiPage ? "w-1/2 min-w-0 shrink-0" : "w-full max-w-3xl shrink-0"}`}
+    >
 
       {/* ── § 0 Wikipedia Import ─────────────────────────────── */}
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-5">
@@ -1561,7 +1565,7 @@ function normalizeCombatType(input: unknown): CombatType {
           <div className="shrink-0 flex flex-col items-center gap-2">
             <div className="w-24 h-24 rounded-2xl overflow-hidden shadow-inner">
               {form.avatarUrl ? (
-                <img src={form.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                <SafeWikimediaImg src={form.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <AvatarFallback name={form.name || "Hero"} size={96} shape="rounded" />
               )}

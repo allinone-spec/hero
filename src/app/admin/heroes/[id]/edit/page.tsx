@@ -44,7 +44,7 @@ export default function EditHeroPage() {
   }
 
   return (
-    <div>
+    <div className="w-full">
       <h1 className="text-2xl font-bold mb-6">Edit: {hero.name}</h1>
       <HeroForm initialData={hero} isEdit />
     </div>

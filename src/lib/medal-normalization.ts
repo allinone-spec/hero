@@ -50,6 +50,17 @@ function extractLeadingCount(raw: string): { name: string; count: number | null 
   return { name: match[2].trim(), count };
 }
 
+/** Wikipedia prose: "... awarded three Silver Stars" (count + medal name at end). */
+function extractVerbLedCount(raw: string): { name: string; count: number | null } {
+  const m = raw.match(
+    /\b(?:awarded|received|decorated\s+with|earning|earned)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(.+)$/i,
+  );
+  if (!m) return { name: raw, count: null };
+  const c = parseIntLike(m[1]);
+  if (!c) return { name: raw, count: null };
+  return { name: m[2].trim(), count: c };
+}
+
 function stripValor(text: string): { text: string; hasValor: boolean } {
   let next = text;
   let hasValor = false;
@@ -70,6 +81,14 @@ function stripValor(text: string): { text: string; hasValor: boolean } {
 }
 
 function extractClusterCount(text: string): { text: string; totalCount: number | null } {
+  const singularOlc = /\s+with\s+(?:an\s+)?oak\s+leaf\s+cluster\b/i;
+  if (singularOlc.test(text)) {
+    return {
+      text: text.replace(singularOlc, "").trim(),
+      totalCount: 2,
+    };
+  }
+
   const patterns: Array<{ re: RegExp; multiplier: number }> = [
     {
       re: /\s+with\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+silver\s+oak\s+leaf\s+clusters?\b/i,
@@ -203,13 +222,16 @@ export function normalizeAwardText(
   explicitHasValor = false
 ): NormalizedAwardText {
   const leading = extractLeadingCount(rawName);
-  const withValor = stripValor(leading.name);
+  const verbLed = extractVerbLedCount(rawName);
+  const nameBase = leading.count ? leading.name : verbLed.count ? verbLed.name : rawName;
+  const earlyCount = leading.count ?? verbLed.count;
+  const withValor = stripValor(nameBase);
   const withClusters = extractClusterCount(withValor.text);
   const withCommonwealthDevices = extractCommonwealthDeviceCount(withClusters.text);
   const trailingCount = withCommonwealthDevices.text.match(/\s+x\s*(\d+)$/i);
 
   let count = Math.max(1, explicitCount || 1);
-  if (leading.count) count = Math.max(count, leading.count);
+  if (earlyCount) count = Math.max(count, earlyCount);
   if (withClusters.totalCount) count = Math.max(count, withClusters.totalCount);
   if (withCommonwealthDevices.totalCount) {
     count = Math.max(count, withCommonwealthDevices.totalCount);

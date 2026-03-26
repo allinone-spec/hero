@@ -4,46 +4,13 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import { User } from "@/lib/models/User";
 import { isAdoptionActive } from "@/lib/adoption";
+import { getPublicSiteUrl } from "@/lib/public-site-url";
 import { getSiteSession } from "@/lib/site-auth";
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const priceCents = parseInt(process.env.STRIPE_ADOPTION_PRICE_CENTS || "999", 10);
 /** When set, Checkout uses subscription mode (yearly renewal via invoice.paid subscription_cycle). */
 const yearlyPriceId = process.env.STRIPE_ADOPTION_YEARLY_PRICE_ID?.trim() || "";
-
-/** Stripe requires absolute URLs with an explicit https:// or http:// scheme. */
-function normalizeEnvOrigin(raw: string | undefined): string | null {
-  const s = raw?.trim().replace(/\/$/, "");
-  if (!s) return null;
-  let withScheme = s;
-  if (!/^https?:\/\//i.test(s)) {
-    const host = s.split("/")[0].toLowerCase();
-    withScheme =
-      host.startsWith("localhost") || host.startsWith("127.0.0.1") ? `http://${s}` : `https://${s}`;
-  }
-  try {
-    return new URL(withScheme).origin;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Return URLs for Stripe must match the site the user is on.
- * Prefer the request origin so local dev (localhost) is not overridden by
- * NEXT_PUBLIC_* env vars that often point at production.
- */
-function appOrigin(req: NextRequest): string {
-  const fromRequest = req.nextUrl?.origin;
-  if (fromRequest && /^https?:\/\//i.test(fromRequest)) {
-    return fromRequest;
-  }
-  return (
-    normalizeEnvOrigin(process.env.NEXT_PUBLIC_APP_URL) ||
-    normalizeEnvOrigin(process.env.NEXT_PUBLIC_BASE_URL) ||
-    "http://localhost:3000"
-  );
-}
 
 export async function POST(req: NextRequest) {
   if (!stripeSecret) {
@@ -96,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   const stripe = new Stripe(stripeSecret);
-  const origin = appOrigin(req);
+  const origin = getPublicSiteUrl(req);
 
   let stripeCustomerId = dbUser?.stripeCustomerId?.trim() || "";
   if (!stripeCustomerId) {

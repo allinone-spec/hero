@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import dbConnect from "@/lib/mongodb";
+import { User } from "@/lib/models/User";
 import { applyAdoptionAfterCheckoutPayment, extendAdoptionFromSubscriptionInvoice } from "@/lib/stripe-adoption";
+import { pickPrimarySubscription } from "@/lib/stripe-subscription-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +71,21 @@ export async function POST(req: NextRequest) {
       });
       if (!result.ok && result.code !== "conflict") {
         console.warn("applyAdoptionAfterCheckoutPayment (subscription checkout):", result.message);
+      } else if (result.ok) {
+        const subRef = session.subscription;
+        const subId = typeof subRef === "string" ? subRef : subRef?.id;
+        if (subId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            await dbConnect();
+            await User.findByIdAndUpdate(userId, {
+              stripeSubscriptionId: sub.id,
+              subscriptionStatus: sub.status,
+            }).catch(() => undefined);
+          } catch (e) {
+            console.warn("subscription attach after checkout:", e);
+          }
+        }
       }
     }
   }
@@ -98,9 +116,57 @@ export async function POST(req: NextRequest) {
       heroId,
       userId,
       stripeCustomerId: customerId || undefined,
+      stripeInvoiceId: invoice.id,
     });
     if (!result.ok) {
       console.warn("extendAdoptionFromSubscriptionInvoice:", result.message);
+    }
+  }
+
+  if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as Stripe.Subscription;
+    const customerId =
+      typeof sub.customer === "string" ? sub.customer : sub.customer?.id || "";
+    const metaUserId = sub.metadata?.userId?.trim();
+    await dbConnect();
+    if (metaUserId) {
+      const list = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 100,
+      });
+      const primary = pickPrimarySubscription(list.data, metaUserId);
+      const $set: Record<string, string> = {
+        subscriptionStatus: primary ? primary.status : "adopted",
+      };
+      if (primary) {
+        $set.stripeSubscriptionId = primary.id;
+      }
+      const update = primary
+        ? { $set }
+        : { $set, $unset: { stripeSubscriptionId: 1 as const } };
+      await User.findByIdAndUpdate(metaUserId, update).catch(() => undefined);
+    } else if (customerId) {
+      const u = await User.findOne({ stripeCustomerId: customerId }).select("_id").lean();
+      if (u?._id) {
+        const uid = String(u._id);
+        const list = await stripe.subscriptions.list({
+          customer: customerId,
+          status: "all",
+          limit: 100,
+        });
+        const primary = pickPrimarySubscription(list.data, uid);
+        const $set: Record<string, string> = {
+          subscriptionStatus: primary ? primary.status : "adopted",
+        };
+        if (primary) {
+          $set.stripeSubscriptionId = primary.id;
+        }
+        const update = primary
+          ? { $set }
+          : { $set, $unset: { stripeSubscriptionId: 1 as const } };
+        await User.findByIdAndUpdate(uid, update).catch(() => undefined);
+      }
     }
   }
 

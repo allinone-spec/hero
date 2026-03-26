@@ -38,6 +38,7 @@ export const DEFAULT_PAGES = [
   { path: "/admin/users",        label: "Users",       section: "admin", requiredLevel: 1, sortOrder: 6, isSystem: true },
   { path: "/admin/logs",         label: "Logs",        section: "admin", requiredLevel: 1, sortOrder: 7, isSystem: true },
   { path: "/admin/ai-usage",     label: "AI",          section: "admin", requiredLevel: 1, sortOrder: 8, isSystem: true },
+  { path: "/admin/marketplace", label: "Marketplace", section: "admin", requiredLevel: 1, sortOrder: 8.5, isSystem: true },
   { path: "/admin/permissions",  label: "Permissions", section: "admin", requiredLevel: 1, sortOrder: 9, isSystem: true },
 ];
 

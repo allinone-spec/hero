@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import AvatarFallback, { medalTextColor } from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -100,14 +102,16 @@ export default function MedalDetailView({
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
   // Identify front image — fall back to ribbon image if no medal image
-  const frontUrl = medal.imageUrl || medal.ribbonImageUrl || null;
+  const rawFront = medal.imageUrl || medal.ribbonImageUrl || null;
+  const frontUrl = rawFront ? normalizeWikimediaImageUrl(rawFront) || rawFront : null;
 
   // Remaining gallery images (exclude front)
   const galleryImages: { url: string; caption: string }[] = [];
   if (medal.wikiImages?.length) {
     for (const img of medal.wikiImages) {
-      if (img.url === frontUrl) continue;
-      galleryImages.push({ url: img.url, caption: img.caption });
+      const u = normalizeWikimediaImageUrl(img.url) || img.url;
+      if (u === frontUrl) continue;
+      galleryImages.push({ url: u, caption: img.caption });
     }
   }
 
@@ -145,7 +149,7 @@ export default function MedalDetailView({
           className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setLightboxImg(null)}
         >
-          <img
+          <SafeWikimediaImg
             src={lightboxImg}
             alt="Medal enlarged"
             className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
@@ -206,7 +210,7 @@ export default function MedalDetailView({
           <div className="relative flex justify-center mb-6">
             <div className="flex flex-col items-center">
               {frontUrl ? (
-                <img
+                <SafeWikimediaImg
                   src={frontUrl}
                   alt={medal.name}
                   className="h-44 sm:h-60 w-auto object-contain drop-shadow-2xl cursor-pointer transition-transform hover:scale-105"
@@ -242,7 +246,7 @@ export default function MedalDetailView({
           {/* Ribbon image */}
           {medal.ribbonImageUrl && (
             <div className="flex justify-center mb-5">
-              <img
+              <SafeWikimediaImg
                 src={medal.ribbonImageUrl}
                 alt={`${medal.name} ribbon`}
                 className="h-8 w-auto object-contain rounded-sm shadow-lg"
@@ -302,7 +306,7 @@ export default function MedalDetailView({
                 onClick={() => setLightboxImg(img.url)}
               >
                 <div className="aspect-square flex items-center justify-center p-4 bg-[var(--color-bg)]">
-                  <img
+                  <SafeWikimediaImg
                     src={img.url}
                     alt={img.caption}
                     className="max-h-full max-w-full object-contain transition-transform group-hover:scale-110"
@@ -408,7 +412,7 @@ export default function MedalDetailView({
                 >
                   <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                     {hero.avatarUrl ? (
-                      <img
+                      <SafeWikimediaImg
                         src={hero.avatarUrl}
                         alt={hero.name}
                         className="w-full h-full object-cover"

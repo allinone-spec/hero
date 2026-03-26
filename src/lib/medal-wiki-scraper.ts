@@ -2,6 +2,8 @@
 // Fetches and parses a Wikipedia article for a military medal/decoration,
 // extracting summary, history, award criteria, appearance, images, and infobox data.
 
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+
 const WIKI_HEADERS = { "User-Agent": "HeroesArchive/1.0 (educational research)" };
 const MAX_SECTION_LENGTH = 3000;
 
@@ -229,7 +231,7 @@ async function fetchArticleImages(title: string, medalName: string): Promise<Scr
         || filename.replace(/^File:/i, "").replace(/_/g, " ").replace(/\.\w+$/, "");
 
       results.push({
-        url: info.url,
+        url: normalizeWikimediaImageUrl(info.url) || info.url,
         caption: stripHtml(caption).slice(0, 200),
       });
     } catch { /* skip this image */ }

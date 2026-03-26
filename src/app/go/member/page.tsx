@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 
 export default function GoMemberPage() {
   const router = useRouter();
@@ -23,13 +23,5 @@ export default function GoMemberPage() {
     };
   }, [router]);
 
-  return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center gap-4"
-      style={{ backgroundColor: "var(--color-bg)" }}
-    >
-      <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading Owner session" />
-      <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
-    </div>
-  );
+  return <AdminLoader fullscreen label="Loading owner session…" />;
 }

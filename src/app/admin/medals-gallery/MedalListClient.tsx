@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { medalTextColor } from "@/components/ui/AvatarFallback";
 import Pagination from "@/components/ui/Pagination";
+import { MedalDisplayThumb } from "@/components/medals/MedalDisplayThumb";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface MedalType {
@@ -17,6 +17,7 @@ interface MedalType {
   description: string;
   imageUrl?: string;
   ribbonImageUrl?: string;
+  wikiImages?: { url?: string }[];
   branch?: string;
   requiresValorDevice?: boolean;
   inherentlyValor?: boolean;
@@ -193,40 +194,18 @@ export default function MedalListClient({ medals }: { medals: MedalType[] }) {
                 >
                   {/* Large medal image centered */}
                   <div className="flex justify-center mb-4">
-                    {mt.imageUrl ? (
-                      <img
-                        src={mt.imageUrl}
-                        alt={mt.name}
-                        className="object-contain rounded-lg transition-transform group-hover:scale-110"
-                        style={{ height: 120, width: 120 }}
-                      />
-                    ) : mt.ribbonColors?.length > 0 ? (
-                      <div
-                        className="rounded-lg flex items-center justify-center text-sm font-bold transition-transform group-hover:scale-110"
-                        style={{
-                          height: 120,
-                          width: 120,
-                          backgroundColor: mt.ribbonColors[0],
-                          color: medalTextColor(mt.ribbonColors[0]),
-                          border: `3px solid ${cc.border}`,
-                        }}
-                      >
-                        {medalShortLabelForDisplay(mt.shortName, mt.name)}
-                      </div>
-                    ) : (
-                      <div
-                        className="rounded-lg flex items-center justify-center text-sm font-bold transition-transform group-hover:scale-110"
-                        style={{
-                          height: 120,
-                          width: 120,
-                          backgroundColor: "var(--color-surface)",
-                          color: "var(--color-text-muted)",
-                          border: `3px solid ${cc.border}`,
-                        }}
-                      >
-                        {medalShortLabelForDisplay(mt.shortName, mt.name)}
-                      </div>
-                    )}
+                    <MedalDisplayThumb
+                      imageUrl={mt.imageUrl}
+                      ribbonImageUrl={mt.ribbonImageUrl}
+                      wikiImages={mt.wikiImages}
+                      ribbonColors={mt.ribbonColors}
+                      shortName={mt.shortName}
+                      name={mt.name}
+                      borderColor={cc.border}
+                      size={120}
+                      className="transition-transform group-hover:scale-110"
+                      imgClassName="object-contain rounded-lg transition-transform group-hover:scale-110"
+                    />
                   </div>
 
                   {/* Name + abbreviation */}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
@@ -308,8 +309,9 @@ function ApproveModal({
 /* ── Main page ───────────────────────────────────────────── */
 type UsersMainTab = "staff" | "site";
 
-export default function AdminUsersPage() {
+function AdminUsersPageContent() {
   const { can, isSuperAdmin } = usePrivileges();
+  const searchParams = useSearchParams();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [mainTab, setMainTab] = useState<UsersMainTab>("staff");
   const [users, setUsers]               = useState<AdminUser[]>([]);
@@ -329,6 +331,15 @@ export default function AdminUsersPage() {
     isErr ? setError(msg) : setSuccess(msg);
     setTimeout(() => isErr ? setError("") : setSuccess(""), 3500);
   };
+
+  const focusOwnerId = searchParams.get("owner");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if ((tab === "owners" || tab === "site") && isSuperAdmin) {
+      setMainTab("site");
+    }
+  }, [searchParams, isSuperAdmin]);
 
   useEffect(() => {
     Promise.all([
@@ -489,7 +500,7 @@ export default function AdminUsersPage() {
       )}
 
       {mainTab === "site" && isSuperAdmin ? (
-        <SiteMembersAdminPanel />
+        <SiteMembersAdminPanel focusOwnerId={focusOwnerId} />
       ) : null}
 
       {mainTab === "staff" || !isSuperAdmin ? (
@@ -675,5 +686,13 @@ export default function AdminUsersPage() {
       ) : null}
       {confirmDialog}
     </div>
+  );
+}
+
+export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<AdminLoader label="Loading users…" />}>
+      <AdminUsersPageContent />
+    </Suspense>
   );
 }

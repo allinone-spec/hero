@@ -1,6 +1,7 @@
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import AdoptionTransaction from "@/lib/models/AdoptionTransaction";
+import ProcessedStripeInvoice from "@/lib/models/ProcessedStripeInvoice";
 import { User } from "@/lib/models/User";
 import { isAdoptionActive, nextAdoptionExpiry } from "@/lib/adoption";
 
@@ -76,23 +77,49 @@ export async function applyAdoptionAfterCheckoutPayment(
  * Yearly subscription renewals (invoice.paid): extend adoption for the same owner.
  * Does not write AdoptionTransaction (checkout session is one-time); safe to call repeatedly per invoice id if you add dedup later.
  */
+function isMongoDuplicateKey(err: unknown): boolean {
+  return Boolean(err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000);
+}
+
 export async function extendAdoptionFromSubscriptionInvoice(opts: {
   heroId: string;
   userId: string;
   stripeCustomerId?: string;
+  /** When set, processing is idempotent per Stripe invoice (webhook retries). */
+  stripeInvoiceId?: string;
 }): Promise<{ ok: true } | { ok: false; code: "not_found" | "blocked"; message: string }> {
   await dbConnect();
+  if (opts.stripeInvoiceId) {
+    try {
+      await ProcessedStripeInvoice.create({ stripeInvoiceId: opts.stripeInvoiceId });
+    } catch (e) {
+      if (isMongoDuplicateKey(e)) {
+        return { ok: true };
+      }
+      throw e;
+    }
+  }
+
   const hero = await Hero.findById(opts.heroId).select("_id ownerUserId adoptionExpiry published");
   if (!hero) {
+    if (opts.stripeInvoiceId) {
+      await ProcessedStripeInvoice.deleteOne({ stripeInvoiceId: opts.stripeInvoiceId }).catch(() => undefined);
+    }
     return { ok: false, code: "not_found", message: "Hero not found" };
   }
   if (!hero.published) {
+    if (opts.stripeInvoiceId) {
+      await ProcessedStripeInvoice.deleteOne({ stripeInvoiceId: opts.stripeInvoiceId }).catch(() => undefined);
+    }
     return { ok: false, code: "blocked", message: "Hero not published" };
   }
   const current = hero.ownerUserId?.toString();
   const activeOther =
     isAdoptionActive(hero.adoptionExpiry) && current && current !== String(opts.userId);
   if (activeOther) {
+    if (opts.stripeInvoiceId) {
+      await ProcessedStripeInvoice.deleteOne({ stripeInvoiceId: opts.stripeInvoiceId }).catch(() => undefined);
+    }
     return { ok: false, code: "blocked", message: "Hero has a different active supporter" };
   }
 

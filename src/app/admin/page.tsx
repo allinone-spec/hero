@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 
 /* ── Stat card ───────────────────────────────────────────── */
@@ -197,7 +198,7 @@ function AdminDashboard() {
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                   {hero.avatarUrl ? (
-                    <img src={hero.avatarUrl} alt={hero.name} className="w-full h-full object-cover" />
+                    <SafeWikimediaImg src={hero.avatarUrl} alt={hero.name} className="w-full h-full object-cover" />
                   ) : (
                     <AvatarFallback name={hero.name} size={40} />
                   )}
@@ -274,6 +275,13 @@ function AdminDashboard() {
               desc="Add or update admin panel accounts."
               href="/admin/users"
               delay={0.28}
+            />
+            <ActionCard
+              icon="💳"
+              title="Marketplace"
+              desc="Adoption inventory, revenue, Stripe sync, and subscription health."
+              href="/admin/marketplace"
+              delay={0.32}
             />
           </div>
         </div>

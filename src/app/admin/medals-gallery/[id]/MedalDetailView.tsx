@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import AvatarFallback, { medalTextColor } from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
 
 /* ── Types ──────────────────────────────────────────────────── */
 
@@ -97,13 +99,16 @@ function findReverseImage(
   mainImageUrl: string
 ): WikiImage | null {
   if (!wikiImages?.length) return null;
+  const mainN = normalizeWikimediaImageUrl(mainImageUrl) || mainImageUrl;
   for (const img of wikiImages) {
-    if (img.url === mainImageUrl) continue;
+    const u = normalizeWikimediaImageUrl(img.url) || img.url;
+    if (u === mainN) continue;
     if (REVERSE_PATTERN.test(img.caption)) return img;
   }
   if (wikiImages.length >= 2) {
     for (const img of wikiImages) {
-      if (img.url === mainImageUrl) continue;
+      const u = normalizeWikimediaImageUrl(img.url) || img.url;
+      if (u === mainN) continue;
       if (!OBVERSE_PATTERN.test(img.caption)) return img;
     }
   }
@@ -124,16 +129,18 @@ export default function MedalDetailView({
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
 
   // Identify front and back images
-  const frontUrl = medal.imageUrl || null;
-  const reverseImg = findReverseImage(medal.wikiImages, medal.imageUrl);
-  const backUrl = reverseImg?.url || null;
+  const frontUrlRaw = medal.imageUrl || null;
+  const reverseImg = findReverseImage(medal.wikiImages, frontUrlRaw || "");
+  const frontUrl = frontUrlRaw ? normalizeWikimediaImageUrl(frontUrlRaw) || frontUrlRaw : null;
+  const backUrl = reverseImg?.url ? normalizeWikimediaImageUrl(reverseImg.url) || reverseImg.url : null;
 
   // Remaining gallery images (exclude front + back)
   const galleryImages: { url: string; caption: string }[] = [];
   if (medal.wikiImages?.length) {
     for (const img of medal.wikiImages) {
-      if (img.url === frontUrl || img.url === backUrl) continue;
-      galleryImages.push({ url: img.url, caption: img.caption });
+      const u = normalizeWikimediaImageUrl(img.url) || img.url;
+      if (u === frontUrl || u === backUrl) continue;
+      galleryImages.push({ url: u, caption: img.caption });
     }
   }
 
@@ -165,7 +172,7 @@ export default function MedalDetailView({
           className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 cursor-pointer"
           onClick={() => setLightboxImg(null)}
         >
-          <img
+          <SafeWikimediaImg
             src={lightboxImg}
             alt="Medal enlarged"
             className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
@@ -227,7 +234,7 @@ export default function MedalDetailView({
             {/* Front (obverse) */}
             <div className="flex flex-col items-center">
               {frontUrl ? (
-                <img
+                <SafeWikimediaImg
                   src={frontUrl}
                   alt={`${medal.name} — Front`}
                   className="h-44 sm:h-60 w-auto object-contain drop-shadow-2xl cursor-pointer transition-transform hover:scale-105"
@@ -268,7 +275,7 @@ export default function MedalDetailView({
             {/* Back (reverse) */}
             <div className="flex flex-col items-center">
               {backUrl ? (
-                <img
+                <SafeWikimediaImg
                   src={backUrl}
                   alt={`${medal.name} — Back`}
                   className="h-44 sm:h-60 w-auto object-contain drop-shadow-2xl cursor-pointer transition-transform hover:scale-105"
@@ -294,7 +301,7 @@ export default function MedalDetailView({
           {/* Ribbon image */}
           {medal.ribbonImageUrl && (
             <div className="flex justify-center mb-5">
-              <img
+              <SafeWikimediaImg
                 src={medal.ribbonImageUrl}
                 alt={`${medal.name} ribbon`}
                 className="h-8 w-auto object-contain rounded-sm shadow-lg"
@@ -354,7 +361,7 @@ export default function MedalDetailView({
                 onClick={() => setLightboxImg(img.url)}
               >
                 <div className="aspect-square flex items-center justify-center p-4 bg-[var(--color-bg)]">
-                  <img
+                  <SafeWikimediaImg
                     src={img.url}
                     alt={img.caption}
                     className="max-h-full max-w-full object-contain transition-transform group-hover:scale-110"
@@ -460,7 +467,7 @@ export default function MedalDetailView({
                 >
                   <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                     {hero.avatarUrl ? (
-                      <img
+                      <SafeWikimediaImg
                         src={hero.avatarUrl}
                         alt={hero.name}
                         className="w-full h-full object-cover"

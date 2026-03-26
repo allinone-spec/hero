@@ -1,4 +1,12 @@
+import type { CSSProperties } from "react";
+
 const BASE = 56;
+
+/** Orbit size for all full-page / route loading states (admin + public). */
+export const ADMIN_PAGE_LOADER_ORBIT_PX = 72;
+
+/** Smaller orbit for dense panels / modals. */
+export const ADMIN_COMPACT_LOADER_ORBIT_PX = 56;
 
 export type AdminLoaderOrbitVariant = "brand" | "inherit";
 
@@ -77,35 +85,43 @@ export function AdminLoader({
   compact = false,
 }: {
   label?: string;
-  /** Full viewport (admin shell while checking session). */
+  /** Full viewport while auth / route gate (e.g. admin shell not ready). */
   fullscreen?: boolean;
-  /** Less vertical padding (modals, secondary panels). */
+  /** In-panel load: smaller orbit, less vertical space. */
   compact?: boolean;
 }) {
-  const wrap = fullscreen
-    ? "min-h-screen flex flex-col items-center justify-center gap-6"
-    : compact
-      ? "flex flex-col items-center justify-center py-8 gap-3"
-      : "flex flex-col items-center justify-center py-16 gap-5";
+  const orbitSize = compact ? ADMIN_COMPACT_LOADER_ORBIT_PX : ADMIN_PAGE_LOADER_ORBIT_PX;
 
-  const orbitSize = fullscreen ? 72 : 56;
+  const wrap = fullscreen
+    ? "fixed inset-0 z-[200] flex min-h-dvh w-full flex-col items-center justify-center gap-6"
+    : compact
+      ? "flex w-full flex-col items-center justify-center gap-3 py-10"
+      : "flex w-full min-h-[calc(100svh-5rem)] flex-col items-center justify-center gap-6";
+
+  const labelStyle: CSSProperties = compact
+    ? {
+        color: "var(--color-text-muted)",
+        fontSize: "0.65rem",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+      }
+    : {
+        color: "var(--color-text-muted)",
+        fontSize: "0.75rem",
+        letterSpacing: "0.15em",
+        textTransform: "uppercase",
+      };
 
   return (
     <div
       className={wrap}
       style={fullscreen ? { backgroundColor: "var(--color-bg)" } : undefined}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
     >
       <AdminLoaderOrbit size={orbitSize} variant="brand" />
-      <p
-        style={{
-          color: "var(--color-text-muted)",
-          fontSize: fullscreen ? "0.75rem" : compact ? "0.65rem" : "0.7rem",
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </p>
+      <p style={labelStyle}>{label}</p>
     </div>
   );
 }

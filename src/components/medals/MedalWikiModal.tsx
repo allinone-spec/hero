@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
 export interface MedalModalData {
   medalId?: string;
@@ -92,7 +93,7 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
           <div className="mb-3">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">Ribbon</p>
             <div className="flex justify-center rounded-lg border border-[var(--color-border)]/60 bg-[var(--color-surface)]/40 p-3">
-              <img
+              <SafeWikimediaImg
                 src={medal.ribbonImageUrl}
                 alt={`${medal.name} ribbon`}
                 className="max-h-28 w-auto max-w-full object-contain"
@@ -109,12 +110,12 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
               </p>
             )}
             <div className="flex justify-center">
-              <img src={medal.imageUrl} alt={medal.name} className="max-h-44 w-auto object-contain" />
+              <SafeWikimediaImg src={medal.imageUrl} alt={medal.name} className="max-h-44 w-auto object-contain" />
             </div>
           </div>
         ) : medal.ribbonImageUrl && ribbonOnly ? (
           <div className="mb-4 flex justify-center">
-            <img src={medal.ribbonImageUrl} alt={medal.name} className="max-h-36 w-auto object-contain" />
+            <SafeWikimediaImg src={medal.ribbonImageUrl} alt={medal.name} className="max-h-36 w-auto object-contain" />
           </div>
         ) : null}
 

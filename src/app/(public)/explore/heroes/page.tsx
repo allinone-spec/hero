@@ -12,7 +12,14 @@ export const metadata: Metadata = {
 };
 
 interface Props {
-  searchParams: Promise<{ country?: string; branch?: string; tag?: string; limit?: string }>;
+  searchParams: Promise<{
+    country?: string;
+    branch?: string;
+    tag?: string;
+    limit?: string;
+    /** score = per-country USM-style leaderboard; comparison = optional cross-country model index */
+    sort?: string;
+  }>;
 }
 
 export default async function ExploreHeroesPage({ searchParams }: Props) {
@@ -21,6 +28,7 @@ export default async function ExploreHeroesPage({ searchParams }: Props) {
   const branch = sp.branch?.trim() || "";
   const tag = sp.tag?.trim() || "";
   const limit = Math.min(100, Math.max(1, parseInt(sp.limit || "20", 10) || 20));
+  const sortComparison = sp.sort === "comparison";
 
   await dbConnect();
 
@@ -38,11 +46,11 @@ export default async function ExploreHeroesPage({ searchParams }: Props) {
   if (branch) filter.branch = branch;
   if (tag) filter.metadataTags = tag;
 
-  const heroes = await Hero.find(filter)
-    .populate("medals.medalType")
-    .sort({ orderOverride: 1, score: -1, name: 1 })
-    .limit(limit)
-    .lean();
+  const sortSpec: Record<string, 1 | -1> = sortComparison
+    ? { orderOverride: 1, comparisonScore: -1, score: -1, name: 1 }
+    : { orderOverride: 1, score: -1, name: 1 };
+
+  const heroes = await Hero.find(filter).populate("medals.medalType").sort(sortSpec).limit(limit).lean();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const serialized: any[] = JSON.parse(JSON.stringify(heroes));
@@ -51,6 +59,7 @@ export default async function ExploreHeroesPage({ searchParams }: Props) {
   qs.set("country", country);
   if (branch) qs.set("branch", branch);
   if (tag) qs.set("tag", tag);
+  if (sortComparison) qs.set("sort", "comparison");
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10 space-y-6">
@@ -73,6 +82,20 @@ export default async function ExploreHeroesPage({ searchParams }: Props) {
               · Tag: <strong>{tag}</strong>
             </>
           ) : null}
+          {sortComparison ? (
+            <>
+              {" "}
+              · Sort: <strong>comparison index</strong>{" "}
+              <span className="text-xs opacity-90">
+                (internal model for cross-country views — not official medal equivalence)
+              </span>
+            </>
+          ) : (
+            <>
+              {" "}
+              · Sort: <strong>archive score</strong>
+            </>
+          )}
         </p>
       </div>
 

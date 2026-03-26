@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
@@ -261,7 +261,14 @@ function SiteMemberEditModal({
   );
 }
 
-export default function SiteMembersAdminPanel({ embedded }: { embedded?: boolean }) {
+export default function SiteMembersAdminPanel({
+  embedded,
+  focusOwnerId,
+}: {
+  embedded?: boolean;
+  /** When set (e.g. from `/admin/users?tab=owners&owner=…`), narrow search and scroll to that row. */
+  focusOwnerId?: string | null;
+}) {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [rows, setRows] = useState<SiteMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,6 +278,7 @@ export default function SiteMembersAdminPanel({ embedded }: { embedded?: boolean
   const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editUser, setEditUser] = useState<SiteMemberRow | null>(null);
+  const appliedFocusOwner = useRef<string | null>(null);
 
   const [verifyFilter, setVerifyFilter] = useState<VerifyFilter>("all");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -313,6 +321,23 @@ export default function SiteMembersAdminPanel({ embedded }: { embedded?: boolean
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    appliedFocusOwner.current = null;
+  }, [focusOwnerId]);
+
+  useEffect(() => {
+    if (!focusOwnerId?.trim() || loading || rows.length === 0) return;
+    if (appliedFocusOwner.current === focusOwnerId) return;
+    const u = rows.find((r) => r._id === focusOwnerId);
+    if (!u) {
+      appliedFocusOwner.current = focusOwnerId;
+      return;
+    }
+    appliedFocusOwner.current = focusOwnerId;
+    const q = (u.email || u.name || "").trim();
+    if (q) setSearch(q);
+  }, [focusOwnerId, loading, rows]);
 
   const subscriptionStatuses = useMemo(() => {
     const set = new Set<string>();
@@ -412,6 +437,25 @@ export default function SiteMembersAdminPanel({ embedded }: { embedded?: boolean
     toTs,
     sort,
   ]);
+
+  const ownerRowVisible = useMemo(() => {
+    if (!focusOwnerId) return false;
+    return visibleRows.some((r) => r._id === focusOwnerId);
+  }, [focusOwnerId, visibleRows]);
+
+  useEffect(() => {
+    if (!focusOwnerId || !ownerRowVisible || loading) return;
+    const t = requestAnimationFrame(() => {
+      const el = document.getElementById(`site-owner-${focusOwnerId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-[var(--color-gold)]/45", "rounded-xl");
+      window.setTimeout(() => {
+        el.classList.remove("ring-2", "ring-[var(--color-gold)]/45", "rounded-xl");
+      }, 2600);
+    });
+    return () => cancelAnimationFrame(t);
+  }, [focusOwnerId, ownerRowVisible, loading]);
 
   const filtersActive =
     verifyFilter !== "all" ||
@@ -777,6 +821,7 @@ export default function SiteMembersAdminPanel({ embedded }: { embedded?: boolean
           visibleRows.map((u, idx) => (
             <div
               key={u._id}
+              id={`site-owner-${u._id}`}
               className="hero-card p-4 flex items-center gap-4 animate-fade-in-up"
               style={{ animationDelay: `${idx * 0.04}s` }}
             >

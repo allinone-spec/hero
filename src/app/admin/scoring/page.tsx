@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { medalTextColor } from "@/components/ui/AvatarFallback";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import { MedalDisplayThumbRow } from "@/components/medals/MedalDisplayThumb";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 
 interface ScoringConfigForm {
   valorDevicePoints: number;
@@ -35,6 +34,8 @@ interface MedalTypeRef {
   precedenceOrder: number;
   ribbonColors: string[];
   imageUrl: string;
+  ribbonImageUrl?: string;
+  wikiImages?: { url?: string }[];
 }
 
 const DEFAULTS: ScoringConfigForm = {
@@ -238,25 +239,17 @@ export default function AdminScoringPage() {
                 className="flex items-center gap-3 p-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] animate-fade-in-up"
                 style={{ animationDelay: `${i * 0.04}s` }}
               >
-                {/* Avatar */}
-                {mt.imageUrl ? (
-                  <img
-                    src={mt.imageUrl}
-                    alt={mt.name}
-                    className="h-11 w-11 object-contain rounded-lg shrink-0 shadow-md"
+                <div className="shadow-md rounded-lg shrink-0">
+                  <MedalDisplayThumbRow
+                    imageUrl={mt.imageUrl}
+                    ribbonImageUrl={mt.ribbonImageUrl}
+                    wikiImages={mt.wikiImages}
+                    ribbonColors={mt.ribbonColors}
+                    shortName={mt.shortName}
+                    name={mt.name}
+                    borderColor={CATEGORY_COLORS[mt.category] || "#9ca3af"}
                   />
-                ) : (
-                  <div
-                    className="h-11 w-11 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-bold shadow-md"
-                    style={{
-                      backgroundColor: mt.ribbonColors[0] || "#808080",
-                      color: medalTextColor(mt.ribbonColors[0] || "#808080"),
-                      border: `2px solid ${CATEGORY_COLORS[mt.category] || "#9ca3af"}`,
-                    }}
-                  >
-                    {medalShortLabelForDisplay(mt.shortName, mt.name)}
-                  </div>
-                )}
+                </div>
                 {/* Info */}
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold leading-tight truncate">{mt.name}</p>

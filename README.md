@@ -1,12 +1,14 @@
 # Medals N Bongs — Heroes Archive
 
-Next.js app for a public military honors archive (USM-25 scoring, medals, hero profiles), site-member accounts, Stripe hero adoption, and an admin console.
+Next.js app for a public military honors archive (USM-25 scoring, medals, hero profiles), **site-member** accounts (users / **Owners** who adopt heroes), Stripe adoption checkout, and a **staff admin** console.  
+
+**Guides:** [docs/README.md](./docs/README.md) — [User](./docs/user-guide.md) · [Owner](./docs/owner-guide.md) · [Admin](./docs/admin-guide.md)
 
 ## Stack
 
 - **Framework:** Next.js 15 (App Router), React 19, TypeScript  
 - **Data:** MongoDB (Mongoose)  
-- **Auth:** JWT cookies — separate sessions for **Admins** and **Owners** (public accounts)  
+- **Auth:** JWT cookies — **admin** session (staff) and **site** session (public members / Owners); they do not share cookies  
 - **Email:** [Resend](https://resend.com) (verification, password reset)  
 - **Media:** Cloudinary  
 - **Payments:** Stripe (adoptions, optional “coffee” flow)  
@@ -261,6 +263,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+Use **`npm run dev:local`** if you only need localhost (binds `127.0.0.1` and avoids a confusing “Network” URL from VPN/virtual adapters).
+
 **Seed data (optional):**
 
 ```bash
@@ -274,6 +278,7 @@ npm run seed
 | Script | Description |
 | ------ | ----------- |
 | `npm run dev` | Development server |
+| `npm run dev:local` | Dev server on `127.0.0.1` only (no LAN/VPN URL in the banner) |
 | `npm run build` | Production build |
 | `npm run start` | Run production build |
 | `npm run lint` | ESLint |
@@ -284,10 +289,24 @@ npm run seed
 
 ## Project layout (high level)
 
-- `src/app/(public)/` — Public site (rankings, medals, member login/register, verify email, my heroes)  
-- `src/app/admin/` — Staff console (heroes, medals, scoring, users, Owners, etc.)  
+- `src/app/(public)/` — Public site (rankings, medals, member login/register, verify email, adopt, my heroes, suggestions)  
+- `src/app/admin/` — Staff console (heroes, medals, scoring, users, Hero Intake, marketplace, etc.)  
+- `src/app/go/admin` / `src/app/go/member` — Short redirects: admin → `/admin`, member → `/my-heroes` when logged in  
 - `src/app/api/` — API routes (auth, site auth, Stripe, admin, etc.)  
-- `src/lib/` — DB models, auth, email, public URL helpers, session hints, etc.
+- `src/lib/` — DB models, auth, email, public URL helpers, session hints, etc.  
+- `docs/` — **User**, **Owner**, and **Admin** guides ([index](./docs/README.md))
+
+## Documentation
+
+Operator and end-user documentation lives in **`docs/`**:
+
+| Document | Purpose |
+| -------- | ------- |
+| [docs/README.md](./docs/README.md) | Index of guides |
+| [docs/user-guide.md](./docs/user-guide.md) | Public browsing, registration, adopt, suggestions |
+| [docs/owner-guide.md](./docs/owner-guide.md) | My Heroes, tribute edit, Stripe portal |
+| [docs/admin-guide.md](./docs/admin-guide.md) | Console sign-in, privileges, Hero Intake, content ops |
+| [docs/deploy-hostinger-vps.md](./docs/deploy-hostinger-vps.md) | Hostinger VPS: Node, PM2, Nginx, Let’s Encrypt |
 
 ## License / content
 

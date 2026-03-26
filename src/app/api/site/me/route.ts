@@ -12,10 +12,13 @@ export async function GET() {
   }
 
   await dbConnect();
-  const user = await User.findById(session.sub).select("email role name").lean();
+  const user = await User.findById(session.sub).select("email role name stripeCustomerId").lean();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401, headers: noStore });
   }
+
+  const stripeCustomerId =
+    typeof user.stripeCustomerId === "string" ? user.stripeCustomerId.trim() : "";
 
   return NextResponse.json(
     {
@@ -23,6 +26,8 @@ export async function GET() {
       email: user.email,
       role: user.role,
       name: typeof user.name === "string" ? user.name.trim() : "",
+      /** True when the Owner can open Stripe Customer Portal (after at least one checkout created a customer). */
+      canManageBilling: Boolean(stripeCustomerId),
     },
     { headers: noStore },
   );

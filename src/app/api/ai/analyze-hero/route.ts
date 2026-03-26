@@ -4,7 +4,7 @@ import AIUsage from "@/lib/models/AIUsage";
 import MedalTypeModel from "@/lib/models/MedalType";
 import { getSession } from "@/lib/auth";
 import { analyzeHero } from "@/lib/openai";
-import { normalizeMetadataTags } from "@/lib/metadata-tags";
+import { deriveHeroMetadataTags } from "@/lib/derive-hero-metadata-tags";
 import { matchAiMedalsToDatabase } from "@/lib/match-ai-medals";
 
 interface MedalTypeDoc {
@@ -79,16 +79,19 @@ export async function POST(req: NextRequest) {
       ? parsed.wars.filter((w) => typeof w === "string" && !medalNameSet.has(w.toLowerCase().trim()))
       : [];
 
-    const { matched: matchedMedals } = matchAiMedalsToDatabase(parsed.medals, medalTypes);
-
     const allowedCC = new Set(["US", "UK", "CA", "AU", "NZ", "ZA", "IN"]);
     const ccRaw = String(parsed.countryCode || "US").toUpperCase();
     const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
 
-    let metadataTags = normalizeMetadataTags(parsed.metadataTags);
-    if (parsed.gender && String(parsed.gender).toLowerCase() === "female" && !metadataTags.includes("female")) {
-      metadataTags = [...metadataTags, "female"];
-    }
+    const { matched: matchedMedals } = matchAiMedalsToDatabase(parsed.medals, medalTypes, { countryCode });
+
+    const metadataTags = deriveHeroMetadataTags({
+      combatType: parsed.combatSpecialty,
+      wars: filteredWars,
+      gender: parsed.gender,
+      current: parsed.metadataTags,
+      medals: matchedMedals.map((m) => ({ name: m.name, count: m.count })),
+    });
 
     return NextResponse.json({
       description: parsed.description || "",

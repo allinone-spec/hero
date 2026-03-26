@@ -8,7 +8,7 @@ export default function NewHeroPage() {
   const wikiUrl = searchParams.get("wikiUrl") || undefined;
 
   return (
-    <div>
+    <div className="w-full">
       <h1 className="text-2xl font-bold mb-6">Create New Hero</h1>
       <HeroForm importWikiUrl={wikiUrl} />
     </div>

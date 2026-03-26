@@ -22,7 +22,6 @@ const WarSchema = new Schema<IWarDoc>(
 );
 
 WarSchema.index({ startYear: 1 });
-WarSchema.index({ name: 1 });
 
 export default mongoose.models.War ||
   mongoose.model<IWarDoc>("War", WarSchema);

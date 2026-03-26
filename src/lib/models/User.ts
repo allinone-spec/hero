@@ -13,6 +13,8 @@ export interface IUser extends Document {
   emailVerifyTokenHash?: string;
   emailVerifyExpires?: Date;
   stripeCustomerId?: string;
+  /** Latest adoption subscription (yearly renewals); one Stripe customer may have multiple subs across heroes. */
+  stripeSubscriptionId?: string;
   subscriptionStatus?: string;
   agreedToTermsAt?: Date;
   resetPasswordToken?: string;
@@ -26,6 +28,7 @@ const UserSchema: Schema<IUser> = new Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ["user", "owner"], default: "user" },
   stripeCustomerId: { type: String },
+  stripeSubscriptionId: { type: String },
   subscriptionStatus: { type: String },
   agreedToTermsAt: { type: Date },
   emailVerified: { type: Boolean },

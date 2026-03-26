@@ -51,12 +51,17 @@ export default function SuggestionsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [queueWorkingId, setQueueWorkingId] = useState<string | null>(null);
+  const [queueDeletingId, setQueueDeletingId] = useState<string | null>(null);
   const [sSearch, setSSearch] = useState("");
   const [statusOnly, setStatusOnly] = useState<"all" | "new" | "reviewed" | "denied">("all");
   const [sSort, setSSort] = useState<"date-desc" | "date-asc" | "url" | "submitter">("date-desc");
   const [queueStatus, setQueueStatus] = useState<(typeof QUEUE_FILTERS)[number]>("needs_review");
   const [queueBatchId, setQueueBatchId] = useState(params.get("batchId") || "");
   const [queueSearch, setQueueSearch] = useState("");
+  const [queueCounts, setQueueCounts] = useState<{ counts: Record<string, number>; all: number }>({
+    counts: {},
+    all: 0,
+  });
   const [error, setError] = useState("");
 
   const fetchSuggestions = async () => {
@@ -76,12 +81,24 @@ export default function SuggestionsPage() {
     setQueueItems(Array.isArray(data) ? data : []);
   };
 
+  const fetchQueueCounts = async () => {
+    const qs = new URLSearchParams();
+    if (queueBatchId.trim()) qs.set("batchId", queueBatchId.trim());
+    const res = await fetch(`/api/admin/caretaker-queue/counts?${qs.toString()}`);
+    const data = await res.json();
+    if (!res.ok) return;
+    setQueueCounts({
+      counts: (data.counts as Record<string, number>) || {},
+      all: typeof data.all === "number" ? data.all : 0,
+    });
+  };
+
   useEffect(() => {
     let mounted = true;
     const loadAll = async () => {
       try {
         setError("");
-        await Promise.all([fetchSuggestions(), fetchQueue()]);
+        await Promise.all([fetchSuggestions(), fetchQueue(), fetchQueueCounts()]);
         fetch("/api/hero-suggestions/mark-read", { method: "POST" }).catch(() => {});
       } catch (err: unknown) {
         if (mounted) setError(err instanceof Error ? err.message : "Failed to load inbox");
@@ -105,6 +122,7 @@ export default function SuggestionsPage() {
     void fetchQueue().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : "Failed to load queue");
     });
+    void fetchQueueCounts().catch(() => undefined);
   }, [queueStatus, queueBatchId]);
 
   useEffect(() => {
@@ -112,6 +130,7 @@ export default function SuggestionsPage() {
     const timer = window.setInterval(() => {
       void fetchSuggestions().catch(() => undefined);
       void fetchQueue().catch(() => undefined);
+      void fetchQueueCounts().catch(() => undefined);
     }, 5000);
     return () => window.clearInterval(timer);
   }, [loading, queueStatus, queueBatchId]);
@@ -162,7 +181,7 @@ export default function SuggestionsPage() {
       setSuggestions((prev) =>
         prev.map((s) => (s._id === id ? { ...s, status: "reviewed" } : s))
       );
-      await fetchQueue();
+      await Promise.all([fetchQueue(), fetchQueueCounts()]);
       setActiveTab("caretaker");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to queue suggestion");
@@ -177,7 +196,7 @@ export default function SuggestionsPage() {
       const res = await fetch(`/api/admin/caretaker-queue/${id}/approve`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Approve failed");
-      await fetchQueue();
+      await Promise.all([fetchQueue(), fetchQueueCounts()]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Approve failed");
     } finally {
@@ -198,11 +217,33 @@ export default function SuggestionsPage() {
       const res = await fetch(`/api/admin/caretaker-queue/${id}/dismiss`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Dismiss failed");
-      await fetchQueue();
+      await Promise.all([fetchQueue(), fetchQueueCounts()]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Dismiss failed");
     } finally {
       setQueueWorkingId(null);
+    }
+  };
+
+  const handleDeleteApprovedQueue = async (id: string) => {
+    const ok = await confirm({
+      title: "Delete approved queue entry",
+      message:
+        "Remove this row from the caretaker queue? The draft hero is not deleted — delete it from Heroes if you no longer need it.",
+      danger: true,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return;
+    setQueueDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/caretaker-queue/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      await Promise.all([fetchQueue(), fetchQueueCounts()]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setQueueDeletingId(null);
     }
   };
 
@@ -301,9 +342,6 @@ export default function SuggestionsPage() {
         >
           Caretaker Queue
         </button>
-        <Link href="/admin/heroes/import" className="ml-auto btn-primary text-sm">
-          Bulk import
-        </Link>
       </div>
 
       {error && (
@@ -440,20 +478,36 @@ export default function SuggestionsPage() {
         <>
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 space-y-4">
             <div className="flex flex-wrap gap-2">
-              {QUEUE_FILTERS.map((filter) => (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setQueueStatus(filter)}
-                  className={`rounded-full px-3 py-1.5 text-sm border ${
-                    queueStatus === filter
-                      ? "border-[var(--color-gold)] text-[var(--color-gold)]"
-                      : "border-[var(--color-border)] text-[var(--color-text-muted)]"
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
+              {QUEUE_FILTERS.map((filter) => {
+                const n =
+                  filter === "all" ? queueCounts.all : (queueCounts.counts[filter] ?? 0);
+                const label = filter.toUpperCase();
+                const active = queueStatus === filter;
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setQueueStatus(filter)}
+                    aria-label={n > 0 ? `${label}, ${n} items` : label}
+                    aria-pressed={active}
+                    className={`relative rounded-full border px-3 py-1.5 pr-3.5 text-sm font-semibold tracking-wide transition-colors ${
+                      active
+                        ? "border-[var(--color-gold)] text-[var(--color-gold)]"
+                        : "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]"
+                    }`}
+                  >
+                    {label}
+                    {n > 0 ? (
+                      <span
+                        className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white shadow-sm"
+                        aria-hidden
+                      >
+                        {n > 99 ? "99+" : n}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               <input
@@ -528,10 +582,15 @@ export default function SuggestionsPage() {
 
                   {item.error && <p className="mt-3 text-sm text-red-300">{item.error}</p>}
 
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={queueWorkingId === item.id || item.status !== "needs_review" || !can("/admin/heroes", "canCreate")}
+                      disabled={
+                        queueWorkingId === item.id ||
+                        queueDeletingId === item.id ||
+                        item.status !== "needs_review" ||
+                        !can("/admin/heroes", "canCreate")
+                      }
                       onClick={() => void handleApproveQueue(item.id)}
                       className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--color-badge-text)] disabled:opacity-50"
                       style={{ background: "linear-gradient(135deg, var(--color-gold), var(--color-gold-light))" }}
@@ -540,12 +599,39 @@ export default function SuggestionsPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={queueWorkingId === item.id || item.status === "approved" || item.status === "dismissed" || !can("/admin/heroes", "canEdit")}
+                      disabled={
+                        queueWorkingId === item.id ||
+                        queueDeletingId === item.id ||
+                        item.status === "approved" ||
+                        item.status === "dismissed" ||
+                        !can("/admin/heroes", "canEdit")
+                      }
                       onClick={() => void handleDismissQueue(item.id)}
                       className="btn-secondary text-sm disabled:opacity-50"
                     >
                       Dismiss
                     </button>
+                    {item.status === "approved" ? (
+                      <button
+                        type="button"
+                        disabled={
+                          queueWorkingId === item.id ||
+                          queueDeletingId === item.id ||
+                          !can("/admin/heroes", "canDelete")
+                        }
+                        onClick={() => void handleDeleteApprovedQueue(item.id)}
+                        className="btn-secondary text-sm text-red-400 hover:text-red-300 disabled:opacity-50"
+                      >
+                        {queueDeletingId === item.id ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <LoadingSpinner size="xs" label="Deleting" />
+                            Deleting…
+                          </span>
+                        ) : (
+                          "Delete from queue"
+                        )}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ))}

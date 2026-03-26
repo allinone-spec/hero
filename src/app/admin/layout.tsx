@@ -160,6 +160,24 @@ const GUIDE_SECTIONS = [
       { button: "Recent calls", desc: "Per-request tokens and cost where logged." },
     ],
   },
+  {
+    page: "Marketplace",
+    icon: "💳",
+    items: [
+      {
+        button: "Ops metrics",
+        desc: "Published vs adoptable inventory, active adoptions, expiring windows, checkout counts and revenue from AdoptionTransaction.",
+      },
+      {
+        button: "Stripe sync",
+        desc: "Reconcile Owner subscription status from Stripe when webhooks were missed (requires can edit on this menu).",
+      },
+      {
+        button: "Customer portal",
+        desc: "Owners open billing from My Heroes when they have a Stripe customer on file (configure the portal in Stripe Dashboard).",
+      },
+    ],
+  },
 ];
 
 function HelpGuide({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -774,7 +792,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
         <HelpGuide open={showGuide} onClose={() => setShowGuide(false)} />
         <ContactModal open={showContact} onClose={() => setShowContact(false)} />
-        <main className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">{children}</main>
+        <main className="mx-auto min-h-[calc(100svh-5rem)] max-w-6xl px-3 py-6 sm:px-4 sm:py-8">{children}</main>
       </div>
     </PrivilegeContext.Provider>
   );

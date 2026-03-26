@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import Pagination from "@/components/ui/Pagination";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
@@ -1133,7 +1134,7 @@ export default function AdminHeroesPage() {
                     <div className="flex items-start gap-4 p-4 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)]">
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
                         {importForm.avatarUrl ? (
-                          <img src={importForm.avatarUrl} alt="" className="w-full h-full object-cover" />
+                          <SafeWikimediaImg src={importForm.avatarUrl} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <AvatarFallback name={importForm.name || "Hero"} size={64} shape="rounded" />
                         )}
@@ -1232,7 +1233,7 @@ export default function AdminHeroesPage() {
                                 {mt ? (
                                   <>
                                     {mt.imageUrl ? (
-                                      <img src={mt.imageUrl} alt="" className="w-6 h-6 object-contain rounded shrink-0" />
+                                      <SafeWikimediaImg src={mt.imageUrl} alt="" className="w-6 h-6 object-contain rounded shrink-0" />
                                     ) : (
                                       <svg width="24" height="8" className="rounded shrink-0">
                                         {(mt.ribbonColors.length > 0 ? mt.ribbonColors : ["#808080"]).map((c, i, arr) => (

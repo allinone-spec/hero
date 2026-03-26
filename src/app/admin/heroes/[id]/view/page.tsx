@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 
 interface MedalType {
@@ -154,7 +155,7 @@ export default function ViewHeroPage() {
   const combatTypeLabel = (combatType && COMBAT_LABELS[combatType]) || "None";
 
   return (
-    <div className="animate-fade-in-up max-w-4xl">
+    <div className="animate-fade-in-up mx-auto w-full max-w-4xl">
       {/* ── Navigation bar ────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <Link href="/admin/heroes" className="btn-secondary text-sm py-1.5 px-4">
@@ -187,7 +188,7 @@ export default function ViewHeroPage() {
             style={{ boxShadow: "0 0 0 3px var(--color-gold)" }}
           >
             {hero.avatarUrl ? (
-              <img
+              <SafeWikimediaImg
                 src={hero.avatarUrl}
                 alt={hero.name}
                 className="w-full h-full object-cover"

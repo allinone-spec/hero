@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface Suggestion {
@@ -116,11 +117,7 @@ export default function SuggestionsPage() {
   const denied = suggestions.filter((s) => s.status === "denied");
 
   if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto py-20 flex justify-center">
-        <LoadingSpinner size="lg" className="text-[var(--color-gold)]" label="Loading" />
-      </div>
-    );
+    return <AdminLoader label="Loading suggestions…" />;
   }
 
   if (loggedIn === false) {

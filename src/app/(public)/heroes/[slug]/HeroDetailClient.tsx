@@ -10,6 +10,7 @@ import RankInsignia from "@/components/heroes/RankInsignia";
 import { describeMedalDevices, type MedalDeviceRule } from "@/lib/medal-device-rules";
 import { buildRibbonRackMedals, type RackRenderMedal } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
+import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
 /* ── Types ──────────────────────────────────────────────────────────────────── */
 
@@ -355,7 +356,7 @@ export default function HeroDetailClient({
               style={{ border: "3px solid var(--color-gold)" }}
             >
               {hero.avatarUrl ? (
-                <img
+                <SafeWikimediaImg
                   src={hero.avatarUrl}
                   alt={hero.name}
                   className="w-full h-full object-cover"

@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import AvatarFallback from "@/components/ui/AvatarFallback";
+import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+import { AdminLoader } from "@/components/ui/AdminLoader";
 
 interface MyHero {
   id: string;
@@ -33,6 +35,8 @@ export default function MyHeroesPage() {
   const [error, setError] = useState("");
   const [renewBusyId, setRenewBusyId] = useState<string | null>(null);
   const [renewMessage, setRenewMessage] = useState<{ heroId: string; text: string; verify?: boolean } | null>(null);
+  const [canManageBilling, setCanManageBilling] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
 
   const load = useCallback(async () => {
     const meRes = await fetch("/api/site/me", { credentials: "include", cache: "no-store" });
@@ -43,6 +47,7 @@ export default function MyHeroesPage() {
     }
     const me = await meRes.json();
     setEmail(me.email);
+    setCanManageBilling(Boolean(me.canManageBilling));
 
     const hRes = await fetch("/api/site/my-heroes", { credentials: "include", cache: "no-store" });
     if (!hRes.ok) {
@@ -57,6 +62,28 @@ export default function MyHeroesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function openBillingPortal() {
+    setBillingBusy(true);
+    try {
+      const res = await fetch("/api/stripe/customer-portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ returnUrl: "/my-heroes" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data.error || "Could not open billing portal.");
+    } catch {
+      setError("Could not open billing portal.");
+    } finally {
+      setBillingBusy(false);
+    }
+  }
 
   async function startRenewCheckout(heroId: string) {
     setRenewBusyId(heroId);
@@ -86,16 +113,7 @@ export default function MyHeroesPage() {
   }
 
   if (heroes === null) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          <div className="h-9 w-48 rounded-lg bg-[var(--color-border)]/50" />
-          <div className="h-4 w-72 rounded bg-[var(--color-border)]/40" />
-          <div className="h-24 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/50" />
-          <div className="h-24 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/50" />
-        </div>
-      </div>
-    );
+    return <AdminLoader label="Loading your heroes…" />;
   }
 
   if (!email) {
@@ -124,13 +142,25 @@ export default function MyHeroesPage() {
         title="My Heroes"
         sub="Heroes you’ve adopted appear here — same archive quality as the main rankings, with quick access to public profiles and tribute editing."
       />
-      <p className="-mt-4 mb-8 text-xs text-[var(--color-text-muted)]">
-        Signed in as <span className="font-medium text-[var(--color-text)]">{email}</span>
-        {" · "}
-        <Link href="/rankings" className="text-[var(--color-gold)] hover:underline">
-          Browse all heroes
-        </Link>
-      </p>
+      <div className="-mt-4 mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <p className="text-xs text-[var(--color-text-muted)]">
+          Signed in as <span className="font-medium text-[var(--color-text)]">{email}</span>
+          {" · "}
+          <Link href="/rankings" className="text-[var(--color-gold)] hover:underline">
+            Browse all heroes
+          </Link>
+        </p>
+        {canManageBilling && (
+          <button
+            type="button"
+            disabled={billingBusy}
+            onClick={() => void openBillingPortal()}
+            className="self-start rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] transition-colors hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] disabled:opacity-60"
+          >
+            {billingBusy ? "Opening…" : "Billing & receipts (Stripe)"}
+          </button>
+        )}
+      </div>
 
       {error && (
         <div className="mb-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -155,14 +185,23 @@ export default function MyHeroesPage() {
         <ul className="space-y-3">
           {heroes.map((h, index) => {
             const active = !h.adoptionExpiry || new Date(h.adoptionExpiry).getTime() > Date.now();
+            const avatarSrc = normalizeWikimediaImageUrl(h.avatarUrl);
             return (
             <li key={h.id}>
               <div className="hero-card group flex flex-col gap-4 p-4 transition-colors hover:border-[var(--color-gold)]/40 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
                   <div className="rank-number shrink-0">#{index + 1}</div>
                   <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[var(--color-border)] bg-[var(--color-surface-hover)]">
-                    {h.avatarUrl ? (
-                      <Image src={h.avatarUrl} alt="" fill className="object-cover" sizes="56px" unoptimized />
+                    {avatarSrc ? (
+                      <Image
+                        src={avatarSrc}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="56px"
+                        unoptimized
+                        referrerPolicy="no-referrer"
+                      />
                     ) : (
                       <AvatarFallback name={h.name} size={56} />
                     )}

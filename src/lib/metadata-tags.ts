@@ -46,6 +46,7 @@ export function normalizeMetadataTags(raw: unknown): string[] {
     aviator_pilot: "aviator",
     submarine: "submariner",
     submariner: "submariner",
+    cosmonaut: "astronaut",
     surface: "surface_commander",
     world_war_i: "wwi",
     world_war_ii: "wwii",
