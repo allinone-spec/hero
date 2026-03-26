@@ -347,6 +347,27 @@ select.admin-input {
   hyphens: auto;
 }
 
+/* Ribbon rack — hover / focus affordance for clickable ribbons (modal or medal link) */
+.ribbon-rack .ribbon-rack-hit {
+  cursor: pointer;
+  transition: filter 0.18s ease;
+}
+.ribbon-rack .ribbon-rack-hit:hover {
+  filter: drop-shadow(0 0 6px rgba(212, 168, 67, 0.65)) brightness(1.1);
+}
+.ribbon-rack .ribbon-rack-hit:active {
+  filter: brightness(1.02);
+}
+.ribbon-rack .ribbon-rack-hit:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 8px rgba(212, 168, 67, 0.9)) brightness(1.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-rack .ribbon-rack-hit {
+    transition: none;
+  }
+}
+
 /* ── Print Styles ──────────────────────────────────────────── */
 
 @media print {

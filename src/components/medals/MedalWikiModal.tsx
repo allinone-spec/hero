@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
 export interface MedalModalData {
@@ -25,6 +27,9 @@ interface Props {
 }
 
 export default function MedalWikiModal({ medal, onClose }: Props) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   if (!medal) return null;
 
   const hasWikiBody =
@@ -39,7 +44,7 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
     medal.ribbonImageUrl &&
     (!medal.imageUrl || medal.ribbonImageUrl === medal.imageUrl);
 
-  return (
+  const overlay = (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       role="dialog"
@@ -182,4 +187,7 @@ export default function MedalWikiModal({ medal, onClose }: Props) {
       </div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(overlay, document.body);
 }

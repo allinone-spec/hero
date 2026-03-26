@@ -780,7 +780,7 @@ export default function RibbonRack({
             return (
               <g
                 key={`${rowIdx}-${colIdx}`}
-                style={{ cursor: "pointer" }}
+                className="ribbon-rack-hit"
                 role="button"
                 tabIndex={0}
                 onClick={() => onRibbonClick(ribbon)}
@@ -802,8 +802,7 @@ export default function RibbonRack({
               <a
                 key={`${rowIdx}-${colIdx}`}
                 href={`/medals/${ribbon.medalId}`}
-                className="ribbon-link"
-                style={{ cursor: "pointer" }}
+                className="ribbon-link ribbon-rack-hit"
               >
                 <title>{ribbon.name}</title>
                 {ribbonEl}
