@@ -1,0 +1,17 @@
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category,base_points,valor_points
+foreign-ph-medal-of-valor,Medal of Valor (Philippines),310,PH,None,TRUE,Foreign,100,100
+foreign-nl-military-william-order,Military William Order (Netherlands),311,NL,None,TRUE,Foreign,100,100
+foreign-pl-virtuti-militari,Virtuti Militari (Poland),312,PL,None,TRUE,Foreign,90,90
+foreign-fr-legion-honneur-grand-croix,Legion d'honneur - Grand-Croix (France),313,FR,None,TRUE,Foreign,70,70
+foreign-be-order-of-leopold-grand-cordon,Order of Leopold - Grand Cordon (Belgium),314,BE,None,TRUE,Foreign,70,70
+foreign-uk-order-of-the-bath-gcb,Order of the Bath - GCB (UK),315,UK,None,TRUE,Foreign,70,70
+foreign-fr-medaille-militaire,Medaille Militaire (France),320,FR,None,TRUE,Foreign,65,65
+foreign-fr-be-croix-de-guerre-bronze-palm,Croix de Guerre with Bronze Palm (France/Belgium),321,FR,Star,TRUE,Foreign,60,60
+foreign-fr-croix-de-guerre-silver-gilt-star,Croix de Guerre with Silver or Gilt Star (France),322,FR,Star,TRUE,Foreign,50,50
+foreign-fr-legion-honneur-officier-chevalier,Legion d'honneur - Officier/Chevalier (France),323,FR,None,TRUE,Foreign,45,45
+foreign-be-order-of-the-crown,Order of the Crown (Belgium),324,BE,None,TRUE,Foreign,45,45
+foreign-lu-croix-de-guerre,Luxembourg Croix de Guerre,330,LU,Star,TRUE,Foreign,40,40
+foreign-fr-croix-de-guerre-bronze-star,Croix de Guerre with Bronze Star (France),331,FR,Star,TRUE,Foreign,30,30
+foreign-vn-gallantry-cross-palm,Vietnam Gallantry Cross with Palm,332,VN,Palm,TRUE,Foreign,25,25
+foreign-nato-meritorious-service-medal,NATO Meritorious Service Medal,333,NATO,None,FALSE,Foreign,25,25
+foreign-ph-defense-liberation-medal,Philippine Defense/Liberation Medal,334,PH,None,FALSE,Foreign,25,25

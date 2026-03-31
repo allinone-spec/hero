@@ -7,6 +7,12 @@ import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import Pagination from "@/components/ui/Pagination";
 import { countryOptionLabel } from "@/lib/country-display";
+import {
+  heroBranchMatchesFilter,
+  heroWarsMatchFilter,
+  normalizeBranch,
+  normalizeWar,
+} from "@/lib/hero-taxonomy";
 
 const SPECIALTY_LABELS: Record<string, string> = {
   infantry: "Infantry",
@@ -260,9 +266,17 @@ export default function HeroListClient({
   pageRef.current = page;
   const savePage = useCallback(() => sessionStorage.setItem("herolist-page", String(pageRef.current)), []);
 
-  // Derive unique filter values
-  const branches = ["All", ...Array.from(new Set(heroes.map((h) => h.branch).filter(Boolean))).sort()];
-  const wars     = ["All", ...Array.from(new Set(heroes.flatMap((h) => h.wars ?? []))).sort()];
+  // Derive unique filter values (canonical labels so "US Army" and "U.S. Army" merge)
+  const branches = [
+    "All",
+    ...Array.from(new Set(heroes.map((h) => normalizeBranch(h.branch)).filter(Boolean))).sort(),
+  ];
+  const wars = [
+    "All",
+    ...Array.from(
+      new Set(heroes.flatMap((h) => (h.wars ?? []).map((w) => normalizeWar(w))).filter(Boolean))
+    ).sort(),
+  ];
   const countries = [
     "All",
     ...Array.from(new Set(heroes.map((h) => normalizedCountryCode(h)))).sort((a, b) => a.localeCompare(b)),
@@ -281,7 +295,10 @@ export default function HeroListClient({
     const pCountry = searchParams.get("country");
     const hasUrlParams = pBranch || pSpecialty || pSort || pWar || pCountry;
 
-    if (pBranch && branches.includes(pBranch)) setBranch(pBranch);
+    if (pBranch) {
+      const canonB = normalizeBranch(pBranch);
+      if (branches.includes(canonB)) setBranch(canonB);
+    }
     if (pSpecialty && (pSpecialty === "All" || SPECIALTY_LABELS[pSpecialty])) setSpecialty(pSpecialty);
     if (
       pSort &&
@@ -289,7 +306,10 @@ export default function HeroListClient({
     ) {
       setSort(pSort as SortOption);
     }
-    if (pWar && wars.includes(pWar)) setWar(pWar);
+    if (pWar) {
+      const canonW = normalizeWar(pWar);
+      if (wars.includes(canonW)) setWar(canonW);
+    }
     if (pCountry && countries.includes(pCountry.toUpperCase())) setCountry(pCountry.toUpperCase());
 
     // Only restore page from sessionStorage if no URL params drove us here
@@ -306,8 +326,8 @@ export default function HeroListClient({
 
   const filtered = heroes
     .filter((h) => !search || h.name.toLowerCase().includes(search.toLowerCase()))
-    .filter((h) => branch === "All" || h.branch === branch)
-    .filter((h) => war === "All" || (h.wars ?? []).includes(war))
+    .filter((h) => heroBranchMatchesFilter(h.branch, branch))
+    .filter((h) => heroWarsMatchFilter(h.wars, war))
     .filter((h) => specialty === "All" || h.combatAchievements?.type === specialty)
     .filter((h) => country === "All" || normalizedCountryCode(h) === country)
     .filter((h) => {
@@ -340,12 +360,12 @@ export default function HeroListClient({
   // Sidebar stats
   const branchCounts = branches
     .filter((b) => b !== "All")
-    .map((b) => ({ branch: b, count: heroes.filter((h) => h.branch === b).length }))
+    .map((b) => ({ branch: b, count: heroes.filter((h) => heroBranchMatchesFilter(h.branch, b)).length }))
     .sort((a, b) => b.count - a.count);
 
   const warCounts = wars
     .filter((w) => w !== "All")
-    .map((w) => ({ war: w, count: heroes.filter((h) => (h.wars ?? []).includes(w)).length }))
+    .map((w) => ({ war: w, count: heroes.filter((h) => heroWarsMatchFilter(h.wars, w)).length }))
     .sort((a, b) => b.count - a.count);
 
   const countryCounts = countries

@@ -5,7 +5,7 @@ import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { describeMedalDevices, type MedalDeviceRule } from "@/lib/medal-device-rules";
-import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
@@ -73,9 +73,9 @@ export default function HeroDetailClient({
   scoreTotal,
   rankPosition,
 }: Props) {
-  const sortedMedals = [...hero.medals]
-    .filter((m) => m.medalType)
-    .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
+  const sortedMedals = sortHeroMedalEntries([...hero.medals], {
+    nationalCountryCode: hero.countryCode,
+  });
 
   const ribbonMedals = buildRibbonRackMedals(
     sortedMedals.map((m) => ({

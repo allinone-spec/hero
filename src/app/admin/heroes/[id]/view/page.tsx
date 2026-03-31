@@ -42,7 +42,11 @@ interface Hero {
   combatAchievements: {
     type: string;
     confirmedKills: number;
+    probableKills: number;
+    damagedAircraft: number;
+    flightLeadership: boolean;
     shipsSunk: number;
+    warPatrols: number;
     majorEngagements: number;
     definingMissions: number;
   };
@@ -321,16 +325,36 @@ export default function ViewHeroPage() {
           {hasCombatAchievements && (
             <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-[var(--color-border)]">
               {combatType === "aviation" && (
-                <Field
-                  label="Confirmed Kills"
-                  value={hero.combatAchievements.confirmedKills}
-                />
+                <>
+                  <Field
+                    label="Confirmed Kills"
+                    value={hero.combatAchievements.confirmedKills}
+                  />
+                  <Field
+                    label="Probable Kills"
+                    value={hero.combatAchievements.probableKills ?? 0}
+                  />
+                  <Field
+                    label="Aircraft Damaged"
+                    value={hero.combatAchievements.damagedAircraft ?? 0}
+                  />
+                  <Field
+                    label="Flight leadership"
+                    value={hero.combatAchievements.flightLeadership ? "Yes" : "No"}
+                  />
+                </>
               )}
               {combatType === "submarine" && (
-                <Field
-                  label="Ships Sunk"
-                  value={hero.combatAchievements.shipsSunk}
-                />
+                <>
+                  <Field
+                    label="Ships Sunk"
+                    value={hero.combatAchievements.shipsSunk}
+                  />
+                  <Field
+                    label="War Patrols"
+                    value={hero.combatAchievements.warPatrols ?? 0}
+                  />
+                </>
               )}
               {(combatType === "surface" || !["aviation", "submarine"].includes(combatType!)) && (
                 <Field

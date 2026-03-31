@@ -8,7 +8,7 @@ import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ImageUpload from "@/components/ui/ImageUpload";
 import { describeMedalDevices, getMedalDeviceFamilyLabel } from "@/lib/medal-device-rules";
-import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 const profileOwnerBackClass =
@@ -178,8 +178,12 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   }, [slug]);
 
   const ribbonMedals = useMemo(
-    () => buildRibbonRackMedals(medals, { serviceBranch: branch, nationalCountryCode: countryCode }),
-    [branch, countryCode, medals]
+    () =>
+      buildRibbonRackMedals(sortHeroMedalEntries(medals, { nationalCountryCode: countryCode }), {
+        serviceBranch: branch,
+        nationalCountryCode: countryCode,
+      }),
+    [branch, countryCode, medals],
   );
   function addMedal() {
     setSaveSuccess(false);

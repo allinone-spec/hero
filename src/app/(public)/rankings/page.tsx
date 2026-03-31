@@ -8,7 +8,7 @@ import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import type { Metadata } from "next";
 import { getPublishedHeroesForPublicList } from "@/lib/public-heroes";
-import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +66,15 @@ export default async function RankingsPage() {
   const slideshowHeroes = heroesForClient.slice(0, Math.min(5, heroesForClient.length));
 
   const topRibbonMedals = topHero
-    ? buildRibbonRackMedals(topHero.medals ?? [], {
-        serviceBranch: topHero.branch,
-        nationalCountryCode: topHero.countryCode,
-      })
+    ? buildRibbonRackMedals(
+        sortHeroMedalEntries(topHero.medals ?? [], {
+          nationalCountryCode: topHero.countryCode,
+        }),
+        {
+          serviceBranch: topHero.branch,
+          nationalCountryCode: topHero.countryCode,
+        },
+      )
     : [];
 
   return (

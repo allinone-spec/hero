@@ -52,10 +52,16 @@ export interface IHero {
   hadCombatCommand: boolean;
   powHeroism: boolean;
   multiServiceOrMultiWar: boolean;
+  /** Eligible for submarine sink scoring when combat specialty is submarine */
+  submarineCommandEligible?: boolean;
   combatAchievements: {
     type: CombatSpecialty;
     confirmedKills?: number;
+    probableKills?: number;
+    damagedAircraft?: number;
+    flightLeadership?: boolean;
     shipsSunk?: number;
+    warPatrols?: number;
     majorEngagements?: number;
     definingMissions?: number;
   };

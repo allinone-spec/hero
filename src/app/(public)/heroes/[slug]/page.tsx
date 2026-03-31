@@ -3,6 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import "@/lib/models/MedalType";
 import { calculateScore } from "@/lib/scoring-engine";
+import { getContextualRanksForHero } from "@/lib/contextual-ranks";
 import HeroDetailClient from "./HeroDetailClient";
 import type { Metadata } from "next";
 
@@ -58,23 +59,21 @@ export default async function HeroPage({ params, searchParams }: Props) {
         ? { href: "/rankings" as const, label: "< Back to Rankings" as const }
         : { href: "/rankings" as const, label: "< Back to Heroes" as const };
 
-  // Run hero fetch and rank count in parallel
-  const [hero, rankCount] = await Promise.all([
-    Hero.findOne({ slug, published: true })
-      .populate("medals.medalType")
-      .lean(),
-    // Count heroes with higher score for rank position (much faster than fetching all)
-    Hero.findOne({ slug, published: true }).select("score").lean().then(async (h) => {
-      if (!h) return 0;
-      const higherCount = await Hero.countDocuments({
-        published: true,
-        score: { $gt: h.score },
-      });
-      return higherCount + 1;
-    }),
-  ]);
+  const hero = await Hero.findOne({ slug, published: true }).populate("medals.medalType").lean();
 
   if (!hero) notFound();
+
+  const [rankCount, totalPublished, contextualRanks] = await Promise.all([
+    Hero.countDocuments({ published: true, score: { $gt: hero.score } }).then((c) => c + 1),
+    Hero.countDocuments({ published: true }),
+    getContextualRanksForHero({
+      _id: String(hero._id),
+      score: hero.score,
+      branch: hero.branch,
+      wars: hero.wars ?? [],
+      combatAchievements: hero.combatAchievements,
+    }),
+  ]);
 
   // Calculate full score breakdown
   interface PopulatedMedalType {
@@ -83,11 +82,15 @@ export default async function HeroPage({ params, searchParams }: Props) {
     valorPoints?: number;
     requiresValorDevice?: boolean;
     inherentlyValor?: boolean;
+    category?: "valor" | "service" | "foreign" | "other";
+    countryCode?: string;
   }
   const medalData = hero.medals
     .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
     .map((m: { medalType: PopulatedMedalType; count: number; hasValor: boolean; valorDevices: number }) => ({
       name: m.medalType.name,
+      category: m.medalType.category,
+      countryCode: m.medalType.countryCode,
       basePoints: m.medalType.basePoints,
       valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
       requiresValorDevice: m.medalType.requiresValorDevice ?? false,
@@ -104,6 +107,7 @@ export default async function HeroPage({ params, searchParams }: Props) {
     hadCombatCommand: hero.hadCombatCommand,
     powHeroism: hero.powHeroism,
     multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+    submarineCommandEligible: hero.submarineCommandEligible !== false,
     combatAchievements: hero.combatAchievements || { type: "none" },
   });
 
@@ -116,6 +120,8 @@ export default async function HeroPage({ params, searchParams }: Props) {
         scoreBreakdown={scoreResult.breakdown}
         scoreTotal={scoreResult.total}
         rankPosition={rankCount}
+        totalPublishedHeroes={totalPublished}
+        contextualRanks={contextualRanks}
         profileBackHref={profileBack.href}
         profileBackLabel={profileBack.label}
       />

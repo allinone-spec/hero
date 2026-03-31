@@ -17,7 +17,10 @@ export const DEFAULT_RIBBON_COLORS: Record<string, string[]> = {
   "Foreign Valor Medal": ["#FFD700", "#CC0000", "#FFD700"],
 };
 
-// Medal precedence order for display (lower = higher precedence)
+/**
+ * @deprecated Display order uses `MedalType.precedenceOrder` from MongoDB (`sortRackMedals`
+ * in `src/lib/rack-engine.ts`). This map is legacy (e.g. seed defaults); do not use for racks.
+ */
 export const MEDAL_PRECEDENCE: Record<string, number> = {
   "Medal of Honor": 1,
   "Distinguished Service Cross": 2,

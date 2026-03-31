@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth";
 import {
   calculateComparisonScore,
   calculateScore,
-  DEFAULT_SCORING_CONFIG,
+  mergeScoringConfig,
   ScoringConfig as IScoringConfig,
 } from "@/lib/scoring-engine";
 
@@ -19,25 +19,7 @@ export async function POST() {
   await dbConnect();
 
   const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-  const config: IScoringConfig = rawConfig
-    ? {
-        valorDevicePoints: rawConfig.valorDevicePoints,
-        theaterBonusPerWar: rawConfig.theaterBonusPerWar,
-        combatLeadershipBonus: rawConfig.combatLeadershipBonus,
-        powHeroismBonus: rawConfig.powHeroismBonus,
-        woundsBonusPerHeart: rawConfig.woundsBonusPerHeart,
-        aviationKillThreshold: rawConfig.aviationKillThreshold,
-        aviationKillPtsPerKill: rawConfig.aviationKillPtsPerKill,
-        aviationMissionPts: rawConfig.aviationMissionPts,
-        submarineShipThreshold: rawConfig.submarineShipThreshold,
-        submarineShipPtsPerShip: rawConfig.submarineShipPtsPerShip,
-        submarineMissionPts: rawConfig.submarineMissionPts,
-        surfaceEngagementPts: rawConfig.surfaceEngagementPts,
-        surfaceMissionPts: rawConfig.surfaceMissionPts,
-        multiServiceBonusPct: rawConfig.multiServiceBonusPct,
-        roundingBase: rawConfig.roundingBase,
-      }
-    : DEFAULT_SCORING_CONFIG;
+  const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
 
   const heroes = await Hero.find({}).populate("medals.medalType");
   let count = 0;
@@ -45,6 +27,8 @@ export async function POST() {
   for (const hero of heroes) {
     interface PopulatedMedalType {
       name: string;
+      category?: "valor" | "service" | "foreign" | "other";
+      countryCode?: string;
       basePoints: number;
       valorPoints?: number;
       requiresValorDevice?: boolean;
@@ -54,6 +38,8 @@ export async function POST() {
       .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
       .map((m: { medalType: PopulatedMedalType; count: number; hasValor: boolean; valorDevices: number }) => ({
         name: m.medalType.name,
+        category: m.medalType.category,
+        countryCode: m.medalType.countryCode,
         basePoints: m.medalType.basePoints,
         valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
         requiresValorDevice: m.medalType.requiresValorDevice ?? false,
@@ -71,6 +57,7 @@ export async function POST() {
         hadCombatCommand: hero.hadCombatCommand,
         powHeroism: hero.powHeroism,
         multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+        submarineCommandEligible: hero.submarineCommandEligible !== false,
         combatAchievements: hero.combatAchievements,
       },
       config

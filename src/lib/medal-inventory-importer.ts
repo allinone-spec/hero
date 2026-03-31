@@ -1,6 +1,8 @@
 /**
  * Import medal rows from client CSV files into MedalType.
- * CSV columns: medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
+ * CSV columns:
+ * medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category[,base_points[,valor_points[,other_names]]]
+ * `other_names`: optional; pipe or semicolon separated aliases (e.g. DFC|D.F.C.).
  */
 
 import fs from "fs";
@@ -16,6 +18,10 @@ export type ImportMedalRow = {
   deviceLogic: string;
   vDeviceAllowed: boolean;
   inventoryCategory: string;
+  basePoints?: number;
+  valorPoints?: number;
+  /** Synonyms for matchAiMedalsToDatabase — from optional CSV column */
+  otherNames?: string[];
 };
 
 function parseCsvLine(line: string): string[] {
@@ -48,6 +54,18 @@ export function parseMedalInventoryCsv(content: string): ImportMedalRow[] {
     if (cols.length < 7) continue;
     const precedenceWeight = parseInt(cols[2], 10);
     if (Number.isNaN(precedenceWeight)) continue;
+    const basePointsRaw = cols[7]?.trim();
+    const valorPointsRaw = cols[8]?.trim();
+    const otherNamesRaw = cols[9]?.trim();
+    const parsedBasePoints = basePointsRaw ? parseInt(basePointsRaw, 10) : undefined;
+    const parsedValorPoints = valorPointsRaw ? parseInt(valorPointsRaw, 10) : undefined;
+    const otherNames: string[] | undefined = otherNamesRaw
+      ? otherNamesRaw
+          .split(/[|;]/)
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
+
     rows.push({
       medalId: cols[0].trim(),
       medalName: cols[1].trim(),
@@ -56,11 +74,15 @@ export function parseMedalInventoryCsv(content: string): ImportMedalRow[] {
       deviceLogic: cols[4].trim(),
       vDeviceAllowed: /^true$/i.test(cols[5].trim()),
       inventoryCategory: cols[6].trim(),
+      basePoints: Number.isFinite(parsedBasePoints) ? parsedBasePoints : undefined,
+      valorPoints: Number.isFinite(parsedValorPoints) ? parsedValorPoints : undefined,
+      otherNames: otherNames?.length ? otherNames : undefined,
     });
   }
   return rows;
 }
 
+/** Maps CSV category to MedalType.category. Valor-Merit / Valor → valor (substring "valor"). */
 function mapInventoryCategoryToSchemaCategory(
   inv: string
 ): "valor" | "service" | "foreign" | "other" {
@@ -116,17 +138,32 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
           medalName: row.medalName,
         });
         const basePoints =
+          row.basePoints ??
           existingById?.basePoints ??
           existingByName?.basePoints ??
           defaultBasePoints(row.precedenceWeight, row.inventoryCategory);
+        const valorPoints =
+          row.valorPoints ??
+          existingById?.valorPoints ??
+          existingByName?.valorPoints ??
+          basePoints;
+
+        const mergedOtherNames = (() => {
+          const fromRow = row.otherNames;
+          const existing = existingById?.otherNames ?? existingByName?.otherNames ?? [];
+          if (fromRow?.length) {
+            return [...new Set([...fromRow, ...existing])];
+          }
+          return existing;
+        })();
 
         const doc = {
           name: row.medalName,
           shortName: existingById?.shortName ?? existingByName?.shortName ?? shortName,
-          otherNames: existingById?.otherNames ?? existingByName?.otherNames ?? [],
+          otherNames: mergedOtherNames,
           category,
           basePoints,
-          valorPoints: existingById?.valorPoints ?? existingByName?.valorPoints ?? basePoints,
+          valorPoints,
           requiresValorDevice: row.vDeviceAllowed,
           inherentlyValor: category === "valor" && row.precedenceWeight <= 25,
           tier: Math.min(99, Math.floor(row.precedenceWeight / 10)),
@@ -156,6 +193,9 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
                 vDeviceAllowed: row.vDeviceAllowed,
                 inventoryCategory: row.inventoryCategory,
                 requiresValorDevice: row.vDeviceAllowed,
+                basePoints,
+                valorPoints,
+                ...(row.otherNames?.length ? { otherNames: mergedOtherNames } : {}),
               },
             }
           );
@@ -172,6 +212,9 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
                 vDeviceAllowed: row.vDeviceAllowed,
                 inventoryCategory: row.inventoryCategory,
                 requiresValorDevice: row.vDeviceAllowed,
+                basePoints,
+                valorPoints,
+                ...(row.otherNames?.length ? { otherNames: mergedOtherNames } : {}),
               },
             }
           );

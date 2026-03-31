@@ -1308,6 +1308,8 @@ async function seed() {
       const mt = MEDAL_DEFS.find((md) => md.shortName === m.shortName)!;
       return {
         name: mt.name,
+        category: mt.category,
+        countryCode: "countryCode" in mt ? (mt as { countryCode?: string }).countryCode : "US",
         basePoints: mt.basePoints,
         valorPoints: mt.valorPoints,
         requiresValorDevice: mt.requiresValorDevice,
@@ -1326,6 +1328,7 @@ async function seed() {
         hadCombatCommand: heroDef.hadCombatCommand,
         powHeroism: heroDef.powHeroism,
         multiServiceOrMultiWar: heroDef.multiServiceOrMultiWar,
+        submarineCommandEligible: true,
         combatAchievements: heroDef.combatAchievements,
       },
       DEFAULT_SCORING_CONFIG

@@ -100,18 +100,58 @@ function getMedalNationalPriority(
   return 1;
 }
 
+/**
+ * Gate 1 — deterministic catalog sort (no AI). Lower `precedenceOrder` = wears first.
+ * With `nationalCountryCode`, home-country medals sort before foreign at the same tier
+ * (`getMedalNationalPriority`).
+ */
+export function compareMedalForRackOrder(
+  a: { precedenceOrder: number; name: string; countryCode?: string },
+  b: { precedenceOrder: number; name: string; countryCode?: string },
+  nationalCountryCode?: string,
+): number {
+  const aNationalPriority = getMedalNationalPriority(a.countryCode, nationalCountryCode);
+  const bNationalPriority = getMedalNationalPriority(b.countryCode, nationalCountryCode);
+  if (aNationalPriority !== bNationalPriority) return aNationalPriority - bNationalPriority;
+  if (a.precedenceOrder !== b.precedenceOrder) return a.precedenceOrder - b.precedenceOrder;
+  if ((a.countryCode || "") !== (b.countryCode || "")) {
+    return String(a.countryCode || "").localeCompare(String(b.countryCode || ""));
+  }
+  return a.name.localeCompare(b.name);
+}
+
 export function sortRackMedals<
   T extends { precedenceOrder: number; name: string; countryCode?: string }
 >(medals: T[], options?: { nationalCountryCode?: string }): T[] {
-  return [...medals].sort((a, b) => {
-    const aNationalPriority = getMedalNationalPriority(a.countryCode, options?.nationalCountryCode);
-    const bNationalPriority = getMedalNationalPriority(b.countryCode, options?.nationalCountryCode);
-    if (aNationalPriority !== bNationalPriority) return aNationalPriority - bNationalPriority;
-    if (a.precedenceOrder !== b.precedenceOrder) return a.precedenceOrder - b.precedenceOrder;
-    if ((a.countryCode || "") !== (b.countryCode || "")) {
-      return String(a.countryCode || "").localeCompare(String(b.countryCode || ""));
-    }
-    return a.name.localeCompare(b.name);
+  return [...medals].sort((a, b) =>
+    compareMedalForRackOrder(a, b, options?.nationalCountryCode),
+  );
+}
+
+/**
+ * Same ordering as {@link buildRibbonRackMedals} / {@link sortRackMedals}.
+ * Use for “Awards & Decorations” lists so row order matches the ribbon rack.
+ */
+export function sortHeroMedalEntries<T extends RackMedalEntryLike>(
+  entries: T[],
+  options?: { nationalCountryCode?: string },
+): T[] {
+  return [...entries].filter((e) => e.medalType).sort((a, b) => {
+    const ma = a.medalType!;
+    const mb = b.medalType!;
+    return compareMedalForRackOrder(
+      {
+        precedenceOrder: ma.precedenceOrder,
+        name: ma.name,
+        countryCode: ma.countryCode,
+      },
+      {
+        precedenceOrder: mb.precedenceOrder,
+        name: mb.name,
+        countryCode: mb.countryCode,
+      },
+      options?.nationalCountryCode,
+    );
   });
 }
 

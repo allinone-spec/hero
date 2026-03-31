@@ -274,7 +274,10 @@ export async function runHeroImportPipeline(
   const { matched: matchedMain, unmatched: unmatchedMain } = matchAiMedalsToDatabase(
     aiParsed.medals,
     medalTypes,
-    { countryCode }
+    {
+      countryCode,
+      serviceBranch: scraped.branch || aiParsed.branch || "",
+    },
   );
   const mtById = new Map(medalTypes.map((m) => [m._id.toString(), m]));
   const aiMedals = matchedMain.map((m) => ({
@@ -402,7 +405,10 @@ async function aiFallbackPipeline(
   const { matched: fbMatched, unmatched: fbUnmatched } = matchAiMedalsToDatabase(
     aiParsed.medals,
     medalTypes,
-    { countryCode }
+    {
+      countryCode,
+      serviceBranch: aiParsed.branch || "",
+    },
   );
   const mtByIdFb = new Map(medalTypes.map((m) => [m._id.toString(), m]));
   const aiMedals = fbMatched.map((m) => ({

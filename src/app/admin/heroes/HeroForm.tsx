@@ -55,6 +55,8 @@ interface HeroFormData {
   hadCombatCommand: boolean;
   powHeroism: boolean;
   multiServiceOrMultiWar: boolean;
+  /** Master scoring §12: submarine sink points only when eligible command role */
+  submarineCommandEligible: boolean;
   published: boolean;
   /** Caretaker: data reviewed against sources */
   isVerified: boolean;
@@ -68,7 +70,11 @@ interface HeroFormData {
   combatAchievements: {
     type: string;
     confirmedKills: number;
+    probableKills: number;
+    damagedAircraft: number;
+    flightLeadership: boolean;
     shipsSunk: number;
+    warPatrols: number;
     majorEngagements: number;
     definingMissions: number;
   };
@@ -692,17 +698,25 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
     hadCombatCommand: initialData?.hadCombatCommand || false,
     powHeroism: initialData?.powHeroism || false,
     multiServiceOrMultiWar: initialData?.multiServiceOrMultiWar || false,
+    submarineCommandEligible: initialData?.submarineCommandEligible !== false,
     published: initialData?.published || false,
     isVerified: initialData?.isVerified ?? false,
     orderOverride: initialData?.orderOverride?.toString() || "",
     medals: initialData?.medals || [],
-    combatAchievements: initialData?.combatAchievements || {
-      type: "none",
-      confirmedKills: 0,
-      shipsSunk: 0,
-      majorEngagements: 0,
-      definingMissions: 0,
-    },
+    combatAchievements: (() => {
+      const ca = initialData?.combatAchievements;
+      return {
+        type: ca?.type ?? "none",
+        confirmedKills: ca?.confirmedKills ?? 0,
+        probableKills: ca?.probableKills ?? 0,
+        damagedAircraft: ca?.damagedAircraft ?? 0,
+        flightLeadership: ca?.flightLeadership ?? false,
+        shipsSunk: ca?.shipsSunk ?? 0,
+        warPatrols: ca?.warPatrols ?? 0,
+        majorEngagements: ca?.majorEngagements ?? 0,
+        definingMissions: ca?.definingMissions ?? 0,
+      };
+    })(),
     countryCode: initialData?.countryCode || "US",
     metadataTags: Array.isArray(initialData?.metadataTags) ? [...initialData!.metadataTags!] : [],
     ownerUserId: initialData?.ownerUserId
@@ -2587,34 +2601,104 @@ function normalizeCombatType(input: unknown): CombatType {
         {form.combatAchievements.type !== "none" && (
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[var(--color-border)]">
             {form.combatAchievements.type === "aviation" && (
-              <div>
-                <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
-                  Confirmed Kills
-                </label>
-                <input
-                  type="number" min={0}
-                  value={form.combatAchievements.confirmedKills}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, confirmedKills: parseInt(e.target.value) || 0 } }))
-                  }
-                  className="admin-input"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+                    Confirmed Kills
+                  </label>
+                  <input
+                    type="number" min={0}
+                    value={form.combatAchievements.confirmedKills}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, confirmedKills: parseInt(e.target.value) || 0 } }))
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+                    Probable Kills
+                  </label>
+                  <input
+                    type="number" min={0}
+                    value={form.combatAchievements.probableKills}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, probableKills: parseInt(e.target.value) || 0 } }))
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+                    Aircraft Damaged
+                  </label>
+                  <input
+                    type="number" min={0}
+                    value={form.combatAchievements.damagedAircraft}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, damagedAircraft: parseInt(e.target.value) || 0 } }))
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)]">
+                    <input
+                      type="checkbox"
+                      checked={form.combatAchievements.flightLeadership}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          combatAchievements: { ...p.combatAchievements, flightLeadership: e.target.checked },
+                        }))
+                      }
+                      className="rounded border-[var(--color-border)]"
+                    />
+                    Flight leadership (squadron / wing or equivalent)
+                  </label>
+                </div>
+              </>
             )}
             {form.combatAchievements.type === "submarine" && (
-              <div>
-                <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
-                  Ships Sunk
-                </label>
-                <input
-                  type="number" min={0}
-                  value={form.combatAchievements.shipsSunk}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, shipsSunk: parseInt(e.target.value) || 0 } }))
-                  }
-                  className="admin-input"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+                    Ships Sunk
+                  </label>
+                  <input
+                    type="number" min={0}
+                    value={form.combatAchievements.shipsSunk}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, shipsSunk: parseInt(e.target.value) || 0 } }))
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
+                    War Patrols Completed
+                  </label>
+                  <input
+                    type="number" min={0}
+                    value={form.combatAchievements.warPatrols}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, combatAchievements: { ...p.combatAchievements, warPatrols: parseInt(e.target.value) || 0 } }))
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-text)]">
+                    <input
+                      type="checkbox"
+                      checked={form.submarineCommandEligible}
+                      onChange={(e) => set("submarineCommandEligible", e.target.checked)}
+                      className="rounded border-[var(--color-border)]"
+                    />
+                    Submarine command scoring eligible (uncheck if not a commanding officer — sink points disabled)
+                  </label>
+                </div>
+              </>
             )}
             {(form.combatAchievements.type === "surface" || !["aviation", "submarine"].includes(form.combatAchievements.type)) && (
               <div>

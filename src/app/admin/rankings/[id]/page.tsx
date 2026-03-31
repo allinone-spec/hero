@@ -38,11 +38,15 @@ export default async function AdminRankingsHeroPage({ params }: Props) {
     valorPoints?: number;
     requiresValorDevice?: boolean;
     inherentlyValor?: boolean;
+    category?: "valor" | "service" | "foreign" | "other";
+    countryCode?: string;
   }
   const medalData = hero.medals
     .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
     .map((m: { medalType: PopulatedMedalType; count: number; hasValor: boolean; valorDevices: number }) => ({
       name: m.medalType.name,
+      category: m.medalType.category,
+      countryCode: m.medalType.countryCode,
       basePoints: m.medalType.basePoints,
       valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
       requiresValorDevice: m.medalType.requiresValorDevice ?? false,
@@ -59,6 +63,7 @@ export default async function AdminRankingsHeroPage({ params }: Props) {
     hadCombatCommand: hero.hadCombatCommand,
     powHeroism: hero.powHeroism,
     multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+    submarineCommandEligible: hero.submarineCommandEligible !== false,
     combatAchievements: hero.combatAchievements || { type: "none" },
   });
 

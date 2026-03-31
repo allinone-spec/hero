@@ -8,7 +8,7 @@ import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { describeMedalDevices, type MedalDeviceRule } from "@/lib/medal-device-rules";
-import { buildRibbonRackMedals, type RackRenderMedal } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries, type RackRenderMedal } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
@@ -67,6 +67,10 @@ interface Props {
   scoreBreakdown: ScoreBreakdownItem[];
   scoreTotal: number;
   rankPosition: number;
+  /** Published hero count — for "rank of N" global context */
+  totalPublishedHeroes?: number;
+  /** Branch / specialty / conflict slices (same score ordering as global) */
+  contextualRanks?: { label: string; rank: number; total: number }[];
   profileBackHref: string;
   profileBackLabel: string;
 }
@@ -291,14 +295,16 @@ export default function HeroDetailClient({
   scoreBreakdown,
   scoreTotal,
   rankPosition,
+  totalPublishedHeroes,
+  contextualRanks,
   profileBackHref,
   profileBackLabel,
 }: Props) {
   const [selectedMedal, setSelectedMedal] = useState<RackRenderMedal | null>(null);
 
-  const sortedMedals = [...hero.medals]
-    .filter((m) => m.medalType)
-    .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
+  const sortedMedals = sortHeroMedalEntries([...hero.medals], {
+    nationalCountryCode: hero.countryCode,
+  });
 
   const ribbonMedals = buildRibbonRackMedals(sortedMedals, {
     serviceBranch: hero.branch,
@@ -339,9 +345,24 @@ export default function HeroDetailClient({
         {/* Profile Header */}
         <div className="relative text-center px-6 pt-8 pb-6 border-b border-[var(--color-border)]">
           {/* Score + Rank — top left */}
-          <div className="absolute top-4 left-4 no-print flex flex-col items-start gap-1.5">
+          <div className="absolute top-4 left-4 no-print flex flex-col items-start gap-1.5 max-w-[min(100%,14rem)]">
             <span className="score-badge text-sm">{hero.score} pts</span>
-            <span className="text-xs font-semibold text-[var(--color-gold)]">Ranked #{rankPosition}</span>
+            <span className="text-xs font-semibold text-[var(--color-gold)]">
+              #{rankPosition}
+              {typeof totalPublishedHeroes === "number" ? ` of ${totalPublishedHeroes}` : ""} global
+            </span>
+            {contextualRanks && contextualRanks.length > 0 && (
+              <ul className="text-[10px] leading-snug text-[var(--color-text-muted)] space-y-0.5 list-none pl-0 mt-1 border-t border-[var(--color-border)]/60 pt-1.5">
+                {contextualRanks.map((row, idx) => (
+                  <li key={`${row.label}-${idx}`}>
+                    <span className="text-[var(--color-text-muted)]">{row.label}:</span>{" "}
+                    <span className="text-[var(--color-gold)]/90">
+                      #{row.rank} of {row.total}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Rank insignia — top right */}

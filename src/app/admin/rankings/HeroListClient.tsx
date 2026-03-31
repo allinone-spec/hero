@@ -6,6 +6,12 @@ import HeroCard from "@/components/heroes/HeroCard";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import Pagination from "@/components/ui/Pagination";
+import {
+  heroBranchMatchesFilter,
+  heroWarsMatchFilter,
+  normalizeBranch,
+  normalizeWar,
+} from "@/lib/hero-taxonomy";
 
 const SPECIALTY_LABELS: Record<string, string> = {
   infantry: "Infantry",
@@ -224,9 +230,17 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
   pageRef.current = page;
   const savePage = useCallback(() => sessionStorage.setItem("herolist-page", String(pageRef.current)), []);
 
-  // Derive unique filter values
-  const branches = ["All", ...Array.from(new Set(heroes.map((h) => h.branch).filter(Boolean))).sort()];
-  const wars     = ["All", ...Array.from(new Set(heroes.flatMap((h) => h.wars ?? []))).sort()];
+  // Derive unique filter values (canonical labels so synonyms merge)
+  const branches = [
+    "All",
+    ...Array.from(new Set(heroes.map((h) => normalizeBranch(h.branch)).filter(Boolean))).sort(),
+  ];
+  const wars = [
+    "All",
+    ...Array.from(
+      new Set(heroes.flatMap((h) => (h.wars ?? []).map((w) => normalizeWar(w))).filter(Boolean))
+    ).sort(),
+  ];
   const ALL_SPECIALTIES = Object.keys(SPECIALTY_LABELS);
   const heroSpecialties = ALL_SPECIALTIES.filter((s) => heroes.some((h) => h.combatAchievements?.type === s));
   const specialties: string[] = ["All", ...heroSpecialties];
@@ -239,10 +253,16 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
     const pWar = searchParams.get("war");
     const hasUrlParams = pBranch || pSpecialty || pSort || pWar;
 
-    if (pBranch && branches.includes(pBranch)) setBranch(pBranch);
+    if (pBranch) {
+      const canonB = normalizeBranch(pBranch);
+      if (branches.includes(canonB)) setBranch(canonB);
+    }
     if (pSpecialty && (pSpecialty === "All" || SPECIALTY_LABELS[pSpecialty])) setSpecialty(pSpecialty);
     if (pSort && ["score_desc", "score_asc", "name", "medals_desc"].includes(pSort)) setSort(pSort as SortOption);
-    if (pWar && wars.includes(pWar)) setWar(pWar);
+    if (pWar) {
+      const canonW = normalizeWar(pWar);
+      if (wars.includes(canonW)) setWar(canonW);
+    }
 
     // Only restore page from sessionStorage if no URL params drove us here
     if (!hasUrlParams) {
@@ -258,8 +278,8 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
 
   const filtered = heroes
     .filter((h) => !search || h.name.toLowerCase().includes(search.toLowerCase()))
-    .filter((h) => branch === "All" || h.branch === branch)
-    .filter((h) => war === "All" || (h.wars ?? []).includes(war))
+    .filter((h) => heroBranchMatchesFilter(h.branch, branch))
+    .filter((h) => heroWarsMatchFilter(h.wars, war))
     .filter((h) => specialty === "All" || h.combatAchievements?.type === specialty)
     .sort((a, b) => {
       if (sort === "score_desc") return b.score - a.score;
@@ -281,12 +301,12 @@ export default function HeroListClient({ heroes }: { heroes: HeroData[] }) {
   // Sidebar stats
   const branchCounts = branches
     .filter((b) => b !== "All")
-    .map((b) => ({ branch: b, count: heroes.filter((h) => h.branch === b).length }))
+    .map((b) => ({ branch: b, count: heroes.filter((h) => heroBranchMatchesFilter(h.branch, b)).length }))
     .sort((a, b) => b.count - a.count);
 
   const warCounts = wars
     .filter((w) => w !== "All")
-    .map((w) => ({ war: w, count: heroes.filter((h) => (h.wars ?? []).includes(w)).length }))
+    .map((w) => ({ war: w, count: heroes.filter((h) => heroWarsMatchFilter(h.wars, w)).length }))
     .sort((a, b) => b.count - a.count);
 
   const highestScore = heroes.reduce((max, h) => Math.max(max, h.score), 0);

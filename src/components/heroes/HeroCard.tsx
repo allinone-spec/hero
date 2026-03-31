@@ -4,7 +4,7 @@ import Link from "next/link";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
-import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 interface HeroCardProps {
@@ -46,7 +46,10 @@ interface HeroCardProps {
 }
 
 export default function HeroCard({ rank, hero, href, fromParam = "heroes", onClick }: HeroCardProps) {
-  const ribbonMedals = buildRibbonRackMedals(hero.medals, {
+  const orderedMedals = sortHeroMedalEntries(hero.medals, {
+    nationalCountryCode: hero.countryCode,
+  });
+  const ribbonMedals = buildRibbonRackMedals(orderedMedals, {
     serviceBranch: hero.branch,
     nationalCountryCode: hero.countryCode,
   });

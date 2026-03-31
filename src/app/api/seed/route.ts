@@ -225,6 +225,8 @@ export async function POST() {
           if (!mt) return null;
           return {
             name: mt.name,
+            category: (mt as { category?: "valor" | "service" | "foreign" | "other" }).category,
+            countryCode: (mt as { countryCode?: string }).countryCode,
             basePoints: mt.basePoints,
             valorPoints: (mt as { valorPoints?: number }).valorPoints ?? mt.basePoints,
             requiresValorDevice: (mt as { requiresValorDevice?: boolean }).requiresValorDevice ?? false,
@@ -234,7 +236,7 @@ export async function POST() {
             valorDevices: m.valorDevices,
           };
         })
-        .filter(Boolean) as { name: string; basePoints: number; valorPoints: number; requiresValorDevice: boolean; inherentlyValor: boolean; count: number; hasValor: boolean; valorDevices: number }[];
+        .filter(Boolean) as { name: string; category?: "valor" | "service" | "foreign" | "other"; countryCode?: string; basePoints: number; valorPoints: number; requiresValorDevice: boolean; inherentlyValor: boolean; count: number; hasValor: boolean; valorDevices: number }[];
 
       const result = calculateScore({
         medals: medalScoringData,
@@ -243,6 +245,7 @@ export async function POST() {
         hadCombatCommand: heroData.hadCombatCommand,
         powHeroism: heroData.powHeroism,
         multiServiceOrMultiWar: heroData.multiServiceOrMultiWar,
+        submarineCommandEligible: true,
         combatAchievements: { type: "none" as const },
       });
 

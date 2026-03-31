@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { HERO_METADATA_TAGS } from "@/lib/metadata-tags";
 import { countryOptionLabel } from "@/lib/country-display";
+import { heroBranchMatchesFilter, normalizeBranch, normalizeWar } from "@/lib/hero-taxonomy";
 
 /* ── Types ────────────────────────────────────────────────── */
 
@@ -77,7 +78,11 @@ interface ImportFormData {
   combatAchievements: {
     type: string;
     confirmedKills: number;
+    probableKills: number;
+    damagedAircraft: number;
+    flightLeadership: boolean;
     shipsSunk: number;
+    warPatrols: number;
     majorEngagements: number;
     definingMissions: number;
   };
@@ -159,7 +164,11 @@ const emptyImportForm: ImportFormData = {
   combatAchievements: {
     type: "none",
     confirmedKills: 0,
+    probableKills: 0,
+    damagedAircraft: 0,
+    flightLeadership: false,
     shipsSunk: 0,
+    warPatrols: 0,
     majorEngagements: 0,
     definingMissions: 0,
   },
@@ -234,7 +243,7 @@ export default function AdminHeroesPage() {
   const branches = useMemo(() => {
     const set = new Set<string>();
     heroes.forEach((h) => {
-      if (h.branch) set.add(h.branch);
+      if (h.branch) set.add(normalizeBranch(h.branch));
     });
     return Array.from(set).sort();
   }, [heroes]);
@@ -252,7 +261,7 @@ export default function AdminHeroesPage() {
     const set = new Set<string>();
     heroes.forEach((h) => {
       (h.wars || []).forEach((w) => {
-        if (w && String(w).trim()) set.add(String(w).trim());
+        if (w && String(w).trim()) set.add(normalizeWar(String(w).trim()));
       });
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -317,7 +326,7 @@ export default function AdminHeroesPage() {
     }
 
     if (branchFilter !== "all") {
-      result = result.filter((h) => h.branch === branchFilter);
+      result = result.filter((h) => heroBranchMatchesFilter(h.branch, branchFilter));
     }
 
     if (statusFilter === "published") {
@@ -331,7 +340,10 @@ export default function AdminHeroesPage() {
     }
 
     if (warFilter !== "all") {
-      result = result.filter((h) => (h.wars || []).some((w) => String(w).trim() === warFilter));
+      const needle = normalizeWar(warFilter);
+      result = result.filter((h) =>
+        (h.wars || []).some((w) => normalizeWar(String(w).trim()) === needle)
+      );
     }
 
     if (combatFilter !== "all") {

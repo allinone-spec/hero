@@ -6,10 +6,11 @@ import { requirePrivilege } from "@/lib/auth";
 import {
   calculateComparisonScore,
   calculateScore,
-  DEFAULT_SCORING_CONFIG,
+  mergeScoringConfig,
   ScoringConfig as IScoringConfig,
 } from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
+import { branchVariantsForQuery, normalizeBranch, normalizeWarsArray, warVariantsForQuery } from "@/lib/hero-taxonomy";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -46,8 +47,14 @@ export async function GET(req: NextRequest) {
       { branch: { $regex: search, $options: "i" } },
     ];
   }
-  if (branch && branch !== "All") filter.branch = branch;
-  if (war && war !== "All") filter.wars = war;
+  if (branch && branch !== "All") {
+    const bv = branchVariantsForQuery(branch);
+    filter.branch = bv.length <= 1 ? bv[0] : { $in: bv };
+  }
+  if (war && war !== "All") {
+    const wv = warVariantsForQuery(war);
+    filter.wars = wv.length <= 1 ? wv[0] : { $in: wv };
+  }
   if (countryCode) filter.countryCode = countryCode.toUpperCase();
   if (tag) filter.metadataTags = tag;
 
@@ -103,6 +110,13 @@ export async function POST(req: NextRequest) {
   await dbConnect();
   const body = await req.json();
 
+  if (typeof body.branch === "string") {
+    body.branch = normalizeBranch(body.branch);
+  }
+  if (Array.isArray(body.wars)) {
+    body.wars = normalizeWarsArray(body.wars);
+  }
+
   // Generate slug
   if (body.name && !body.slug) {
     body.slug = body.name
@@ -114,10 +128,12 @@ export async function POST(req: NextRequest) {
   // Calculate score from medals if medals are populated
   if (body.medals && body.medals.length > 0) {
     const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-    const config: IScoringConfig = rawConfig ?? DEFAULT_SCORING_CONFIG;
+    const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
 
     interface PopulatedMedalType {
       name: string;
+      category?: "valor" | "service" | "foreign" | "other";
+      countryCode?: string;
       basePoints: number;
       valorPoints?: number;
       requiresValorDevice?: boolean;
@@ -128,6 +144,8 @@ export async function POST(req: NextRequest) {
       .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
       .map((m: { medalType: PopulatedMedalType; count: number; hasValor: boolean; valorDevices: number }) => ({
         name: m.medalType.name,
+        category: m.medalType.category,
+        countryCode: m.medalType.countryCode,
         basePoints: m.medalType.basePoints,
         valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
         requiresValorDevice: m.medalType.requiresValorDevice ?? false,
@@ -145,6 +163,7 @@ export async function POST(req: NextRequest) {
         hadCombatCommand: body.hadCombatCommand || false,
         powHeroism: body.powHeroism || false,
         multiServiceOrMultiWar: body.multiServiceOrMultiWar || false,
+        submarineCommandEligible: body.submarineCommandEligible !== false,
         combatAchievements: body.combatAchievements || { type: "none" },
       },
       config

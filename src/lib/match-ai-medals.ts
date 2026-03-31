@@ -4,6 +4,7 @@
  */
 
 import { normalizeAwardText } from "@/lib/medal-normalization";
+import { resolveMedalOfHonorCatalogName } from "@/lib/medal-of-honor-resolve";
 
 export interface MedalTypeForMatch {
   _id: { toString(): string };
@@ -31,6 +32,8 @@ export interface UnmatchedMedalName {
 
 interface MatchOptions {
   countryCode?: string;
+  /** U.S. service branch — used to pick Army vs Navy/MC vs Air Force Medal of Honor catalog rows */
+  serviceBranch?: string;
 }
 
 function getCandidatePool(
@@ -75,6 +78,11 @@ export function matchAiMedalsToDatabase(
     medalName = normalized.name;
     count = normalized.count;
     hasValor = normalized.hasValor;
+
+    medalName = resolveMedalOfHonorCatalogName(medalName, {
+      countryCode: options?.countryCode,
+      serviceBranch: options?.serviceBranch,
+    });
 
     const lower = medalName.toLowerCase().trim();
     const cleanLower = lower;

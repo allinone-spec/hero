@@ -83,7 +83,13 @@ export async function POST(req: NextRequest) {
     const ccRaw = String(parsed.countryCode || "US").toUpperCase();
     const countryCode = allowedCC.has(ccRaw) ? ccRaw : "US";
 
-    const { matched: matchedMedals } = matchAiMedalsToDatabase(parsed.medals, medalTypes, { countryCode });
+    const branchLine = scrapedData.match(/^\s*Branch:\s*([^\n]+)/im);
+    const serviceBranch = branchLine?.[1]?.trim() || "";
+
+    const { matched: matchedMedals } = matchAiMedalsToDatabase(parsed.medals, medalTypes, {
+      countryCode,
+      serviceBranch,
+    });
 
     const metadataTags = deriveHeroMetadataTags({
       combatType: parsed.combatSpecialty,

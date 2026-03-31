@@ -82,12 +82,28 @@ const GOLDEN_MATCH: {
   label?: string;
   raw: string;
   countryCode?: string;
+  /** Passed to matchAiMedalsToDatabase — picks MoH Army vs Navy/MC vs Air Force */
+  serviceBranch?: string;
   /** Substring match against matched name from DB */
   expectedNameIncludes: string;
   minCount?: number;
 }[] = [
   { raw: "Silver Star with two oak leaf clusters", expectedNameIncludes: "Silver Star", minCount: 3 },
   { raw: "Medal of Honor", expectedNameIncludes: "Medal of Honor" },
+  {
+    label: "MoH generic + Navy branch",
+    raw: "Medal of Honor",
+    serviceBranch: "United States Navy",
+    countryCode: "US",
+    expectedNameIncludes: "Navy/MC",
+  },
+  {
+    label: "MoH generic + Air Force branch",
+    raw: "Medal of Honor",
+    serviceBranch: "U.S. Air Force",
+    countryCode: "US",
+    expectedNameIncludes: "Air Force",
+  },
   { raw: "Navy Cross", countryCode: "US", expectedNameIncludes: "Navy Cross" },
   { raw: "Distinguished Service Cross", expectedNameIncludes: "Distinguished Service Cross" },
 ];
@@ -136,6 +152,7 @@ async function runMatch(): Promise<number> {
     const medals = [{ name: n.name, count: n.count, hasValor: n.hasValor }];
     const { matched, unmatched } = matchAiMedalsToDatabase(medals, medalTypes, {
       countryCode: c.countryCode || "US",
+      serviceBranch: c.serviceBranch ?? "",
     });
     const hit = matched[0];
     const nameOk =
@@ -149,7 +166,8 @@ async function runMatch(): Promise<number> {
       console.log(`  matched:`, matched);
       console.log(`  unmatched:`, unmatched);
     } else {
-      console.log(`OK   "${c.raw}" → ${hit.name} ×${hit.count}`);
+      const branchHint = c.serviceBranch ? ` [branch=${c.serviceBranch}]` : "";
+      console.log(`OK   "${c.raw}"${branchHint} → ${hit.name} ×${hit.count}`);
     }
   }
 

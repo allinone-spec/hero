@@ -101,7 +101,11 @@ const CombatAchievementSchema = new Schema(
       default: "none",
     },
     confirmedKills: { type: Number, default: 0 },
+    probableKills: { type: Number, default: 0 },
+    damagedAircraft: { type: Number, default: 0 },
+    flightLeadership: { type: Boolean, default: false },
     shipsSunk: { type: Number, default: 0 },
+    warPatrols: { type: Number, default: 0 },
     majorEngagements: { type: Number, default: 0 },
     definingMissions: { type: Number, default: 0 },
   },
@@ -130,10 +134,16 @@ export interface IHeroDoc extends Document {
   hadCombatCommand: boolean;
   powHeroism: boolean;
   multiServiceOrMultiWar: boolean;
+  /** If false, submarine sink scoring does not apply when specialty is submarine (default true) */
+  submarineCommandEligible: boolean;
   combatAchievements: {
     type: CombatSpecialty;
     confirmedKills: number;
+    probableKills: number;
+    damagedAircraft: number;
+    flightLeadership: boolean;
     shipsSunk: number;
+    warPatrols: number;
     majorEngagements: number;
     definingMissions: number;
   };
@@ -191,6 +201,7 @@ const HeroSchema = new Schema<IHeroDoc>(
     hadCombatCommand: { type: Boolean, default: false },
     powHeroism: { type: Boolean, default: false },
     multiServiceOrMultiWar: { type: Boolean, default: false },
+    submarineCommandEligible: { type: Boolean, default: true },
     combatAchievements: { type: CombatAchievementSchema, default: () => ({ type: "none" }) },
     score: { type: Number, default: 0 },
     orderOverride: { type: Number, default: null },

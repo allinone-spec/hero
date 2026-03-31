@@ -12,11 +12,12 @@ import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
 import {
   calculateComparisonScore,
   calculateScore,
-  DEFAULT_SCORING_CONFIG,
+  mergeScoringConfig,
   ScoringConfig as IScoringConfig,
 } from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
 import { deriveHeroMetadataTags } from "@/lib/derive-hero-metadata-tags";
+import { normalizeBranch, normalizeWarsArray } from "@/lib/hero-taxonomy";
 
 export async function GET(
   req: NextRequest,
@@ -100,12 +101,14 @@ export async function PUT(
       patch.medals = ownerMedals;
 
       const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-      const config: IScoringConfig = rawConfig ?? DEFAULT_SCORING_CONFIG;
+      const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
       const medalTypeIds = ownerMedals.map((m) => m.medalType);
       const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<
         Array<{
           _id: { toString(): string };
           name: string;
+          category?: "valor" | "service" | "foreign" | "other";
+          countryCode?: string;
           basePoints: number;
           valorPoints?: number;
           requiresValorDevice?: boolean;
@@ -119,6 +122,8 @@ export async function PUT(
           const mt = medalTypeMap.get(m.medalType)!;
           return {
             name: mt.name,
+            category: mt.category,
+            countryCode: mt.countryCode,
             basePoints: mt.basePoints ?? 0,
             valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
             requiresValorDevice: mt.requiresValorDevice ?? false,
@@ -137,6 +142,7 @@ export async function PUT(
           hadCombatCommand: existing.hadCombatCommand,
           powHeroism: existing.powHeroism,
           multiServiceOrMultiWar: existing.multiServiceOrMultiWar,
+          submarineCommandEligible: existing.submarineCommandEligible !== false,
           combatAchievements: existing.combatAchievements,
         },
         config
@@ -199,12 +205,19 @@ export async function PUT(
 
   const session = adminSession!;
 
+  if (typeof body.branch === "string") {
+    body.branch = normalizeBranch(body.branch);
+  }
+  if (Array.isArray(body.wars)) {
+    body.wars = normalizeWarsArray(body.wars);
+  }
+
   // Recalculate score if medals changed
   if (body.recalculateScore) {
     delete body.recalculateScore;
 
     const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-    const config: IScoringConfig = rawConfig ?? DEFAULT_SCORING_CONFIG;
+    const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
 
     const hero = await Hero.findById(id);
     if (!hero) {
@@ -215,7 +228,7 @@ export async function PUT(
     type BodyMedal = { medalType?: string; count: number; hasValor: boolean; valorDevices: number; deviceImages?: { url: string; deviceType: string; count: number }[] };
     const bodyMedals = ((body.medals ?? []) as BodyMedal[]).filter((m) => m.medalType);
     const medalTypeIds = bodyMedals.map((m) => m.medalType);
-    const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<Array<{ _id: { toString(): string }; name: string; basePoints: number; valorPoints?: number; requiresValorDevice?: boolean; inherentlyValor?: boolean }>>();
+    const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<Array<{ _id: { toString(): string }; name: string; category?: "valor" | "service" | "foreign" | "other"; countryCode?: string; basePoints: number; valorPoints?: number; requiresValorDevice?: boolean; inherentlyValor?: boolean }>>();
     const medalTypeMap = new Map(medalTypeDocs.map((mt) => [mt._id.toString(), mt]));
 
     const medalData = bodyMedals
@@ -224,6 +237,8 @@ export async function PUT(
         const mt = medalTypeMap.get(m.medalType!)!;
         return {
           name: mt.name,
+          category: mt.category,
+          countryCode: mt.countryCode,
           basePoints: mt.basePoints ?? 0,
           valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
           requiresValorDevice: mt.requiresValorDevice ?? false,
@@ -245,6 +260,7 @@ export async function PUT(
         hadCombatCommand: hero.hadCombatCommand,
         powHeroism: hero.powHeroism,
         multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+        submarineCommandEligible: hero.submarineCommandEligible !== false,
         combatAchievements: hero.combatAchievements,
       },
       config

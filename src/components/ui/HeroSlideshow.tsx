@@ -5,7 +5,7 @@ import Link from "next/link";
 import AvatarFallback from "./AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
-import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 interface SlideshowHero {
@@ -75,7 +75,10 @@ export default function HeroSlideshow({
 
   const hero = heroes[current];
 
-  const ribbonMedals = buildRibbonRackMedals(hero.medals, {
+  const orderedMedals = sortHeroMedalEntries(hero.medals, {
+    nationalCountryCode: hero.countryCode,
+  });
+  const ribbonMedals = buildRibbonRackMedals(orderedMedals, {
     serviceBranch: hero.branch,
     nationalCountryCode: hero.countryCode,
   });

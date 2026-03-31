@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import { normalizeBranch } from "@/lib/hero-taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -85,10 +86,13 @@ export default async function CategoriesPage() {
     ),
   }));
 
-  /* Branch counts */
+  /* Branch counts (canonical so US Army / U.S. Army merge for card totals) */
   const branchCounts: Record<string, number> = {};
   for (const h of plain) {
-    if (h.branch) branchCounts[h.branch] = (branchCounts[h.branch] || 0) + 1;
+    if (h.branch) {
+      const b = normalizeBranch(h.branch);
+      branchCounts[b] = (branchCounts[b] || 0) + 1;
+    }
   }
 
   /* Specialty counts (only those present in DB, skip "none") */

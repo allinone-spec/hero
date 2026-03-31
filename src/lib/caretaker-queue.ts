@@ -58,6 +58,8 @@ export async function createHeroFromImportResult(input: {
     Array<{
       _id: { toString(): string };
       name: string;
+      category?: "valor" | "service" | "foreign" | "other";
+      countryCode?: string;
       basePoints: number;
       valorPoints?: number;
       requiresValorDevice?: boolean;
@@ -82,6 +84,8 @@ export async function createHeroFromImportResult(input: {
     const mt = medalTypeMap.get(String(m.medalType))!;
     return {
       name: mt.name,
+      category: mt.category,
+      countryCode: mt.countryCode,
       basePoints: mt.basePoints ?? 0,
       valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
       requiresValorDevice: mt.requiresValorDevice ?? false,
@@ -101,6 +105,7 @@ export async function createHeroFromImportResult(input: {
       hadCombatCommand: false,
       powHeroism: false,
       multiServiceOrMultiWar: Boolean(result.multiServiceOrMultiWar),
+      submarineCommandEligible: true,
       combatAchievements: {
         type: (result.combatType as
           | "none"

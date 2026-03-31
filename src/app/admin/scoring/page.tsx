@@ -16,9 +16,13 @@ interface ScoringConfigForm {
   aviationKillThreshold: number;
   aviationKillPtsPerKill: number;
   aviationMissionPts: number;
+  aviationProbablePtsPer: number;
+  aviationDamagedPtsPer: number;
+  aviationFlightLeadershipBonus: number;
   submarineShipThreshold: number;
   submarineShipPtsPerShip: number;
   submarineMissionPts: number;
+  submarineWarPatrolPtsPer: number;
   surfaceEngagementPts: number;
   surfaceMissionPts: number;
   multiServiceBonusPct: number;
@@ -43,13 +47,17 @@ const DEFAULTS: ScoringConfigForm = {
   theaterBonusPerWar: 5,
   combatLeadershipBonus: 10,
   powHeroismBonus: 15,
-  woundsBonusPerHeart: 2,
+  woundsBonusPerHeart: 5,
   aviationKillThreshold: 5,
-  aviationKillPtsPerKill: 5,
-  aviationMissionPts: 10,
-  submarineShipThreshold: 5,
+  aviationKillPtsPerKill: 2,
+  aviationMissionPts: 25,
+  aviationProbablePtsPer: 0,
+  aviationDamagedPtsPer: 0,
+  aviationFlightLeadershipBonus: 0,
+  submarineShipThreshold: 3,
   submarineShipPtsPerShip: 5,
-  submarineMissionPts: 10,
+  submarineMissionPts: 25,
+  submarineWarPatrolPtsPer: 0,
   surfaceEngagementPts: 5,
   surfaceMissionPts: 10,
   multiServiceBonusPct: 5,
@@ -122,9 +130,14 @@ export default function AdminScoringPage() {
         aviationKillThreshold: configData.aviationKillThreshold ?? DEFAULTS.aviationKillThreshold,
         aviationKillPtsPerKill: configData.aviationKillPtsPerKill ?? DEFAULTS.aviationKillPtsPerKill,
         aviationMissionPts: configData.aviationMissionPts ?? DEFAULTS.aviationMissionPts,
+        aviationProbablePtsPer: configData.aviationProbablePtsPer ?? DEFAULTS.aviationProbablePtsPer,
+        aviationDamagedPtsPer: configData.aviationDamagedPtsPer ?? DEFAULTS.aviationDamagedPtsPer,
+        aviationFlightLeadershipBonus:
+          configData.aviationFlightLeadershipBonus ?? DEFAULTS.aviationFlightLeadershipBonus,
         submarineShipThreshold: configData.submarineShipThreshold ?? DEFAULTS.submarineShipThreshold,
         submarineShipPtsPerShip: configData.submarineShipPtsPerShip ?? DEFAULTS.submarineShipPtsPerShip,
         submarineMissionPts: configData.submarineMissionPts ?? DEFAULTS.submarineMissionPts,
+        submarineWarPatrolPtsPer: configData.submarineWarPatrolPtsPer ?? DEFAULTS.submarineWarPatrolPtsPer,
         surfaceEngagementPts: configData.surfaceEngagementPts ?? DEFAULTS.surfaceEngagementPts,
         surfaceMissionPts: configData.surfaceMissionPts ?? DEFAULTS.surfaceMissionPts,
         multiServiceBonusPct: configData.multiServiceBonusPct ?? DEFAULTS.multiServiceBonusPct,
@@ -331,6 +344,24 @@ export default function AdminScoringPage() {
           value={form.aviationMissionPts}
           onChange={set("aviationMissionPts")}
         />
+        <RuleInput
+          label="Points per Probable Kill"
+          description="Extra points per probable (unconfirmed) air victory — set 0 to disable"
+          value={form.aviationProbablePtsPer}
+          onChange={set("aviationProbablePtsPer")}
+        />
+        <RuleInput
+          label="Points per Damaged Aircraft"
+          description="Points per enemy aircraft damaged (ground/sea) — set 0 to disable"
+          value={form.aviationDamagedPtsPer}
+          onChange={set("aviationDamagedPtsPer")}
+        />
+        <RuleInput
+          label="Flight Leadership Bonus"
+          description="One-time bonus when squadron/wing leadership applies — set 0 to disable"
+          value={form.aviationFlightLeadershipBonus}
+          onChange={set("aviationFlightLeadershipBonus")}
+        />
       </section>
 
       {/* Submarine */}
@@ -355,6 +386,12 @@ export default function AdminScoringPage() {
           description="Points per record or extreme risk submarine mission"
           value={form.submarineMissionPts}
           onChange={set("submarineMissionPts")}
+        />
+        <RuleInput
+          label="Points per War Patrol"
+          description="Completed war patrols (all submarine crew) — set 0 to disable"
+          value={form.submarineWarPatrolPtsPer}
+          onChange={set("submarineWarPatrolPtsPer")}
         />
       </section>
 
