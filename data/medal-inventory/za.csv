@@ -1,16 +1,16 @@
-medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
-za-nkosi-obuntu,Order of Mendi for Bravery (Gold/Silver/Bronze),1,ZA,None,FALSE,Valor
-za-mapungubwe,Order of Mapungubwe,2,ZA,None,FALSE,Order
-za-companions-tambo,Order of the Companions of OR Tambo,3,ZA,None,FALSE,Order
-za-luthuli,Order of Luthuli,4,ZA,None,FALSE,Order
-za-baobab,Order of the Baobab,5,ZA,None,FALSE,Order
-za-ikhamanga,Order of Ikhamanga,6,ZA,None,FALSE,Order
-za-cross-of-honour,Honorary Cross for Bravery (Gold/Silver),10,ZA,Bar,FALSE,Valor
-za-pro-merito-decoration,Pro Merito Decoration (PMD),11,ZA,Bar,FALSE,Merit
-za-ad-astra-decoration,Ad Astra Decoration (AAD),12,ZA,Bar,FALSE,Valor
-za-pro-merito-medal,Pro Merito Medal (PMM),13,ZA,Bar,FALSE,Merit
-za-unita-medal,Unita Medal,100,ZA,None,FALSE,Service
-za-pro-patria-medal,Pro Patria Medal,110,ZA,None,FALSE,Campaign
-za-southern-africa-medal,Southern Africa Medal,120,ZA,None,FALSE,Campaign
-za-general-service-medal,General Service Medal (South Africa),130,ZA,None,FALSE,Service
-za-medal-for-loyal-service,Medal for Loyal Service,140,ZA,Clasp,FALSE,Service
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category,base_points,valor_points,other_names
+za-nkosi-obuntu,Order of Mendi for Bravery (Gold/Silver/Bronze),1,ZA,None,FALSE,Valor,50,50,
+za-mapungubwe,Order of Mapungubwe,2,ZA,None,FALSE,Order,0,0,
+za-companions-tambo,Order of the Companions of OR Tambo,3,ZA,None,FALSE,Order,0,0,
+za-luthuli,Order of Luthuli,4,ZA,None,FALSE,Order,0,0,
+za-baobab,Order of the Baobab,5,ZA,None,FALSE,Order,0,0,
+za-ikhamanga,Order of Ikhamanga,6,ZA,None,FALSE,Order,0,0,
+za-cross-of-honour,Honorary Cross for Bravery (Gold/Silver),10,ZA,Bar,FALSE,Valor,50,50,
+za-pro-merito-decoration,Pro Merito Decoration (PMD),11,ZA,Bar,FALSE,Merit,25,25,
+za-ad-astra-decoration,Ad Astra Decoration (AAD),12,ZA,Bar,FALSE,Valor,40,40,
+za-pro-merito-medal,Pro Merito Medal (PMM),13,ZA,Bar,FALSE,Merit,15,15,
+za-unita-medal,Unita Medal,100,ZA,None,FALSE,Service,5,5,
+za-pro-patria-medal,Pro Patria Medal,110,ZA,None,FALSE,Campaign,5,5,
+za-southern-africa-medal,Southern Africa Medal,120,ZA,None,FALSE,Campaign,5,5,
+za-general-service-medal,General Service Medal (South Africa),130,ZA,None,FALSE,Service,5,5,
+za-medal-for-loyal-service,Medal for Loyal Service,140,ZA,Clasp,FALSE,Service,5,5,

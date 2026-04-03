@@ -120,6 +120,11 @@ const CORE_MEDAL_SCORE_RULES: MedalScoreOverrideRule[] = [
   { patterns: [/kirti chakra/], points: 75 },
 
   { patterns: [/silver star|\bss\b/], points: 50 },
+  /** US heroism medals (non-combat valor) — same tier as L3 / MM in master doc */
+  { patterns: [/soldier'?s medal/], points: 50 },
+  { patterns: [/navy and marine corps medal/], points: 50 },
+  { patterns: [/airman'?s medal/], points: 50 },
+  { patterns: [/coast guard medal/], points: 50 },
   { patterns: [/\bmilitary medal\b|\bmm\b/], points: 50 },
   { patterns: [/distinguished service medal|\bdsm\b/], points: 50 },
   { patterns: [/distinguished flying medal|\bdfm\b/], points: 50 },

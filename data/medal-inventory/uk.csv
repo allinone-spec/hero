@@ -1,46 +1,46 @@
-medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
-uk-victoria-cross,Victoria Cross,1,UK,Bar,FALSE,Valor
-uk-george-cross,George Cross,2,UK,Bar,FALSE,Valor
-uk-order-of-the-garter,Order of the Garter,3,UK,None,FALSE,Order
-uk-order-of-the-thistle,Order of the Thistle,4,UK,None,FALSE,Order
-uk-order-bath-gcb,Order of the Bath (GCB),5,UK,None,FALSE,Order
-uk-order-bath-kcb,Order of the Bath (KCB),6,UK,None,FALSE,Order
-uk-order-bath-cb,Order of the Bath (CB),7,UK,None,FALSE,Order
-uk-order-of-merit,Order of Merit,8,UK,None,FALSE,Order
-uk-order-st-michael-st-george-gcmg,Order of St Michael and St George (GCMG),9,UK,None,FALSE,Order
-uk-order-st-michael-st-george-kcmg,Order of St Michael and St George (KCMG),10,UK,None,FALSE,Order
-uk-order-st-michael-st-george-cmg,Order of St Michael and St George (CMG),11,UK,None,FALSE,Order
-uk-order-british-empire-gbe,Order of the British Empire (GBE),12,UK,None,FALSE,Order
-uk-order-british-empire-kbe-dbe,Order of the British Empire (KBE / DBE),13,UK,None,FALSE,Order
-uk-order-british-empire-cbe,Order of the British Empire (CBE),14,UK,None,FALSE,Order
-uk-order-british-empire-obe,Order of the British Empire (OBE),15,UK,None,FALSE,Order
-uk-order-british-empire-mbe,Order of the British Empire (MBE),16,UK,None,FALSE,Order
-uk-distinguished-service-order,Distinguished Service Order (DSO),17,UK,Bar,FALSE,Valor-Merit
-uk-conspicuous-gallantry-cross,Conspicuous Gallantry Cross,18,UK,Bar,FALSE,Valor
-uk-distinguished-service-cross,Distinguished Service Cross (DSC),19,UK,Bar,FALSE,Valor
-uk-military-cross,Military Cross (MC),20,UK,Bar,FALSE,Valor
-uk-distinguished-flying-cross,Distinguished Flying Cross (DFC),21,UK,Bar,FALSE,Valor
-uk-air-force-cross,Air Force Cross (AFC),22,UK,Bar,FALSE,Valor
-uk-distinguished-service-medal,Distinguished Service Medal (DSM),23,UK,Bar,FALSE,Valor
-uk-military-medal,Military Medal (MM),24,UK,Bar,FALSE,Valor
-uk-distinguished-flying-medal,Distinguished Flying Medal (DFM),25,UK,Bar,FALSE,Valor
-uk-air-force-medal,Air Force Medal (AFM),26,UK,Bar,FALSE,Valor
-uk-mention-in-despatches,Mention in Despatches,27,UK,Oak leaf,FALSE,Valor
-uk-queens-gallantry-medal,Queen's Gallantry Medal (QGM),28,UK,Bar,FALSE,Valor
-uk-sea-gallantry-medal,Sea Gallantry Medal (SGM),29,UK,Bar,FALSE,Valor
-uk-kings-commendation-brave-conduct,King's Commendation for Brave Conduct,30,UK,None,FALSE,Valor
-uk-1939-1945-star,1939–1945 Star,100,UK,Rosette,FALSE,Campaign
-uk-atlantic-star,Atlantic Star,110,UK,Rosette,FALSE,Campaign
-uk-air-crew-europe-star,Air Crew Europe Star,120,UK,Rosette,FALSE,Campaign
-uk-africa-star,Africa Star,130,UK,Rosette,FALSE,Campaign
-uk-pacific-star,Pacific Star,140,UK,Rosette,FALSE,Campaign
-uk-burma-star,Burma Star,150,UK,Rosette,FALSE,Campaign
-uk-italy-star,Italy Star,160,UK,Rosette,FALSE,Campaign
-uk-france-germany-star,France and Germany Star,170,UK,Rosette,FALSE,Campaign
-uk-defence-medal,Defence Medal,180,UK,None,FALSE,Service
-uk-war-medal-1939-1945,War Medal 1939–1945,190,UK,None,FALSE,Service
-uk-korea-medal,Korea Medal,200,UK,None,FALSE,Campaign
-uk-south-atlantic-medal,South Atlantic Medal (Falklands),210,UK,Rosette,FALSE,Campaign
-uk-gulf-medal,Gulf Medal,220,UK,Rosette,FALSE,Campaign
-uk-iraq-medal,Iraq Medal,230,UK,Rosette,FALSE,Campaign
-uk-afghanistan-osm,Operational Service Medal for Afghanistan,240,UK,Rosette,FALSE,Campaign
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category,base_points,valor_points,other_names
+uk-victoria-cross,Victoria Cross,1,UK,Bar,FALSE,Valor,100,100,VC
+uk-george-cross,George Cross,2,UK,Bar,FALSE,Valor,100,100,GC
+uk-order-of-the-garter,Order of the Garter,3,UK,None,FALSE,Order,0,0,
+uk-order-of-the-thistle,Order of the Thistle,4,UK,None,FALSE,Order,0,0,
+uk-order-bath-gcb,Order of the Bath (GCB),5,UK,None,FALSE,Order,60,60,GCB
+uk-order-bath-kcb,Order of the Bath (KCB),6,UK,None,FALSE,Order,48,48,KCB
+uk-order-bath-cb,Order of the Bath (CB),7,UK,None,FALSE,Order,36,36,CB
+uk-order-of-merit,Order of Merit,8,UK,None,FALSE,Order,0,0,
+uk-order-st-michael-st-george-gcmg,Order of St Michael and St George (GCMG),9,UK,None,FALSE,Order,60,60,GCMG
+uk-order-st-michael-st-george-kcmg,Order of St Michael and St George (KCMG),10,UK,None,FALSE,Order,48,48,KCMG
+uk-order-st-michael-st-george-cmg,Order of St Michael and St George (CMG),11,UK,None,FALSE,Order,36,36,CMG
+uk-order-british-empire-gbe,Order of the British Empire (GBE),12,UK,None,FALSE,Order,60,60,GBE
+uk-order-british-empire-kbe-dbe,Order of the British Empire (KBE / DBE),13,UK,None,FALSE,Order,48,48,KBE|DBE
+uk-order-british-empire-cbe,Order of the British Empire (CBE),14,UK,None,FALSE,Order,36,36,CBE
+uk-order-british-empire-obe,Order of the British Empire (OBE),15,UK,None,FALSE,Order,24,24,OBE
+uk-order-british-empire-mbe,Order of the British Empire (MBE),16,UK,None,FALSE,Order,12,12,MBE
+uk-distinguished-service-order,Distinguished Service Order (DSO),17,UK,Bar,FALSE,Valor-Merit,75,75,DSO
+uk-conspicuous-gallantry-cross,Conspicuous Gallantry Cross,18,UK,Bar,FALSE,Valor,75,75,CGC
+uk-distinguished-service-cross,Distinguished Service Cross (DSC),19,UK,Bar,FALSE,Valor,75,75,DSC
+uk-military-cross,Military Cross (MC),20,UK,Bar,FALSE,Valor,75,75,MC
+uk-distinguished-flying-cross,Distinguished Flying Cross (DFC),21,UK,Bar,FALSE,Valor,75,75,DFC
+uk-air-force-cross,Air Force Cross (AFC),22,UK,Bar,FALSE,Valor,75,75,AFC
+uk-distinguished-service-medal,Distinguished Service Medal (DSM),23,UK,Bar,FALSE,Valor,50,50,DSM
+uk-military-medal,Military Medal (MM),24,UK,Bar,FALSE,Valor,50,50,MM
+uk-distinguished-flying-medal,Distinguished Flying Medal (DFM),25,UK,Bar,FALSE,Valor,50,50,DFM
+uk-air-force-medal,Air Force Medal (AFM),26,UK,Bar,FALSE,Valor,50,50,AFM
+uk-mention-in-despatches,Mention in Despatches,27,UK,Oak leaf,FALSE,Valor,25,25,MiD
+uk-queens-gallantry-medal,Queen's Gallantry Medal (QGM),28,UK,Bar,FALSE,Valor,25,25,QGM
+uk-sea-gallantry-medal,Sea Gallantry Medal (SGM),29,UK,Bar,FALSE,Valor,50,50,SGM
+uk-kings-commendation-brave-conduct,King's Commendation for Brave Conduct,30,UK,None,FALSE,Valor,25,25,
+uk-1939-1945-star,1939–1945 Star,100,UK,Rosette,FALSE,Campaign,5,5,
+uk-atlantic-star,Atlantic Star,110,UK,Rosette,FALSE,Campaign,5,5,
+uk-air-crew-europe-star,Air Crew Europe Star,120,UK,Rosette,FALSE,Campaign,5,5,
+uk-africa-star,Africa Star,130,UK,Rosette,FALSE,Campaign,5,5,
+uk-pacific-star,Pacific Star,140,UK,Rosette,FALSE,Campaign,5,5,
+uk-burma-star,Burma Star,150,UK,Rosette,FALSE,Campaign,5,5,
+uk-italy-star,Italy Star,160,UK,Rosette,FALSE,Campaign,5,5,
+uk-france-germany-star,France and Germany Star,170,UK,Rosette,FALSE,Campaign,5,5,
+uk-defence-medal,Defence Medal,180,UK,None,FALSE,Service,5,5,
+uk-war-medal-1939-1945,War Medal 1939–1945,190,UK,None,FALSE,Service,5,5,
+uk-korea-medal,Korea Medal,200,UK,None,FALSE,Campaign,5,5,
+uk-south-atlantic-medal,South Atlantic Medal (Falklands),210,UK,Rosette,FALSE,Campaign,5,5,
+uk-gulf-medal,Gulf Medal,220,UK,Rosette,FALSE,Campaign,5,5,
+uk-iraq-medal,Iraq Medal,230,UK,Rosette,FALSE,Campaign,5,5,
+uk-afghanistan-osm,Operational Service Medal for Afghanistan,240,UK,Rosette,FALSE,Campaign,5,5,

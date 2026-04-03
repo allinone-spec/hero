@@ -1,18 +1,18 @@
-medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category
-in-param-vir-chakra,Param Vir Chakra,1,IN,Bar,FALSE,Valor
-in-ashoka-chakra,Ashoka Chakra,2,IN,Bar,FALSE,Valor
-in-maha-vir-chakra,Maha Vir Chakra,3,IN,Bar,FALSE,Valor
-in-kirti-chakra,Kirti Chakra,4,IN,Bar,FALSE,Valor
-in-vir-chakra,Vir Chakra,5,IN,Bar,FALSE,Valor
-in-shaurya-chakra,Shaurya Chakra,6,IN,Bar,FALSE,Valor
-in-param-vishisht-seva,Param Vishisht Seva Medal (PVSM),7,IN,None,FALSE,Merit
-in-uttam-yudh-seva,Uttam Yudh Seva Medal (UYSM),8,IN,None,FALSE,Merit
-in-ati-vishisht-seva,Ati Vishisht Seva Medal (AVSM),9,IN,None,FALSE,Merit
-in-yudh-seva,Yudh Seva Medal (YSM),10,IN,None,FALSE,Merit
-in-vishisht-seva,Vishisht Seva Medal (VSM),11,IN,None,FALSE,Merit
-in-wounded-medal,Wounded Medal (Ahat Sahayta Medal),100,IN,None,FALSE,Achievement
-in-samanya-seva,Samanya Seva Medal (General Service),110,IN,Clasp,FALSE,Service
-in-operations-vija-medal,Operation Vijay Medal,120,IN,None,FALSE,Campaign
-in-operations-parakram,Operation Parakram Medal,130,IN,None,FALSE,Campaign
-in-sainya-seva,Sainya Seva Medal (Services Medal),140,IN,Clasp,FALSE,Service
-in-high-altitude-medal,High Altitude Medal,150,IN,None,FALSE,Service
+medal_id,medal_name,precedence_weight,country_code,device_logic,v_device_allowed,category,base_points,valor_points,other_names
+in-param-vir-chakra,Param Vir Chakra,1,IN,Bar,FALSE,Valor,100,100,PVC
+in-ashoka-chakra,Ashoka Chakra,2,IN,Bar,FALSE,Valor,100,100,
+in-maha-vir-chakra,Maha Vir Chakra,3,IN,Bar,FALSE,Valor,75,75,MVC
+in-kirti-chakra,Kirti Chakra,4,IN,Bar,FALSE,Valor,75,75,
+in-vir-chakra,Vir Chakra,5,IN,Bar,FALSE,Valor,50,50,
+in-shaurya-chakra,Shaurya Chakra,6,IN,Bar,FALSE,Valor,50,50,
+in-param-vishisht-seva,Param Vishisht Seva Medal (PVSM),7,IN,None,FALSE,Merit,20,20,
+in-uttam-yudh-seva,Uttam Yudh Seva Medal (UYSM),8,IN,None,FALSE,Merit,18,18,
+in-ati-vishisht-seva,Ati Vishisht Seva Medal (AVSM),9,IN,None,FALSE,Merit,15,15,
+in-yudh-seva,Yudh Seva Medal (YSM),10,IN,None,FALSE,Merit,12,12,
+in-vishisht-seva,Vishisht Seva Medal (VSM),11,IN,None,FALSE,Merit,10,10,
+in-wounded-medal,Wounded Medal (Ahat Sahayta Medal),100,IN,None,FALSE,Achievement,0,0,
+in-samanya-seva,Samanya Seva Medal (General Service),110,IN,Clasp,FALSE,Service,5,5,
+in-operations-vija-medal,Operation Vijay Medal,120,IN,None,FALSE,Campaign,5,5,
+in-operations-parakram,Operation Parakram Medal,130,IN,None,FALSE,Campaign,5,5,
+in-sainya-seva,Sainya Seva Medal (Services Medal),140,IN,Clasp,FALSE,Service,5,5,
+in-high-altitude-medal,High Altitude Medal,150,IN,None,FALSE,Service,5,5,
