@@ -8,6 +8,7 @@ import HeroSlideshow from "@/components/ui/HeroSlideshow";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -92,19 +93,16 @@ export default async function RankingsPage() {
   const topHero = serialized[0];
   const slideshowHeroes = serialized.slice(0, Math.min(5, serialized.length));
 
-  /* Top hero ribbon medals */
-  const topRibbons = topHero
-    ? (topHero.medals ?? [])
-        .filter((m: any) => m.medalType)
-        .map((m: any) => ({
-          name: m.medalType.name,
-          count: m.count,
-          precedenceOrder: m.medalType.precedenceOrder,
-          ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-          ribbonImageUrl: m.medalType.ribbonImageUrl,
-          hasValor: m.hasValor,
-          deviceImages: m.deviceImages,
-        }))
+  const topRibbonMedals = topHero
+    ? buildRibbonRackMedals(
+        sortHeroMedalEntries(topHero.medals ?? [], {
+          nationalCountryCode: topHero.countryCode,
+        }),
+        {
+          serviceBranch: topHero.branch,
+          nationalCountryCode: topHero.countryCode,
+        },
+      )
     : [];
 
   return (
@@ -187,9 +185,15 @@ export default async function RankingsPage() {
                   {topHero.wars?.length ? ` · ${(topHero.wars as string[]).join(", ")}` : ""}
                 </p>
 
-                {topRibbons.length > 0 && (
-                  <div className="mb-4 flex justify-center sm:justify-start">
-                    <RibbonRack medals={topRibbons} maxPerRow={8} scale={2} />
+                {topRibbonMedals.length > 0 && (
+                  <div className="mb-4 flex w-full justify-center overflow-x-auto">
+                    <RibbonRack
+                      medals={topRibbonMedals}
+                      rowLayout="rankListPyramid"
+                      countryCode={topHero.countryCode}
+                      scale={3}
+                      disableLinks
+                    />
                   </div>
                 )}
 

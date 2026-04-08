@@ -1,5 +1,6 @@
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { parseMedalDeviceRule } from "@/lib/medal-device-rules";
+import { RIBBON_GAP } from "@/components/ribbon-rack/ribbon-data";
 
 export interface RackDeviceImage {
   url: string;
@@ -82,10 +83,15 @@ export function getRibbonRackProfile(countryCode?: string | null): RibbonRackPro
     case "NZ":
     case "ZA":
     case "IN":
-      return { countryCode: cc, defaultMaxPerRow: 4, defaultGap: 1.5, rowAlignment: "pyramid" };
+      return { countryCode: cc, defaultMaxPerRow: 4, defaultGap: RIBBON_GAP, rowAlignment: "pyramid" };
     case "US":
     default:
-      return { countryCode: cc || "US", defaultMaxPerRow: 4, defaultGap: 1.5, rowAlignment: "pyramid" };
+      return {
+        countryCode: cc || "US",
+        defaultMaxPerRow: 4,
+        defaultGap: RIBBON_GAP,
+        rowAlignment: "pyramid",
+      };
   }
 }
 
@@ -100,11 +106,7 @@ function getMedalNationalPriority(
   return 1;
 }
 
-/**
- * Gate 1 — deterministic catalog sort (no AI). Lower `precedenceOrder` = wears first.
- * With `nationalCountryCode`, home-country medals sort before foreign at the same tier
- * (`getMedalNationalPriority`).
- */
+/** Shared by ribbon rack SVG and hero award lists — keep ordering identical. */
 export function compareMedalForRackOrder(
   a: { precedenceOrder: number; name: string; countryCode?: string },
   b: { precedenceOrder: number; name: string; countryCode?: string },

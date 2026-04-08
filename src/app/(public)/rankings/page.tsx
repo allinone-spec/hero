@@ -158,12 +158,12 @@ export default async function RankingsPage() {
                 </p>
 
                 {topRibbonMedals.length > 0 ? (
-                  <div className="mb-4 flex justify-center sm:justify-start overflow-x-auto">
+                  <div className="mb-4 flex w-full justify-center overflow-x-auto">
                     <RibbonRack
                       medals={topRibbonMedals}
-                      maxPerRow={Math.max(topRibbonMedals.length, 1)}
+                      rowLayout="rankListPyramid"
                       countryCode={topHero.countryCode}
-                      scale={2}
+                      scale={3}
                       disableLinks
                     />
                   </div>

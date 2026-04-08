@@ -152,12 +152,12 @@ export default function HeroSlideshow({
 
             {/* Ribbon rack */}
             {ribbonMedals.length > 0 ? (
-              <div className="mb-5 flex justify-center sm:justify-start overflow-x-auto">
+              <div className="mb-5 flex w-full justify-center overflow-x-auto">
                 <RibbonRack
                   medals={ribbonMedals}
-                  maxPerRow={Math.max(ribbonMedals.length, 1)}
+                  rowLayout="rankListPyramid"
                   countryCode={hero.countryCode}
-                  scale={2}
+                  scale={3}
                   disableLinks
                 />
               </div>

@@ -51,6 +51,19 @@ export function extractWikimediaFilenameFromUrl(raw: string | undefined | null):
     if (wikiFile?.[1]) {
       return decodeURIComponent(wikiFile[1].replace(/_/g, " "));
     }
+    /** e.g. https://en.wikipedia.org/wiki/Medal_of_Honor#/media/File:Foo.svg */
+    if (parsed.hash) {
+      const hm = parsed.hash.match(/File:([^#?&]+)/i);
+      if (hm?.[1]) {
+        let seg = hm[1];
+        try {
+          seg = decodeURIComponent(seg);
+        } catch {
+          /* keep encoded segment */
+        }
+        return seg.replace(/_/g, " ");
+      }
+    }
     if (!isWikimediaHttpHost(parsed.hostname)) return null;
     const parts = path.split("/").filter(Boolean);
     const ti = parts.indexOf("thumb");
@@ -120,6 +133,7 @@ export async function fetchWikimediaThumbnailUrl(
   const api = new URL(`${origin}/w/api.php`);
   api.searchParams.set("action", "query");
   api.searchParams.set("titles", `File:${fileName.replace(/^File:/i, "")}`);
+  api.searchParams.set("redirects", "1");
   api.searchParams.set("prop", "imageinfo");
   api.searchParams.set("iiprop", "url");
   api.searchParams.set("iiurlwidth", String(Math.round(widthPx)));

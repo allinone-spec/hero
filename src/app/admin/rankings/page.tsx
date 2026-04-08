@@ -8,6 +8,7 @@ import HeroSlideshow from "@/components/ui/HeroSlideshow";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -47,24 +48,18 @@ export default async function AdminRankingsPage() {
   const topHero = serialized[0];
   const slideshowHeroes = serialized.slice(0, Math.min(5, serialized.length));
 
-  /* Top hero ribbon medals */
+  /* Top hero ribbon medals — same build + sort as hero profile ribbon rack */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const topRibbons = topHero
-    ? (topHero.medals ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((m: any) => m.medalType)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((m: any) => ({
-          medalId: m.medalType._id,
-          name: m.medalType.name,
-          count: m.count,
-          precedenceOrder: m.medalType.precedenceOrder,
-          ribbonColors: m.medalType.ribbonColors?.length > 0 ? m.medalType.ribbonColors : ["#808080"],
-          ribbonImageUrl: m.medalType.ribbonImageUrl,
-          hasValor: m.hasValor,
-          deviceImages: m.deviceImages,
-        }))
-        .sort((a: any, b: any) => a.precedenceOrder - b.precedenceOrder)
+  const topRibbonMedals = topHero
+    ? buildRibbonRackMedals(
+        sortHeroMedalEntries(topHero.medals ?? [], {
+          nationalCountryCode: topHero.countryCode,
+        }),
+        {
+          serviceBranch: topHero.branch,
+          nationalCountryCode: topHero.countryCode,
+        },
+      )
     : [];
 
   return (
@@ -135,9 +130,15 @@ export default async function AdminRankingsPage() {
                   {topHero.wars?.length ? ` · ${(topHero.wars as string[]).join(", ")}` : ""}
                 </p>
 
-                {topRibbons.length > 0 ? (
-                  <div className="mb-4 flex justify-center sm:justify-start">
-                    <RibbonRack medals={topRibbons} maxPerRow={8} scale={2} disableLinks />
+                {topRibbonMedals.length > 0 ? (
+                  <div className="mb-4 flex w-full justify-center overflow-x-auto">
+                    <RibbonRack
+                      medals={topRibbonMedals}
+                      rowLayout="rankListPyramid"
+                      countryCode={topHero.countryCode}
+                      scale={3}
+                      disableLinks
+                    />
                   </div>
                 ) : null}
 

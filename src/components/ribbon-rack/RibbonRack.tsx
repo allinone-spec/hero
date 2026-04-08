@@ -732,7 +732,7 @@ export default function RibbonRack({
       viewBox={`0 0 ${totalWidth} ${totalHeight}`}
       width={totalWidth * scale}
       height={totalHeight * scale}
-      className="ribbon-rack"
+      className="ribbon-rack mx-auto block max-w-full"
       role="img"
       aria-label="Military ribbon rack"
     >

@@ -17,10 +17,7 @@ export const DEFAULT_RIBBON_COLORS: Record<string, string[]> = {
   "Foreign Valor Medal": ["#FFD700", "#CC0000", "#FFD700"],
 };
 
-/**
- * @deprecated Display order uses `MedalType.precedenceOrder` from MongoDB (`sortRackMedals`
- * in `src/lib/rack-engine.ts`). This map is legacy (e.g. seed defaults); do not use for racks.
- */
+// Medal precedence order for display (lower = higher precedence)
 export const MEDAL_PRECEDENCE: Record<string, number> = {
   "Medal of Honor": 1,
   "Distinguished Service Cross": 2,
@@ -37,7 +34,12 @@ export const MEDAL_PRECEDENCE: Record<string, number> = {
   "Croix de Guerre": 11,
 };
 
-export const RIBBON_WIDTH = 36;
-export const RIBBON_HEIGHT = 14;
-export const RIBBON_GAP = 2;
+/**
+ * Ribbon cell aspect matches a typical US ribbon bar: 1 3/8" × 3/8" → width : height = 11 : 3.
+ * Spacing: flush (no gap between ribbons or rows). Scale k for overall SVG size.
+ */
+const RIBBON_BAR_SCALE_K = 4;
+export const RIBBON_WIDTH = 11 * RIBBON_BAR_SCALE_K;
+export const RIBBON_HEIGHT = 3 * RIBBON_BAR_SCALE_K;
+export const RIBBON_GAP = 0;
 export const MAX_RIBBONS_PER_ROW = 4;

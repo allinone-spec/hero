@@ -1,5 +1,5 @@
 /**
- * Validate imported foreign medal scoring rows against data/medal-inventory/foreign.csv.
+ * Validate non-US medal rows from `data/medal-inventory/Final_Medal_Sheet_Client.csv` against MedalType.
  *
  * Usage:
  *   npx tsx scripts/validate-foreign-medal-scoring.ts
@@ -41,17 +41,21 @@ type Mismatch = {
 };
 
 async function loadExpectedRows(): Promise<ExpectedRow[]> {
-  const csvPath = path.join(process.cwd(), "data", "medal-inventory", "foreign.csv");
+  const { MEDAL_INVENTORY_CSV_FILENAME, parseRibbonsInventoryCsv } = await import(
+    "../src/lib/medal-inventory-importer"
+  );
+  const csvPath = path.join(process.cwd(), "data", "medal-inventory", MEDAL_INVENTORY_CSV_FILENAME);
   const csv = readFileSync(csvPath, "utf8");
-  const { parseMedalInventoryCsv } = await import("../src/lib/medal-inventory-importer");
-  return parseMedalInventoryCsv(csv).map((row) => ({
-    medalId: row.medalId,
-    medalName: row.medalName,
-    countryCode: row.countryCode,
-    vDeviceAllowed: row.vDeviceAllowed,
-    basePoints: row.basePoints ?? 0,
-    valorPoints: row.valorPoints ?? row.basePoints ?? 0,
-  }));
+  return parseRibbonsInventoryCsv(csv)
+    .filter((row) => row.countryCode !== "US")
+    .map((row) => ({
+      medalId: row.medalId,
+      medalName: row.medalName,
+      countryCode: row.countryCode,
+      vDeviceAllowed: row.vDeviceAllowed,
+      basePoints: row.basePoints ?? 0,
+      valorPoints: row.valorPoints ?? 0,
+    }));
 }
 
 async function main() {
@@ -83,7 +87,6 @@ async function main() {
 
     const checks: Array<[string, string | number | boolean, string | number | boolean | null | undefined]> = [
       ["name", expected.medalName, doc.name],
-      ["category", "foreign", doc.category],
       ["countryCode", expected.countryCode, doc.countryCode],
       ["basePoints", expected.basePoints, doc.basePoints],
       ["valorPoints", expected.valorPoints, doc.valorPoints],
@@ -99,16 +102,16 @@ async function main() {
 
   const expectedIds = new Set(expectedRows.map((r) => r.medalId));
   const extras = (
-    await MedalType.find({ category: "foreign" })
-      .select("medalId")
+    await MedalType.find({ countryCode: { $nin: ["US", ""] } })
+      .select("medalId countryCode")
       .lean<Array<{ medalId?: string }>>()
   )
     .map((d) => d.medalId)
     .filter((id): id is string => Boolean(id))
-    .filter((id) => id.startsWith("foreign-") && !expectedIds.has(id));
+    .filter((id) => !expectedIds.has(id));
 
   if (missing.length === 0 && mismatches.length === 0 && extras.length === 0) {
-    console.log("OK: foreign medal scoring catalog matches expected table.");
+    console.log("OK: non-US ribbons catalog matches MedalType.");
     process.exit(0);
   }
 
@@ -125,7 +128,7 @@ async function main() {
   }
 
   if (extras.length > 0) {
-    console.log("\nExtra foreign-* medals not in foreign.csv:");
+    console.log("\nExtra non-US MedalType docs not in inventory CSV:");
     for (const id of extras) console.log(`- ${id}`);
   }
 

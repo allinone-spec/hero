@@ -68,6 +68,50 @@ export interface HeroImportResult {
 
 type ProgressCallback = (step: string, percent: number) => void | Promise<void>;
 
+/** One row for `matchAiMedalsToDatabase` — normalized name + counts */
+type MedalMatchInput = { name: string; count: number; hasValor: boolean };
+
+function parseUnknownMedalEntry(entry: unknown): MedalMatchInput | null {
+  if (typeof entry === "string") {
+    const t = entry.trim();
+    if (t.length < 2) return null;
+    return { name: t, count: 1, hasValor: false };
+  }
+  if (typeof entry === "object" && entry !== null && "name" in entry) {
+    const name = String((entry as { name: unknown }).name).trim();
+    if (name.length < 2) return null;
+    const count = Math.max(1, Number((entry as { count?: unknown }).count) || 1);
+    const hasValor = Boolean((entry as { hasValor?: unknown }).hasValor);
+    return { name, count, hasValor };
+  }
+  return null;
+}
+
+/** Deduplicate by lowercased name; keep max count and any valor flag — order-stable by first occurrence */
+function mergeMedalEntriesForMatch(...sources: unknown[]): MedalMatchInput[] {
+  const map = new Map<string, MedalMatchInput>();
+  const order: string[] = [];
+
+  for (const source of sources) {
+    if (!Array.isArray(source)) continue;
+    for (const item of source) {
+      const parsed = parseUnknownMedalEntry(item);
+      if (!parsed) continue;
+      const key = parsed.name.toLowerCase().trim();
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, { ...parsed });
+        order.push(key);
+      } else {
+        existing.count = Math.max(existing.count, parsed.count);
+        existing.hasValor = existing.hasValor || parsed.hasValor;
+      }
+    }
+  }
+
+  return order.map((k) => map.get(k)!);
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function normalizeCountryCode(raw?: string, branch?: string): string {
@@ -198,11 +242,25 @@ export async function runHeroImportPipeline(
     return `${mt.name}${aliases}`;
   });
 
+  const awardsFromScraperLines =
+    scraped.medals.length > 0
+      ? scraped.medals
+          .map((m) => {
+            const c = m.count > 1 ? ` (×${m.count})` : "";
+            const v = m.hasValor ? " [valor device]" : "";
+            return `- ${m.rawName}${c}${v}`;
+          })
+          .join("\n")
+      : "";
+
   const scrapedContext = [
     `Hero: ${scraped.name}`,
     `Rank: ${scraped.rank}`,
     `Branch: ${scraped.branch}`,
     scraped.biography ? `Biography: ${scraped.biography}` : "",
+    awardsFromScraperLines
+      ? `Medal rows extracted from Wikipedia (tables / awards sections):\n${awardsFromScraperLines}`
+      : "",
     scraped.rawAwardsText ? `Awards section text:\n${scraped.rawAwardsText}` : "",
   ].filter(Boolean).join("\n");
 
@@ -271,8 +329,18 @@ export async function runHeroImportPipeline(
     : (aiParsed.combatSpecialty || "none");
 
   const countryCode = normalizeCountryCode(aiParsed.countryCode, scraped.branch || aiParsed.branch);
-  const { matched: matchedMain, unmatched: unmatchedMain } = matchAiMedalsToDatabase(
+  const scrapedMedalRows = scraped.medals.map((m) => ({
+    name: m.rawName,
+    count: m.count,
+    hasValor: m.hasValor,
+  }));
+  const combinedMedalList = mergeMedalEntriesForMatch(
+    scrapedMedalRows,
     aiParsed.medals,
+    aiParsed.otherMedals,
+  );
+  const { matched: matchedMain, unmatched: unmatchedMain } = matchAiMedalsToDatabase(
+    combinedMedalList,
     medalTypes,
     {
       countryCode,

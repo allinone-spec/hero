@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -8,10 +8,14 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { RIBBON_HEIGHT, RIBBON_WIDTH } from "@/components/ribbon-rack/ribbon-data";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
 import { normalizeAwardText } from "@/lib/medal-normalization";
 import { deriveShortNameFromMedalName, medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import { buildRibbonRackMedals } from "@/lib/rack-engine";
+import type { RackMedalEntryLike } from "@/lib/rack-engine";
 
 interface MedalTypeOption {
   _id: string;
@@ -25,6 +29,8 @@ interface MedalTypeOption {
   otherNames?: string[];
   deviceLogic?: string;
   deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  inventoryCategory?: string;
 }
 
 interface DeviceImageData {
@@ -556,6 +562,17 @@ const DEVICE_LABELS: Record<string, string> = {
   "numeral-9": "Numeral 9",
 };
 
+const RIBBON_PLACEHOLDER_SVG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='35'%3E%3Crect width='90' height='35' fill='%23555'/%3E%3C/svg%3E";
+
+/** True for spacer / empty / tiny tracker images — skip for rack persistence. */
+function isBlankImageUrl(url: string): boolean {
+  return (
+    /spacer|pixel|transparent|blank|white/i.test(url) ||
+    /1px-|2px-/i.test(url)
+  );
+}
+
 /** Classify a device image URL into a known device type */
 function classifyDeviceUrl(url: string): string {
   // Oak Leaf Clusters
@@ -682,6 +699,11 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
   const [wikiMedalNames, setWikiMedalNames] = useState<{ name: string; devices: string }[]>([]);
   const [wikiRibbonCells, setWikiRibbonCells] = useState<WikiRibbonCellData[]>(initCells);
 
+  /** Snapshot of medals loaded from DB so we can seed ribbon cells for awards only on `form.medals`. */
+  const initialMedalsForCellSeed = useRef<MedalEntry[]>(
+    Array.isArray(initialData?.medals) ? (initialData!.medals as MedalEntry[]).map((m) => ({ ...m })) : [],
+  );
+
   // AI description generation
   const [aiGenLoading, setAiGenLoading] = useState(false);
 
@@ -741,6 +763,31 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
       .then((r) => r.json())
       .then((data) => setMedalTypes(Array.isArray(data) ? data : []));
   }, []);
+
+  // Medal rows saved only in `medals` (import/scoring) may have no wikiRibbonRack cell — add cells so the rack UI edits all.
+  useEffect(() => {
+    if (medalTypes.length === 0) return;
+    setWikiRibbonCells((prev) => {
+      const cellTypeIds = new Set(prev.filter((c) => c._id).map((c) => c._id));
+      const additions: WikiRibbonCellData[] = [];
+      for (const m of initialMedalsForCellSeed.current) {
+        if (!m.medalType || cellTypeIds.has(m.medalType)) continue;
+        const mt = medalTypes.find((t) => t._id === m.medalType);
+        const rawUrl = (m.wikiRibbonUrl || "").trim() || (mt?.ribbonImageUrl || "").trim();
+        const ribbonUrl =
+          rawUrl && !isBlankImageUrl(rawUrl) ? rawUrl : RIBBON_PLACEHOLDER_SVG;
+        cellTypeIds.add(m.medalType);
+        additions.push({
+          ribbonUrl,
+          deviceUrls: m.deviceImages?.map((d) => d.url).filter(Boolean) ?? [],
+          name: mt?.name || "Medal",
+          _id: m.medalType,
+          type: "ribbon",
+        });
+      }
+      return additions.length ? [...prev, ...additions] : prev;
+    });
+  }, [medalTypes]);
 
   // Once medalTypes load, update wikiRibbonCells names from DB for matched items
   useEffect(() => {
@@ -1275,23 +1322,28 @@ function normalizeCombatType(input: unknown): CombatType {
         return { count: normalized.count, hasValor: normalized.hasValor, arrowheads };
       };
 
-      // Build medals from ALL ribbon rack items (ribbons + other items).
-      // Items with _id are already in DB. Items without _id need new medal types created.
+      // Build medals from ribbon cells only (canonical for edit UI). DB-only medals are seeded into cells on load.
       const rackMedals: MedalEntry[] = [];
       for (const cell of wikiRibbonCells) {
-        if (!cell.ribbonUrl || isBlankImage(cell.ribbonUrl)) continue;
-        const devInfo = parseDevices(cell.name);
+        if (cell.type === "other") continue;
 
+        const mt = cell._id ? medalTypes.find((t) => t._id === cell._id) : undefined;
+        let ribbonUrl =
+          cell.ribbonUrl && !isBlankImageUrl(cell.ribbonUrl) ? cell.ribbonUrl : "";
+        if (!ribbonUrl && mt?.ribbonImageUrl && !isBlankImageUrl(mt.ribbonImageUrl)) {
+          ribbonUrl = mt.ribbonImageUrl;
+        }
+        if (!ribbonUrl) ribbonUrl = RIBBON_PLACEHOLDER_SVG;
+
+        const devInfo = parseDevices(cell.name);
         const devText = medalDevicesMap.get(cell.name.toLowerCase()) || "";
 
         if (cell._id) {
-          // Derive count/hasValor/arrowheads from actual device URLs
           const silverOlc = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "silver-olc").length;
           const bronzeOlc = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "bronze-olc").length;
           const deviceValor = cell.deviceUrls.some((u) => classifyDeviceUrl(u) === "valor-v");
           const deviceArrowheads = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "arrowhead").length;
           const olcTotal = silverOlc * 5 + bronzeOlc;
-          // Use device-derived data when devices exist, otherwise fall back to text parsing
           const finalCount = olcTotal > 0 ? olcTotal + 1 : devInfo.count;
           const finalValor = deviceValor || devInfo.hasValor;
           const finalArrowheads = deviceArrowheads > 0 ? deviceArrowheads : devInfo.arrowheads;
@@ -1306,11 +1358,10 @@ function normalizeCombatType(input: unknown): CombatType {
               deviceType: classifyDeviceUrl(url),
               count: 1,
             })),
-            wikiRibbonUrl: cell.ribbonUrl,
+            wikiRibbonUrl: ribbonUrl === RIBBON_PLACEHOLDER_SVG ? (mt?.ribbonImageUrl || "") : ribbonUrl,
             wikiDeviceText: devText,
           });
-        } else if (cell.name) {
-          // Unmatched but user selected a name — create new medal type
+        } else if (cell.name && cell.ribbonUrl && !isBlankImageUrl(cell.ribbonUrl)) {
           const res = await fetch("/api/medal-types", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1356,14 +1407,11 @@ function normalizeCombatType(input: unknown): CombatType {
         }
       }
 
-      // Merge: ribbon rack medals + any form medals not already covered
-      const rackTypeIds = new Set(rackMedals.map((m) => m.medalType));
-      const existingMedals = form.medals.filter((m) => !rackTypeIds.has(m.medalType));
-      const allMedals = [...existingMedals, ...rackMedals];
+      const allMedals = rackMedals;
 
       // Build wikiRibbonRack for persistence from current cells
       const savedWikiRibbonRack = wikiRibbonCells
-        .filter((c) => c.ribbonUrl && !isBlankImage(c.ribbonUrl))
+        .filter((c) => c.ribbonUrl && !isBlankImageUrl(c.ribbonUrl))
         .map((c) => ({
           ribbonUrl: c.ribbonUrl,
           deviceUrls: c.deviceUrls,
@@ -1417,6 +1465,65 @@ function normalizeCombatType(input: unknown): CombatType {
     }
   };
 
+  /** Same rack ordering/visual as public hero profile (scoring sort + rank-list pyramid). */
+  const rackScoringPreviewMedals = useMemo(() => {
+    const entries: RackMedalEntryLike[] = [];
+    const medalDevicesMap = new Map<string, string>();
+    for (const m of wikiMedalNames) {
+      if (m.devices && !medalDevicesMap.has(m.name.toLowerCase())) {
+        medalDevicesMap.set(m.name.toLowerCase(), m.devices);
+      }
+    }
+    const parseDevicesLocal = (name: string) => {
+      const devText = medalDevicesMap.get(name.toLowerCase()) || "";
+      if (!devText) return { count: 1, hasValor: false, arrowheads: 0 };
+      const normalized = normalizeAwardText(`${name} ${devText}`.trim());
+      const arrowMatch = devText.match(/(\d+)\s*arrowhead/i);
+      const arrowheads = arrowMatch ? parseInt(arrowMatch[1], 10) : /\barrowhead\b/i.test(devText) ? 1 : 0;
+      return { count: normalized.count, hasValor: normalized.hasValor, arrowheads };
+    };
+
+    for (const cell of wikiRibbonCells) {
+      if (cell.type === "other" || !cell._id) continue;
+      const mt = medalTypes.find((t) => t._id === cell._id);
+      if (!mt) continue;
+      const devInfo = parseDevicesLocal(cell.name);
+      const silverOlc = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "silver-olc").length;
+      const bronzeOlc = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "bronze-olc").length;
+      const deviceValor = cell.deviceUrls.some((u) => classifyDeviceUrl(u) === "valor-v");
+      const deviceArrowheads = cell.deviceUrls.filter((u) => classifyDeviceUrl(u) === "arrowhead").length;
+      const olcTotal = silverOlc * 5 + bronzeOlc;
+      const finalCount = olcTotal > 0 ? olcTotal + 1 : devInfo.count;
+      const finalValor = deviceValor || devInfo.hasValor;
+      const finalArrowheads = deviceArrowheads > 0 ? deviceArrowheads : devInfo.arrowheads;
+      entries.push({
+        medalType: {
+          _id: mt._id,
+          name: mt.name,
+          precedenceOrder: mt.precedenceOrder,
+          ribbonColors: mt.ribbonColors,
+          ribbonImageUrl: mt.ribbonImageUrl,
+          deviceLogic: mt.deviceLogic,
+          deviceRule: mt.deviceRule,
+          countryCode: mt.countryCode,
+          inventoryCategory: mt.inventoryCategory,
+        },
+        count: finalCount,
+        hasValor: finalValor,
+        arrowheads: finalArrowheads,
+        deviceImages: cell.deviceUrls.map((url) => ({
+          url,
+          deviceType: classifyDeviceUrl(url),
+          count: 1,
+        })),
+      });
+    }
+    return buildRibbonRackMedals(entries, {
+      serviceBranch: form.branch,
+      nationalCountryCode: form.countryCode,
+    });
+  }, [wikiRibbonCells, medalTypes, wikiMedalNames, form.branch, form.countryCode]);
+
   // Build ribbon rack preview from wikiRibbonRack data.
   // "other" items (badges, tabs, insignia) go above ribbons with actual sizes.
   // "ribbon" items use standard ribbon dimensions in the RibbonRack component.
@@ -1438,14 +1545,9 @@ function normalizeCombatType(input: unknown): CombatType {
       .map((c) => c.name)
   );
 
-  // Filter out blank/white placeholder images
-  const isBlankImage = (url: string) =>
-    /spacer|pixel|transparent|blank|white/i.test(url) ||
-    /1px-|2px-/i.test(url);
-
   for (let idx = 0; idx < wikiRibbonCells.length; idx++) {
     const cell = wikiRibbonCells[idx];
-    if (!cell.ribbonUrl || isBlankImage(cell.ribbonUrl)) continue;
+    if (!cell.ribbonUrl || isBlankImageUrl(cell.ribbonUrl)) continue;
 
     if (cell.type === "other") {
       otherItems.push({ ...cell, cellIdx: idx });
@@ -1673,7 +1775,10 @@ function normalizeCombatType(input: unknown): CombatType {
       {/* ── § 2 Awards & Medals ─────────────────────────────── */}
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-5">
         <div className="flex items-center justify-between mb-4">
-          <SectionHeader title="Awards & Medals" sub="Medals are managed via the ribbon rack below." />
+          <SectionHeader
+            title="Awards & Medals"
+            sub="All saved medals (imported or manual) appear in the grid below. Add, reorder, merge, or remove ribbons here."
+          />
           <div className="relative">
             <button
               type="button"
@@ -1696,7 +1801,6 @@ function normalizeCombatType(input: unknown): CombatType {
                 <div className="max-h-56 overflow-y-auto space-y-0.5">
                   {medalTypes
                     .filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase()) || t.shortName.toLowerCase().includes(addMedalSearch.toLowerCase()))
-                    .slice(0, 30)
                     .map((t) => (
                       <button
                         key={t._id}
@@ -1705,14 +1809,22 @@ function normalizeCombatType(input: unknown): CombatType {
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm transition-colors ${addMedalId === t._id ? "bg-[var(--color-gold)]/20 text-[var(--color-gold)]" : "hover:bg-[var(--color-border)]/50 text-[var(--color-text)]"}`}
                       >
                         {t.ribbonImageUrl ? (
-                          <img src={t.ribbonImageUrl} alt="" className="w-10 h-4 object-fill rounded-[1px] shrink-0" />
+                          <div
+                            className="w-10 shrink-0 overflow-hidden bg-[var(--color-border)]/40 flex items-center justify-center"
+                            style={{ aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}` }}
+                          >
+                            <img src={t.ribbonImageUrl} alt="" className="h-full w-full object-fill" />
+                          </div>
                         ) : (
-                          <div className="w-10 h-4 rounded-[1px] bg-gray-500 shrink-0" />
+                          <div
+                            className="w-10 shrink-0 bg-gray-500"
+                            style={{ aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}` }}
+                          />
                         )}
                         <span className="truncate">{t.name}</span>
                       </button>
                     ))}
-                  {medalTypes.filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase())).length === 0 && addMedalSearch && (
+                  {medalTypes.filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase()) || t.shortName.toLowerCase().includes(addMedalSearch.toLowerCase())).length === 0 && addMedalSearch && (
                     <p className="text-sm text-[var(--color-text-muted)] px-2 py-1">No match — will create as new medal</p>
                   )}
                 </div>
@@ -1745,15 +1857,28 @@ function normalizeCombatType(input: unknown): CombatType {
           </div>
         </div>
 
+        {rackScoringPreviewMedals.length > 0 && (
+          <div className="mb-4 flex w-full justify-center border-b border-[var(--color-border)] pb-4">
+            <RibbonRack
+              medals={rackScoringPreviewMedals}
+              rowLayout="rankListPyramid"
+              countryCode={form.countryCode}
+              scale={3}
+              disableLinks
+            />
+          </div>
+        )}
+
         {/* Ribbon Rack Preview */}
         {(otherItems.length > 0 || ribbonItems.length > 0) && (
           <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
             <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
               Ribbon Rack Preview
             </p>
-            <div className="bg-[var(--color-bg)] rounded-xl p-4 inline-flex flex-col items-center">
+            {otherItems.length > 0 && (
+              <div className="bg-[var(--color-bg)] rounded-xl p-4 inline-flex flex-col items-center">
               {/* "Other" items — fixed size, row-based drag + resizable */}
-              {otherItems.length > 0 && (() => {
+              {(() => {
                 // Ribbon row max width (4 ribbons * 92px each)
                 const ribbonRowMaxWidth = 4 * 92;
                 const otherGap = 8; // gap-2 = 8px
@@ -1936,93 +2061,8 @@ function normalizeCombatType(input: unknown): CombatType {
                   </div>
                 );
               })()}
-              {/* Adjustable gap between other items and ribbons */}
-              {otherItems.length > 0 && ribbonItems.length > 0 && (
-                <div
-                  className="w-full flex items-center justify-center group/gap relative"
-                  style={{ height: rackGap }}
-                >
-                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 hidden group-hover/gap:flex items-center justify-center gap-1 z-10">
-                    <button
-                      type="button"
-                      onClick={() => setRackGap((g) => Math.max(0, g - 4))}
-                      className="w-5 h-5 flex items-center justify-center rounded-full bg-black/70 text-white text-[10px] font-bold hover:text-amber-300"
-                    >−</button>
-                    <span className="text-[9px] text-[var(--color-text-muted)] bg-[var(--color-bg)] px-1 rounded">{rackGap}px</span>
-                    <button
-                      type="button"
-                      onClick={() => setRackGap((g) => Math.min(60, g + 4))}
-                      className="w-5 h-5 flex items-center justify-center rounded-full bg-black/70 text-white text-[10px] font-bold hover:text-amber-300"
-                    >+</button>
-                  </div>
-                </div>
-              )}
-              {/* Ribbon items — draggable grid, 4 per row */}
-              {ribbonItems.length > 0 && (
-                <div className="flex flex-wrap justify-center" style={{ width: 4 * 92, gap: 2 }}>
-                  {ribbonItems.map((cell, i) => (
-                    <div
-                      key={`rib-${cell.cellIdx}`}
-                      draggable
-                      onDragStart={(e) => {
-                        setDragIdx(i);
-                        setDragGroup("ribbon");
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (dragGroup !== "ribbon" || dragIdx === null || dragIdx === i) return;
-                        setWikiRibbonCells((prev) => {
-                          const arr = [...prev];
-                          const fromCellIdx = ribbonItems[dragIdx].cellIdx;
-                          const toCellIdx = cell.cellIdx;
-                          const item = arr[fromCellIdx];
-                          arr.splice(fromCellIdx, 1);
-                          const adjustedTo = toCellIdx > fromCellIdx ? toCellIdx - 1 : toCellIdx;
-                          arr.splice(adjustedTo, 0, item);
-                          return arr;
-                        });
-                        setDragIdx(null);
-                        setDragGroup(null);
-                      }}
-                      onDragEnd={() => { setDragIdx(null); setDragGroup(null); }}
-                      onClick={() => {
-                        setSelectedRibbonIdx(selectedRibbonIdx === cell.cellIdx ? null : cell.cellIdx);
-                        setShowAddDevice(false);
-                      }}
-                      className="cursor-grab active:cursor-grabbing relative"
-                      style={{
-                        width: 90,
-                        height: 35,
-                        opacity: dragGroup === "ribbon" && dragIdx === i ? 0.4 : 1,
-                        outline: selectedRibbonIdx === cell.cellIdx ? "2px solid var(--color-gold)" : "none",
-                        outlineOffset: 1,
-                        borderRadius: 2,
-                      }}
-                    >
-                      <img
-                        src={cell.ribbonUrl}
-                        alt={cell.name || ""}
-                        className="w-full h-full object-fill rounded-[1px]"
-                        draggable={false}
-                      />
-                      {/* Device overlays — always rendered from deviceUrls */}
-                      {cell.deviceUrls.length > 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center gap-[1px] pointer-events-none overflow-hidden">
-                          {cell.deviceUrls.map((dUrl, di) => (
-                            <img key={di} src={dUrl} alt="" className="h-[70%] object-contain shrink-0" style={{ maxWidth: `${Math.floor(88 / cell.deviceUrls.length)}px` }} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Add Device controls — shown when a ribbon is selected */}
             {selectedRibbonIdx !== null && wikiRibbonCells[selectedRibbonIdx] && (() => {
@@ -2216,22 +2256,67 @@ function normalizeCombatType(input: unknown): CombatType {
             {/* Unified item list below rack: all items with thumbnail + name/dropdown/input + actions */}
             <div className="mt-3 space-y-2">
               {wikiRibbonCells
-                .filter((c) => c.ribbonUrl && !isBlankImage(c.ribbonUrl))
+                .filter((c) => c.ribbonUrl && !isBlankImageUrl(c.ribbonUrl))
                 .map((cell, i) => {
                   const cellIdx = wikiRibbonCells.indexOf(cell);
                   const isOther = cell.type === "other";
                   const dbMedal = cell._id ? medalTypes.find((t) => t._id === cell._id) : null;
                   const displayName = dbMedal?.name || cell.name;
                   return (
-                    <div key={`item-label-${i}`} className="flex items-center gap-3">
-                      {/* Thumbnail — uniform width, slightly larger */}
-                      <div className="shrink-0 flex items-center justify-center" style={{ width: 60 }}>
-                        {isOther ? (
-                          <img src={cell.ribbonUrl} alt="" className="object-contain" style={{ maxWidth: 60, maxHeight: 32 }} />
-                        ) : (
-                          <img src={cell.ribbonUrl} alt="" className="object-contain rounded" style={{ width: 60, height: 24 }} />
-                        )}
-                      </div>
+                    <div
+                      key={`item-label-${i}`}
+                      role={!isOther ? "button" : undefined}
+                      tabIndex={!isOther ? 0 : undefined}
+                      className={`flex items-center gap-3 rounded-lg px-1 py-0.5 -mx-1 transition-colors ${
+                        !isOther
+                          ? `cursor-pointer hover:bg-[var(--color-border)]/30 ${
+                              selectedRibbonIdx === cellIdx
+                                ? "ring-2 ring-[var(--color-gold)] bg-[var(--color-gold)]/8"
+                                : ""
+                            }`
+                          : ""
+                      }`}
+                      onClick={
+                        !isOther
+                          ? () => {
+                              setSelectedRibbonIdx((prev) =>
+                                prev === cellIdx ? null : cellIdx,
+                              );
+                              setShowAddDevice(false);
+                            }
+                          : undefined
+                      }
+                      onKeyDown={
+                        !isOther
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setSelectedRibbonIdx((prev) =>
+                                  prev === cellIdx ? null : cellIdx,
+                                );
+                                setShowAddDevice(false);
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      {/* Thumbnail — ribbon bar aspect 11:3 (see ribbon-data) */}
+                      {isOther ? (
+                        <div className="shrink-0 w-[60px] h-9 flex items-center justify-center">
+                          <img
+                            src={cell.ribbonUrl}
+                            alt=""
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="shrink-0 w-[60px] overflow-hidden flex items-center justify-center bg-[var(--color-border)]/30"
+                          style={{ aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}` }}
+                        >
+                          <img src={cell.ribbonUrl} alt="" className="h-full w-full object-fill" />
+                        </div>
+                      )}
                       {/* Name: matched = DB name, unmatched = editable input with datalist suggestions */}
                       {cell._id ? (
                         <div className="flex-1 flex items-center gap-2 text-left">
@@ -2245,7 +2330,11 @@ function normalizeCombatType(input: unknown): CombatType {
                           )}
                         </div>
                       ) : (
-                        <div className="flex-1 flex items-center gap-1.5">
+                        <div
+                          className="flex-1 flex items-center gap-1.5"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {availableMedalNames.length > 0 && !cell._customInput ? (
                             <select
                               value={cell.name}
@@ -2292,7 +2381,11 @@ function normalizeCombatType(input: unknown): CombatType {
                       {!cell._id && (
                         <>
                           {mergingRibbonIdx === cellIdx ? (
-                            <div className="flex items-center gap-1">
+                            <div
+                              className="flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
                               <div className="w-56">
                                 <MedalSelect
                                   value=""
@@ -2306,7 +2399,10 @@ function normalizeCombatType(input: unknown): CombatType {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => setMergingRibbonIdx(null)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMergingRibbonIdx(null);
+                                }}
                                 className="px-2 py-1 text-sm rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
                               >
                                 Cancel
@@ -2315,7 +2411,10 @@ function normalizeCombatType(input: unknown): CombatType {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => setMergingRibbonIdx(cellIdx)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMergingRibbonIdx(cellIdx);
+                              }}
                               className="shrink-0 px-2.5 py-1 text-sm rounded bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 transition-colors border border-amber-500/30"
                               title="Merge with existing medal type"
                             >
@@ -2327,7 +2426,9 @@ function normalizeCombatType(input: unknown): CombatType {
                       {/* Delete button */}
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (selectedRibbonIdx === cellIdx) setSelectedRibbonIdx(null);
                           setWikiRibbonCells((prev) => prev.filter((_, ci) => ci !== cellIdx));
                         }}
                         className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors border border-[var(--color-border)]"

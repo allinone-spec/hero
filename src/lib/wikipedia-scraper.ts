@@ -943,7 +943,7 @@ function extractBodyAwards(html: string, infoboxFullHtml?: string): { medals: Sc
   }
 
   // Find award-related sections
-  const awardKeywords = ["award", "decoration", "badge", "medal", "honour", "honor"];
+  const awardKeywords = ["award", "decoration", "badge", "medal", "ribbon", "honour", "honor"];
   const skipKeywords = ["medal of honor citation", "citation"];
   const awardSections: string[] = [];
 

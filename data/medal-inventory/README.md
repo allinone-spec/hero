@@ -1,15 +1,15 @@
-# Medal inventory CSV → `MedalType`
+# Medal inventory → `MedalType`
 
-Run: `npm run import-medals` (loads every `*.csv` in this folder).
+Run: `npm run import-medals` — loads **`Final_Medal_Sheet_Client.csv`** from this folder into Mongo.
 
-Columns are documented in `src/lib/medal-inventory-importer.ts`. Optional column **`other_names`**: pipe- or semicolon-separated aliases.
+To wipe the catalog and all heroes’ medal assignments (then re-import): `npm run clear-medals`
 
-## US file
+## Client sheet columns
 
-If `us.csv` is open in an editor, the OS may lock the file. The full master-scoring row set is also saved as **`us.scoring.v2.csv`**. When ready, close `us.csv` in the IDE, replace it with the contents of `us.scoring.v2.csv` (or delete `us.csv` and rename `us.scoring.v2.csv` → `us.csv`), then run `npm run import-medals` again.
+Documented in `src/lib/medal-inventory-importer.ts` (`parseRibbonsInventoryCsv`).
 
-**Do not** keep both `us.csv` and `us.scoring.v2.csv` as separate full lists during import — the importer reads **all** CSVs and would duplicate US rows. After merging, remove or rename the spare file.
+- **Precedence** → `precedenceOrder` (ribbon rack ordering with hero nationality tie-breaks in `rack-engine.ts`)
+- **Bong_Score** → `basePoints` / `valorPoints` (catalog input for scoring; empty values import as `0`)
+- **Ribbon_File_Direct_URL** / **Ribbon_Thumbnail_URL** (or legacy **Ribbon_Link**) → `ribbonImageUrl`; **Wiki_Link** → `wikipediaUrl` (**Medal_Link** is usually the Wikipedia article, not the ribbon image)
 
-## Scoring note
-
-Hero scores use **`src/lib/scoring-engine.ts`** (CORE + British orders + `FOREIGN_SCORE_RULES` + wounds + aviation/sub modifiers). Catalog `base_points` / `valor_points` align with the master doc; **foreign** name patterns may override catalog `basePoints` when they match.
+Legacy `ribbons.csv` row shapes are still parsed if you point code at that file; the default import filename is the client sheet above.

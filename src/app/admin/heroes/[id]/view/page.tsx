@@ -6,6 +6,9 @@ import Link from "next/link";
 import AvatarFallback from "@/components/ui/AvatarFallback";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { AdminLoader } from "@/components/ui/AdminLoader";
+import RibbonRack from "@/components/ribbon-rack/RibbonRack";
+import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
+import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
 interface MedalType {
   _id: string;
@@ -14,6 +17,11 @@ interface MedalType {
   basePoints: number;
   ribbonColors: string[];
   precedenceOrder: number;
+  ribbonImageUrl?: string;
+  deviceLogic?: string;
+  deviceRule?: MedalDeviceRule;
+  countryCode?: string;
+  inventoryCategory?: string;
 }
 
 interface Medal {
@@ -22,6 +30,8 @@ interface Medal {
   hasValor: boolean;
   valorDevices: number;
   arrowheads?: number;
+  deviceImages?: { url: string; deviceType: string; count: number }[];
+  wikiRibbonUrl?: string;
 }
 
 interface Hero {
@@ -39,6 +49,7 @@ interface Hero {
   hadCombatCommand: boolean;
   powHeroism: boolean;
   multiServiceOrMultiWar: boolean;
+  countryCode?: string;
   combatAchievements: {
     type: string;
     confirmedKills: number;
@@ -139,9 +150,14 @@ export default function ViewHeroPage() {
     );
   }
 
-  const sortedMedals = [...hero.medals]
-    .filter((m) => m.medalType)
-    .sort((a, b) => a.medalType.precedenceOrder - b.medalType.precedenceOrder);
+  const orderedMedalEntries = sortHeroMedalEntries(
+    hero.medals.filter((m) => m.medalType),
+    { nationalCountryCode: hero.countryCode },
+  );
+  const ribbonMedals = buildRibbonRackMedals(orderedMedalEntries, {
+    serviceBranch: hero.branch,
+    nationalCountryCode: hero.countryCode,
+  });
 
   const combatType = hero.combatAchievements?.type;
   const hasCombatAchievements = combatType && combatType !== "none";
@@ -243,16 +259,27 @@ export default function ViewHeroPage() {
         <section className="lg:col-span-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
           <SectionHeader
             title="Awards & Medals"
-            sub={`${sortedMedals.length} decoration${sortedMedals.length !== 1 ? "s" : ""} on record`}
+            sub={`${orderedMedalEntries.length} decoration${orderedMedalEntries.length !== 1 ? "s" : ""} on record`}
           />
 
-          {sortedMedals.length === 0 ? (
+          {orderedMedalEntries.length === 0 ? (
             <p className="text-sm text-[var(--color-text-muted)] text-center py-6">
               No medals recorded.
             </p>
           ) : (
+            <>
+              {ribbonMedals.length > 0 && (
+                <div className="mb-5 flex w-full justify-center border-b border-[var(--color-border)] pb-5">
+                  <RibbonRack
+                    medals={ribbonMedals}
+                    rowLayout="rankListPyramid"
+                    countryCode={hero.countryCode}
+                    scale={3}
+                  />
+                </div>
+              )}
             <div className="space-y-1">
-              {sortedMedals.map((m, idx) => (
+              {orderedMedalEntries.map((m, idx) => (
                 <div
                   key={idx}
                   className="py-2 px-3 border-b border-[var(--color-border)] last:border-0"
@@ -268,6 +295,7 @@ export default function ViewHeroPage() {
                 </div>
               ))}
             </div>
+            </>
           )}
         </section>
 
