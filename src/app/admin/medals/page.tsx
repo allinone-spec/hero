@@ -9,6 +9,7 @@ import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { MedalDisplayThumbRow } from "@/components/medals/MedalDisplayThumb";
+import { RIBBON_HEIGHT, RIBBON_WIDTH } from "@/components/ribbon-rack/ribbon-data";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 import { countryOptionLabel } from "@/lib/country-display";
@@ -1195,12 +1196,19 @@ export default function AdminMedalsPage() {
               />
 
               {mt.ribbonImageUrl && (
-                <SafeWikimediaImg
-                  src={mt.ribbonImageUrl}
-                  alt={`${mt.name} ribbon`}
-                  className="h-5 w-10 object-contain rounded-sm shrink-0"
-                  style={{ border: "1px solid rgba(128,128,128,0.15)" }}
-                />
+                <div
+                  className="w-10 shrink-0 overflow-hidden"
+                  style={{
+                    aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}`,
+                    border: "1px solid rgba(128,128,128,0.15)",
+                  }}
+                >
+                  <SafeWikimediaImg
+                    src={mt.ribbonImageUrl}
+                    alt={`${mt.name} ribbon`}
+                    className="h-full w-full object-fill shrink-0"
+                  />
+                </div>
               )}
 
               <div className="min-w-0">
@@ -1381,9 +1389,21 @@ export default function AdminMedalsPage() {
                           className="w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors flex items-center gap-3"
                         >
                           {mt.ribbonImageUrl ? (
-                            <SafeWikimediaImg src={mt.ribbonImageUrl} alt="" className="w-8 h-3 object-contain" />
+                            <div
+                              className="w-8 shrink-0 overflow-hidden"
+                              style={{ aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}` }}
+                            >
+                              <SafeWikimediaImg
+                                src={mt.ribbonImageUrl}
+                                alt=""
+                                className="h-full w-full object-fill"
+                              />
+                            </div>
                           ) : (
-                            <div className="w-8 h-3 bg-[var(--color-bg)] rounded" />
+                            <div
+                              className="w-8 shrink-0 bg-[var(--color-bg)]"
+                              style={{ aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}` }}
+                            />
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate">{mt.name}</div>

@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import { RIBBON_HEIGHT, RIBBON_WIDTH } from "@/components/ribbon-rack/ribbon-data";
 import { medalShortLabelForDisplay } from "@/lib/medal-short-name";
 import { getFirstWikiImageUrl } from "@/lib/medal-primary-image-url";
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+
+const RIBBON_ASPECT_STYLE: CSSProperties = {
+  aspectRatio: `${RIBBON_WIDTH} / ${RIBBON_HEIGHT}`,
+};
 
 export interface MedalThumbSources {
   imageUrl?: string;
@@ -65,12 +70,14 @@ export function MedalDisplayThumb({
   }
 
   if (ribbonImg && !failedRibbon) {
+    const rw = size;
+    const rh = Math.round((size * RIBBON_HEIGHT) / RIBBON_WIDTH);
     return (
       <img
         src={ribbonImg}
         alt={name}
-        className={`${imgClassName} ${className}`.trim()}
-        style={{ height: size, width: size }}
+        className={`${className} object-fill overflow-hidden`.trim()}
+        style={{ width: rw, height: rh, border: `3px solid ${borderColor}` }}
         onError={() => setFailedRibbon(true)}
         loading="lazy"
         referrerPolicy="no-referrer"
@@ -94,19 +101,21 @@ export function MedalDisplayThumb({
 
   const colors = Array.isArray(ribbonColors) ? ribbonColors.filter(Boolean) : [];
   if (colors.length > 0) {
+    const rw = size;
+    const rh = Math.round((size * RIBBON_HEIGHT) / RIBBON_WIDTH);
     return (
       <div
-        className={`rounded-lg shrink-0 overflow-hidden shadow-sm ${className ?? ""}`.trim()}
-        style={{ ...boxStyle, border: `2px solid ${borderColor}` }}
+        className={`shrink-0 overflow-hidden shadow-sm ${className ?? ""}`.trim()}
+        style={{ width: rw, height: rh, border: `2px solid ${borderColor}` }}
       >
-        <svg width="100%" height="100%" viewBox="0 0 40 40" preserveAspectRatio="none" aria-hidden>
+        <svg width="100%" height="100%" viewBox="0 0 11 3" preserveAspectRatio="none" aria-hidden>
           {colors.map((color, ci) => (
             <rect
               key={ci}
-              x={(40 / colors.length) * ci}
+              x={(11 / colors.length) * ci}
               y={0}
-              width={40 / colors.length}
-              height={40}
+              width={11 / colors.length}
+              height={3}
               fill={color}
             />
           ))}
@@ -154,14 +163,19 @@ export function MedalDisplayThumbRow(s: MedalThumbSources & { borderColor: strin
   }
   if (ribbonImg && !failedRibbon) {
     return (
-      <img
-        src={ribbonImg}
-        alt={s.name}
-        className="h-11 w-11 object-contain rounded shrink-0"
-        onError={() => setFailedRibbon(true)}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-      />
+      <div
+        className="w-11 shrink-0 overflow-hidden bg-[var(--color-border)]/25"
+        style={RIBBON_ASPECT_STYLE}
+      >
+        <img
+          src={ribbonImg}
+          alt={s.name}
+          className="h-full w-full object-fill"
+          onError={() => setFailedRibbon(true)}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      </div>
     );
   }
   if (wiki0 && !failedWiki) {
@@ -181,17 +195,17 @@ export function MedalDisplayThumbRow(s: MedalThumbSources & { borderColor: strin
   if (colors.length > 0) {
     return (
       <div
-        className="h-11 w-11 rounded shrink-0 overflow-hidden shadow-sm"
-        style={{ border: `2px solid ${s.borderColor}` }}
+        className="w-11 shrink-0 overflow-hidden shadow-sm"
+        style={{ ...RIBBON_ASPECT_STYLE, border: `2px solid ${s.borderColor}` }}
       >
-        <svg width="100%" height="100%" viewBox="0 0 40 40" preserveAspectRatio="none" aria-hidden>
+        <svg width="100%" height="100%" viewBox="0 0 11 3" preserveAspectRatio="none" aria-hidden>
           {colors.map((color, ci) => (
             <rect
               key={ci}
-              x={(40 / colors.length) * ci}
+              x={(11 / colors.length) * ci}
               y={0}
-              width={40 / colors.length}
-              height={40}
+              width={11 / colors.length}
+              height={3}
               fill={color}
             />
           ))}
@@ -202,8 +216,9 @@ export function MedalDisplayThumbRow(s: MedalThumbSources & { borderColor: strin
 
   return (
     <div
-      className="h-11 w-11 rounded shrink-0 flex items-center justify-center text-[10px] font-bold text-[var(--color-text-muted)]"
+      className="w-11 shrink-0 flex items-center justify-center text-[10px] font-bold text-[var(--color-text-muted)]"
       style={{
+        ...RIBBON_ASPECT_STYLE,
         backgroundColor: "var(--color-surface)",
         border: `2px solid ${s.borderColor}`,
       }}

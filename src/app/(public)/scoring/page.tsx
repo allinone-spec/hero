@@ -24,7 +24,7 @@ export default function ScoringPage() {
         </p>
       </div>
 
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {USM25_MATRIX_SECTIONS.map((section) => (
           <div
             key={section.title}
@@ -33,18 +33,18 @@ export default function ScoringPage() {
             <h2 className="text-lg font-semibold mb-4 text-[var(--color-gold)]">
               {section.title}
             </h2>
-            <div className="space-y-2">
+            <div className="divide-y divide-[var(--color-border)]">
               {section.items.map((item, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0"
+                  className="grid grid-cols-1 gap-x-8 gap-y-2 py-3 first:pt-0 items-start sm:grid-cols-[minmax(18rem,38%)_minmax(0,1fr)]"
                 >
-                  <span className="text-sm">{item.label}</span>
-                  {item.points && (
-                    <span className="text-sm font-semibold text-[var(--color-gold)] shrink-0 ml-4">
+                  <span className="text-sm text-[var(--color-text)]">{item.label}</span>
+                  {item.points ? (
+                    <span className="text-sm font-semibold text-[var(--color-gold)] sm:text-right break-words">
                       {item.points}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
