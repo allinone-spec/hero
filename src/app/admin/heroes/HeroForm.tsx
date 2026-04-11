@@ -573,6 +573,71 @@ function isBlankImageUrl(url: string): boolean {
   );
 }
 
+/** Add ribbon cells for hero.medals rows not already represented (import often has medals but empty wikiRibbonRack). */
+function appendCellsForMissingMedals(
+  prev: WikiRibbonCellData[],
+  medals: MedalEntry[],
+  medalTypesList: MedalTypeOption[],
+): WikiRibbonCellData[] {
+  const existing = new Set(prev.filter((c) => c._id).map((c) => String(c._id)));
+  const additions: WikiRibbonCellData[] = [];
+  for (const m of medals) {
+    const mid = m.medalType != null && m.medalType !== "" ? String(m.medalType) : "";
+    if (!mid || existing.has(mid)) continue;
+    existing.add(mid);
+    const mt = medalTypesList.find((t) => String(t._id) === mid);
+    const rawUrl = (m.wikiRibbonUrl || "").trim() || (mt?.ribbonImageUrl || "").trim();
+    const ribbonUrl =
+      rawUrl && !isBlankImageUrl(rawUrl) ? rawUrl : RIBBON_PLACEHOLDER_SVG;
+    const deviceUrls =
+      m.deviceImages?.map((d) => d.url).filter((u): u is string => Boolean(u)) ?? [];
+    additions.push({
+      ribbonUrl,
+      deviceUrls,
+      name: mt?.name || "Medal",
+      _id: mid,
+      type: "ribbon",
+    });
+  }
+  return additions.length ? [...prev, ...additions] : prev;
+}
+
+/** Pipeline often returns empty wikiRibbonRack; build ribbon rows from aiMedals for the Awards UI. */
+function ensureAiMedalsInRibbonCells(
+  cells: WikiRibbonCellData[],
+  aiMedals:
+    | Array<{
+        medalTypeId: string;
+        ribbonUrl?: string;
+        wikiOrder?: number;
+        deviceImages?: { url: string; deviceType?: string; count?: number }[];
+      }>
+    | undefined,
+  medalTypesList: MedalTypeOption[],
+): void {
+  if (!Array.isArray(aiMedals) || aiMedals.length === 0) return;
+  const seen = new Set(cells.filter((c) => c._id).map((c) => String(c._id)));
+  for (const m of aiMedals) {
+    const id = m.medalTypeId != null ? String(m.medalTypeId) : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const mtRow = medalTypesList.find((t) => String(t._id) === id);
+    const rawUrl = (m.ribbonUrl || "").trim() || (mtRow?.ribbonImageUrl || "").trim();
+    const ribbonUrl =
+      rawUrl && !isBlankImageUrl(rawUrl) ? rawUrl : RIBBON_PLACEHOLDER_SVG;
+    const deviceUrls = Array.isArray(m.deviceImages)
+      ? m.deviceImages.map((d) => d.url).filter(Boolean)
+      : [];
+    cells.push({
+      ribbonUrl,
+      deviceUrls,
+      name: mtRow?.name || "",
+      _id: id,
+      type: "ribbon",
+    });
+  }
+}
+
 /** Classify a device image URL into a known device type */
 function classifyDeviceUrl(url: string): string {
   // Oak Leaf Clusters
@@ -673,16 +738,26 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
   const [addDeviceType, setAddDeviceType] = useState("bronze-olc");
   const [addDeviceCount, setAddDeviceCount] = useState(1);
   // Initialize wikiRibbonCells from saved data, mapping DB field names to form fields
-  const initCells: WikiRibbonCellData[] = initialData?.wikiRibbonRack?.map((c) => ({
-    ribbonUrl: c.ribbonUrl,
-    deviceUrls: c.deviceUrls || [],
-    name: c.medalName || "",
-    _id: typeof c.medalType === "object" ? c.medalType._id : (c.medalType || ""),
-    type: (c.cellType || "ribbon") as "ribbon" | "other",
-    width: c.imgWidth,
-    height: c.imgHeight,
-    row: c.row,
-  })) || [];
+  const initCells: WikiRibbonCellData[] =
+    initialData?.wikiRibbonRack?.map((c) => {
+      const mt = c.medalType;
+      const medalTypeId =
+        mt != null && typeof mt === "object" && "_id" in mt
+          ? String((mt as { _id: unknown })._id)
+          : mt != null
+            ? String(mt)
+            : "";
+      return {
+        ribbonUrl: c.ribbonUrl,
+        deviceUrls: c.deviceUrls || [],
+        name: c.medalName || "",
+        _id: medalTypeId,
+        type: (c.cellType || "ribbon") as "ribbon" | "other",
+        width: c.imgWidth,
+        height: c.imgHeight,
+        row: c.row,
+      };
+    }) || [];
 
   // Initialize otherScales from saved scale values
   const initScales: Record<number, number> = {};
@@ -767,26 +842,9 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
   // Medal rows saved only in `medals` (import/scoring) may have no wikiRibbonRack cell — add cells so the rack UI edits all.
   useEffect(() => {
     if (medalTypes.length === 0) return;
-    setWikiRibbonCells((prev) => {
-      const cellTypeIds = new Set(prev.filter((c) => c._id).map((c) => c._id));
-      const additions: WikiRibbonCellData[] = [];
-      for (const m of initialMedalsForCellSeed.current) {
-        if (!m.medalType || cellTypeIds.has(m.medalType)) continue;
-        const mt = medalTypes.find((t) => t._id === m.medalType);
-        const rawUrl = (m.wikiRibbonUrl || "").trim() || (mt?.ribbonImageUrl || "").trim();
-        const ribbonUrl =
-          rawUrl && !isBlankImageUrl(rawUrl) ? rawUrl : RIBBON_PLACEHOLDER_SVG;
-        cellTypeIds.add(m.medalType);
-        additions.push({
-          ribbonUrl,
-          deviceUrls: m.deviceImages?.map((d) => d.url).filter(Boolean) ?? [],
-          name: mt?.name || "Medal",
-          _id: m.medalType,
-          type: "ribbon",
-        });
-      }
-      return additions.length ? [...prev, ...additions] : prev;
-    });
+    setWikiRibbonCells((prev) =>
+      appendCellsForMissingMedals(prev, initialMedalsForCellSeed.current, medalTypes),
+    );
   }, [medalTypes]);
 
   // Once medalTypes load, update wikiRibbonCells names from DB for matched items
@@ -1063,20 +1121,21 @@ function normalizeCombatType(input: unknown): CombatType {
     const mtRes = await fetch("/api/medal-types");
     const mtData = await mtRes.json();
     if (Array.isArray(mtData)) setMedalTypes(mtData);
+    const mtList: MedalTypeOption[] = Array.isArray(mtData) ? mtData : medalTypes;
     setWikiNewTypes(data.newMedalTypesCreated || 0);
 
     // Ribbon layout from Wikipedia
     if (typeof data.ribbonMaxPerRow === "number" && data.ribbonMaxPerRow >= 2) {
       setRibbonMaxPerRow(data.ribbonMaxPerRow);
     }
+    const wikiOrderMap = new Map<string, number>();
     if (Array.isArray(data.aiMedals)) {
-      const orderMap = new Map<string, number>();
       for (const m of data.aiMedals) {
-        if (m.medalTypeId && typeof m.wikiOrder === "number" && m.wikiOrder > 0) {
-          orderMap.set(m.medalTypeId, m.wikiOrder);
+        if (m.medalTypeId != null && typeof m.wikiOrder === "number" && m.wikiOrder > 0) {
+          wikiOrderMap.set(String(m.medalTypeId), m.wikiOrder);
         }
       }
-      setWikiMedalOrder(orderMap);
+      setWikiMedalOrder(wikiOrderMap);
     }
 
     setForm((prev) => ({
@@ -1158,7 +1217,7 @@ function normalizeCombatType(input: unknown): CombatType {
       const medalNamesList: { name: string; devices: string }[] = data.wikiMedalNames;
       // Build name→DB medal lookup
       const nameToMedal = new Map<string, { _id: string; name: string }>();
-      for (const mt of medalTypes) {
+      for (const mt of mtList) {
         nameToMedal.set(mt.name.toLowerCase(), { _id: mt._id, name: mt.name });
         if (mt.otherNames) {
           for (const alias of mt.otherNames) {
@@ -1182,6 +1241,9 @@ function normalizeCombatType(input: unknown): CombatType {
       }
     }
 
+    // Import pipeline often sends empty wikiRibbonRack; build ribbon rows from aiMedals for editing + rack preview.
+    ensureAiMedalsInRibbonCells(rawCells, data.aiMedals, mtList);
+
     // Auto-assign rows to "other" items so no row exceeds ribbon row width
     const maxRowWidth = 4 * 92; // must match ribbon grid width
     const otherGap = 8;
@@ -1199,6 +1261,20 @@ function normalizeCombatType(input: unknown): CombatType {
       }
       cell.row = currentRow;
     }
+
+    if (wikiOrderMap.size > 0) {
+      rawCells.sort((a, b) => {
+        if (a.type === "other" && b.type !== "other") return 1;
+        if (b.type === "other" && a.type !== "other") return -1;
+        const oa = a._id ? wikiOrderMap.get(String(a._id)) : undefined;
+        const ob = b._id ? wikiOrderMap.get(String(b._id)) : undefined;
+        if (oa != null && ob != null && oa !== ob) return oa - ob;
+        if (oa != null) return -1;
+        if (ob != null) return 1;
+        return 0;
+      });
+    }
+
     setWikiRibbonCells(rawCells);
 
     // Unmatched medals are now handled via ribbon rack name dropdowns
@@ -1269,6 +1345,7 @@ function normalizeCombatType(input: unknown): CombatType {
           }));
         if (newMedals.length > 0) {
           setForm((prev) => ({ ...prev, medals: [...prev.medals, ...newMedals] }));
+          setWikiRibbonCells((prev) => appendCellsForMissingMedals(prev, newMedals, medalTypes));
         }
       }
 
@@ -1407,7 +1484,12 @@ function normalizeCombatType(input: unknown): CombatType {
         }
       }
 
-      const allMedals = rackMedals;
+      const rackIds = new Set(rackMedals.map((m) => String(m.medalType)).filter(Boolean));
+      const orphanFormMedals = form.medals.filter((m) => {
+        const id = m.medalType != null ? String(m.medalType) : "";
+        return id && !rackIds.has(id);
+      });
+      const allMedals = orphanFormMedals.length ? [...rackMedals, ...orphanFormMedals] : rackMedals;
 
       // Build wikiRibbonRack for persistence from current cells
       const savedWikiRibbonRack = wikiRibbonCells
@@ -1518,11 +1600,45 @@ function normalizeCombatType(input: unknown): CombatType {
         })),
       });
     }
+    const seenIds = new Set(
+      entries
+        .map((e) => (e.medalType?._id != null ? String(e.medalType._id) : ""))
+        .filter(Boolean),
+    );
+    for (const m of form.medals) {
+      const mid = m.medalType != null ? String(m.medalType) : "";
+      if (!mid || seenIds.has(mid)) continue;
+      const mt = medalTypes.find((t) => String(t._id) === mid);
+      if (!mt) continue;
+      seenIds.add(mid);
+      entries.push({
+        medalType: {
+          _id: mt._id,
+          name: mt.name,
+          precedenceOrder: mt.precedenceOrder,
+          ribbonColors: mt.ribbonColors,
+          ribbonImageUrl: mt.ribbonImageUrl,
+          deviceLogic: mt.deviceLogic,
+          deviceRule: mt.deviceRule,
+          countryCode: mt.countryCode,
+          inventoryCategory: mt.inventoryCategory,
+        },
+        count: Math.max(1, m.count || 1),
+        hasValor: Boolean(m.hasValor),
+        arrowheads: m.arrowheads || 0,
+        deviceImages: m.deviceImages?.map((d) => ({
+          url: d.url,
+          deviceType: d.deviceType,
+          count: d.count ?? 1,
+        })),
+        wikiRibbonUrl: m.wikiRibbonUrl,
+      });
+    }
     return buildRibbonRackMedals(entries, {
       serviceBranch: form.branch,
       nationalCountryCode: form.countryCode,
     });
-  }, [wikiRibbonCells, medalTypes, wikiMedalNames, form.branch, form.countryCode]);
+  }, [wikiRibbonCells, medalTypes, wikiMedalNames, form.branch, form.countryCode, form.medals]);
 
   // Build ribbon rack preview from wikiRibbonRack data.
   // "other" items (badges, tabs, insignia) go above ribbons with actual sizes.
@@ -1843,6 +1959,28 @@ function normalizeCombatType(input: unknown): CombatType {
                         type: "ribbon",
                       };
                       setWikiRibbonCells((prev) => [...prev, newCell]);
+                      if (selected?._id) {
+                        setForm((prev) => {
+                          if (prev.medals.some((mm) => String(mm.medalType) === String(selected._id))) {
+                            return prev;
+                          }
+                          return {
+                            ...prev,
+                            medals: [
+                              ...prev.medals,
+                              {
+                                medalType: selected._id,
+                                count: 1,
+                                hasValor: false,
+                                valorDevices: 0,
+                                arrowheads: 0,
+                                deviceImages: [],
+                                wikiRibbonUrl: selected.ribbonImageUrl || "",
+                              },
+                            ],
+                          };
+                        });
+                      }
                       setShowAddMedal(false);
                       setAddMedalSearch("");
                       setAddMedalId("");
@@ -2429,7 +2567,17 @@ function normalizeCombatType(input: unknown): CombatType {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (selectedRibbonIdx === cellIdx) setSelectedRibbonIdx(null);
-                          setWikiRibbonCells((prev) => prev.filter((_, ci) => ci !== cellIdx));
+                          setWikiRibbonCells((prev) => {
+                            const removed = prev[cellIdx];
+                            if (removed?._id && removed.type !== "other") {
+                              const rid = String(removed._id);
+                              setForm((p) => ({
+                                ...p,
+                                medals: p.medals.filter((mm) => String(mm.medalType) !== rid),
+                              }));
+                            }
+                            return prev.filter((_, ci) => ci !== cellIdx);
+                          });
                         }}
                         className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors border border-[var(--color-border)]"
                         title="Remove item"

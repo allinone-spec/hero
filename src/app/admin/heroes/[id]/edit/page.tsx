@@ -17,18 +17,37 @@ export default function EditHeroPage() {
       .then((data) => {
         // Convert populated medal types back to IDs for the form
         if (data.medals) {
-          data.medals = data.medals.filter((m: { medalType: unknown }) => m.medalType != null).map(
-            (m: { medalType: { _id: string } | string; count: number; hasValor: boolean; valorDevices: number; arrowheads?: number; deviceImages?: { url: string; deviceType: string; count: number }[]; wikiRibbonUrl?: string }) => ({
-              medalType:
-                typeof m.medalType === "object" && m.medalType ? m.medalType._id : m.medalType,
-              count: m.count,
-              hasValor: m.hasValor,
-              valorDevices: m.valorDevices,
-              arrowheads: m.arrowheads || 0,
-              deviceImages: m.deviceImages || [],
-              wikiRibbonUrl: m.wikiRibbonUrl || "",
-            })
-          );
+          data.medals = data.medals
+            .map(
+              (m: {
+                medalType: { _id: unknown } | string | null | undefined;
+                count: number;
+                hasValor: boolean;
+                valorDevices: number;
+                arrowheads?: number;
+                deviceImages?: { url: string; deviceType: string; count: number }[];
+                wikiRibbonUrl?: string;
+              }) => {
+                const raw = m.medalType;
+                const medalType =
+                  raw != null && typeof raw === "object" && "_id" in raw
+                    ? String((raw as { _id: unknown })._id)
+                    : raw != null
+                      ? String(raw)
+                      : "";
+                if (!medalType) return null;
+                return {
+                  medalType,
+                  count: m.count,
+                  hasValor: m.hasValor,
+                  valorDevices: m.valorDevices,
+                  arrowheads: m.arrowheads || 0,
+                  deviceImages: m.deviceImages || [],
+                  wikiRibbonUrl: m.wikiRibbonUrl || "",
+                };
+              },
+            )
+            .filter(Boolean);
         }
         setHero(data);
         setLoading(false);
