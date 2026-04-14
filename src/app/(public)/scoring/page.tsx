@@ -2,16 +2,17 @@ import type { Metadata } from "next";
 import { USM25_MATRIX_SECTIONS } from "@/lib/usm25-matrix-sections";
 
 export const metadata: Metadata = {
-  title: "The Methodology: How We Score True Heroism — USM-25",
+  title: "The Methodology: How We Score True Heroism — USM-25.2",
   description:
-    "Medals N Bongs ranks documented military heroism using a 1–100 heroic catalog scale (Valor_Tier 1–4). Service and campaign medals score 0 heroic points but still display on the rack.",
+    "USM-25.2 (matrix 25-2): documented heroism on a 1–100 heroic catalog scale (Valor_Tier 1–4). Purple Heart and service/campaign medals score 0 heroic points but still display on the rack.",
   openGraph: {
-    title: "Scoring Methodology — Medals N Bongs",
+    title: "Scoring Methodology — Medals N Bongs (USM-25.2)",
     description:
-      "Transparent USM-25 methodology: only heroic awards score; logarithmic-style 1–100 catalog scale; U.S. and Commonwealth parity.",
+      "USM-25.2: heroic awards only on the leaderboard; Purple Heart is rack-only for heroic totals; logarithmic-style catalog scale; U.S. and Commonwealth parity.",
   },
   keywords: [
     "USM-25",
+    "USM-25.2",
     "scoring matrix",
     "military scoring",
     "medal points",
@@ -25,7 +26,8 @@ export default function ScoringPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold mb-4">The Methodology: How We Score True Heroism</h1>
+        <h1 className="text-3xl font-bold mb-2">The Methodology: How We Score True Heroism</h1>
+        <p className="text-xs sm:text-sm text-[var(--color-gold)] font-semibold mb-4">USM-25.2 (matrix 25-2)</p>
         <p className="text-[var(--color-text-muted)] max-w-3xl mx-auto leading-relaxed text-sm sm:text-base">
           We do not rank “how full the rack is.” The scoring engine uses{" "}
           <span className="text-[var(--color-gold)] font-semibold">Bong_Score</span> (1–100) and{" "}

@@ -219,9 +219,10 @@ function HelpGuide({ open, onClose }: { open: boolean; onClose: () => void }) {
           ))}
           <div className="border-t border-(--color-border) pt-3 mt-3">
             <p className="text-[10px] text-(--color-text-muted) leading-relaxed">
-              Scoring uses the Heroism Matrix v2.0. Medals with a &quot;V&quot; requirement score <strong>zero</strong> on
-              the leaderboard unless the valor device is present. Inherently-valor medals (MOH, Crosses,
-              Silver Star, Purple Heart) always score their full points.
+              Scoring uses the catalog (USM-25.2). Medals with a &quot;V&quot; requirement score <strong>zero</strong> on
+              the leaderboard unless the valor device is present. Inherently-valor medals (MOH, Crosses, Silver Star,
+              etc.) score per catalog; Purple Heart is wounded-in-action only — <strong>0</strong> heroic points (rack
+              display).
             </p>
           </div>
         </div>

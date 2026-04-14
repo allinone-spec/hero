@@ -1,11 +1,21 @@
 /**
  * Public copy for the USM-25 heroic matrix (1–100 catalog scale, Valor_Tier 1–4).
+ * Matrix revision **25-2** (USM-25.2): Purple Heart is rack-only for heroic totals — see tier list.
  * Aligns with `medal-inventory-scoring.ts`, client CSV `Bong_Score` / `Valor_Tier`, and `scoring-engine.ts`.
  */
 export type Usm25MatrixItem = { label: string; points?: string };
 export type Usm25MatrixSection = { title: string; items: Usm25MatrixItem[] };
 
 export const USM25_MATRIX_SECTIONS: Usm25MatrixSection[] = [
+  {
+    title: "USM-25.2 (matrix 25-2)",
+    items: [
+      {
+        label:
+          "This revision updates the catalog so the U.S. Purple Heart does not add heroic leaderboard points. It remains on the ribbon rack as the nation’s wounded-in-action recognition, but stacking multiple PHs must not mathematically outrank apex gallantry awards such as the Victoria Cross or Medal of Honor. Earlier matrix notes (25-1) treated PH as a scored baseline-valor item (~25 catalog points).",
+      },
+    ],
+  },
   {
     title: "Comparing careers fairly",
     items: [
@@ -103,8 +113,13 @@ export const USM25_MATRIX_SECTIONS: Usm25MatrixSection[] = [
       },
       {
         label:
-          "Tier 4 — Baseline valor: Bronze Star and Air Medal with “V” only; Purple Heart; commendation medals with “V”; Queen’s/King’s Gallantry; Mention in Despatches; UK Military Medal, DFM, UK DSM (historical context); Commendation for Gallantry / Bravery.",
+          "Tier 4 — Baseline valor: Bronze Star and Air Medal with “V” only; commendation medals with “V”; Queen’s/King’s Gallantry; Mention in Despatches; UK Military Medal, DFM, UK DSM (historical gallantry context); Commendation for Gallantry / Bravery.",
         points: "≈15–35 pts band in catalog",
+      },
+      {
+        label:
+          "Purple Heart — wounded in action (U.S.). Not a gallantry decoration; USM-25.2 assigns Valor_Tier 5 so it scores 0 toward the heroic total while still displaying on the rack.",
+        points: "0 heroic pts — rack display only",
       },
       {
         label: "Tier 5 — Service, campaign, training, and general merit",

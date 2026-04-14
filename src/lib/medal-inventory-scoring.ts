@@ -106,7 +106,8 @@ export function resolveInventoryHeroicScoring(row: {
 
   // ── Tier 4 (15–35) ─────────────────────────────────────────────
   if (n.includes("bronze star")) return { bong: 35, valorTier: 4 };
-  if (/\bpurple heart\b/.test(n)) return { bong: 25, valorTier: 4 };
+  /** USM-25.2: PH is wounded-in-action recognition, not gallantry — must not stack above VC/MoH. */
+  if (/\bpurple heart\b/.test(n)) return { bong: 0, valorTier: NON_HEROIC_VALOR_TIER };
   if (/\bair medal\b/.test(n)) return { bong: 20, valorTier: 4 };
   if (n.includes("joint service commendation") || /\bcommendation medal\b/.test(n)) {
     return { bong: 15, valorTier: 4 };

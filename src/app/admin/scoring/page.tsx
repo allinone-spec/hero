@@ -104,7 +104,7 @@ export default function AdminScoringPage() {
   return (
     <div className="animate-fade-in-up space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-        <h1 className="text-2xl font-bold">USM-25 Scoring</h1>
+        <h1 className="text-2xl font-bold">USM-25.2 Scoring</h1>
       </div>
 
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
@@ -118,6 +118,12 @@ export default function AdminScoringPage() {
             logarithmic-style scale. Tier 1 apex decorations (for example Medal of Honor, Victoria Cross)
             use <span className="text-[var(--color-gold)] font-medium">100</span> catalog points; George
             Cross is <span className="text-[var(--color-gold)] font-medium">95</span> in the sheet.
+          </p>
+          <p>
+            <span className="text-[var(--color-text)]">USM-25.2 / matrix 25-2:</span> The U.S. Purple Heart is{" "}
+            <span className="font-mono text-[11px]">Valor_Tier 5</span> (wounded in action — rack only,{" "}
+            <span className="text-[var(--color-gold)] font-medium">0</span> heroic points), so multiple PHs cannot
+            outrank apex gallantry awards on the leaderboard.
           </p>
           <p>
             <span className="text-[var(--color-text)]">Valor_Tier:</span> Only tiers{" "}

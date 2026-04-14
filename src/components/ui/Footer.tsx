@@ -37,7 +37,7 @@ export default function Footer() {
                   color: "#1a1a2e",
                 }}
               >
-                USM-25 v1.0
+                USM-25.2
               </span>
               <span className="text-xs text-[var(--color-text-muted)]">Scoring Standard</span>
             </div>

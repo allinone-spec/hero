@@ -222,16 +222,16 @@ export const MEDAL_DEFS = [
     description: "Awarded for heroic or meritorious achievement/service in military operations against an armed enemy. Valor points require the 'V' device.",
   },
 
-  // ── TIER 7: Purple Heart (8 pts) ──
+  // ── Purple Heart: USM-25.2 — Valor_Tier 5 (0 heroic pts; rack only) ──
   {
     name: "Purple Heart",
     shortName: "PH",
     category: "valor" as const,
-    basePoints: 8,
-    valorPoints: 8,
+    basePoints: 0,
+    valorPoints: 0,
     requiresValorDevice: false,
     inherentlyValor: true,
-    tier: 7,
+    tier: 5,
     branch: "All",
     precedenceOrder: 13,
     ribbonColors: ["#FFFFFF", "#69359C", "#FFFFFF"],

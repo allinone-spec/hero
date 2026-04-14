@@ -1,7 +1,7 @@
 import { ScoreBreakdownItem, ScoreResult } from "@/types";
 import type { CombatSpecialty } from "@/lib/models/Hero";
 
-// ─── Medal catalog scoring (USM-25 v1 — 1–100 heroic scale, CSV + Valor_Tier) ─
+// ─── Medal catalog scoring (USM-25.2 — 1–100 heroic scale, CSV + Valor_Tier) ─
 // See `src/lib/medal-inventory-scoring.ts` and `data/medal-inventory/*.csv`.
 
 import { NON_HEROIC_VALOR_TIER } from "@/lib/medal-inventory-scoring";
