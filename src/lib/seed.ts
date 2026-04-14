@@ -17,8 +17,7 @@ try {
 import mongoose from "mongoose";
 import Hero, { type CombatSpecialty } from "./models/Hero";
 import MedalType from "./models/MedalType";
-import ScoringConfig from "./models/ScoringConfig";
-import { calculateScore, DEFAULT_SCORING_CONFIG } from "./scoring-engine";
+import { calculateScore } from "./scoring-engine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MEDAL TYPES — Authoritative Heroism Scoring Matrix v2.0
@@ -1288,17 +1287,9 @@ async function seed() {
   await mongoose.connect(uri, { bufferCommands: false });
 
   console.log("\nClearing existing collections...");
-  await Promise.all([
-    Hero.deleteMany({}),
-    MedalType.deleteMany({}),
-    ScoringConfig.deleteMany({}),
-  ]);
+  await Promise.all([Hero.deleteMany({}), MedalType.deleteMany({})]);
 
-  // 1. Scoring config
-  console.log("Seeding scoring config (USM-25 defaults)...");
-  await ScoringConfig.create({ key: "default", ...DEFAULT_SCORING_CONFIG });
-
-  // 2. Medal types
+  // 1. Medal types
   console.log("Seeding medal types...");
   const createdMedals = await MedalType.insertMany(MEDAL_DEFS.map((m) => ({ ...m })));
   const byShortName: Record<string, mongoose.Types.ObjectId> = {};
@@ -1307,7 +1298,7 @@ async function seed() {
   });
   console.log(`  ${createdMedals.length} medal types created`);
 
-  // 3. Heroes
+  // 2. Heroes
   console.log("\nSeeding heroes...");
   for (const heroDef of HERO_DEFS) {
     const medals = heroDef.medals.map((m) => ({
@@ -1335,19 +1326,16 @@ async function seed() {
       };
     });
 
-    const { total } = calculateScore(
-      {
-        medals: medalData,
-        wars: heroDef.wars,
-        combatTours: heroDef.combatTours,
-        hadCombatCommand: heroDef.hadCombatCommand,
-        powHeroism: heroDef.powHeroism,
-        multiServiceOrMultiWar: heroDef.multiServiceOrMultiWar,
-        submarineCommandEligible: true,
-        combatAchievements: heroDef.combatAchievements,
-      },
-      DEFAULT_SCORING_CONFIG
-    );
+    const { total } = calculateScore({
+      medals: medalData,
+      wars: heroDef.wars,
+      combatTours: heroDef.combatTours,
+      hadCombatCommand: heroDef.hadCombatCommand,
+      powHeroism: heroDef.powHeroism,
+      multiServiceOrMultiWar: heroDef.multiServiceOrMultiWar,
+      submarineCommandEligible: true,
+      combatAchievements: heroDef.combatAchievements,
+    });
 
     await Hero.create({
       name: heroDef.name,

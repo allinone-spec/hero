@@ -1,11 +1,6 @@
 import Hero from "@/lib/models/Hero";
 import MedalType from "@/lib/models/MedalType";
-import {
-  calculateComparisonScore,
-  calculateScore,
-  DEFAULT_SCORING_CONFIG,
-  type ScoringConfig,
-} from "@/lib/scoring-engine";
+import { calculateComparisonScore, calculateScore } from "@/lib/scoring-engine";
 
 interface ImportResultLike {
   name?: string;
@@ -49,7 +44,6 @@ export async function uniqueHeroSlug(name: string): Promise<string> {
 export async function createHeroFromImportResult(input: {
   result: ImportResultLike;
   sourceUrl?: string;
-  scoringConfig?: ScoringConfig;
 }) {
   const result = input.result;
   const aiMedals = Array.isArray(result.aiMedals) ? result.aiMedals : [];
@@ -99,45 +93,42 @@ export async function createHeroFromImportResult(input: {
   });
 
   const wars = Array.isArray(result.wars) ? result.wars.filter(Boolean) : [];
-  const scoreResult = calculateScore(
-    {
-      medals: medalData,
-      wars,
-      combatTours: 0,
-      hadCombatCommand: false,
-      powHeroism: false,
-      multiServiceOrMultiWar: Boolean(result.multiServiceOrMultiWar),
-      submarineCommandEligible: true,
-      combatAchievements: {
-        type: (result.combatType as
-          | "none"
-          | "infantry"
-          | "armor"
-          | "artillery"
-          | "aviation"
-          | "airborne"
-          | "special_operations"
-          | "submarine"
-          | "surface"
-          | "amphibious"
-          | "reconnaissance"
-          | "air_defense"
-          | "engineering"
-          | "signal"
-          | "intelligence"
-          | "medical"
-          | "logistics"
-          | "chemical"
-          | "electronic_warfare"
-          | "cyber"
-          | "military_police"
-          | "ordnance"
-          | "sniper"
-          | "marine") || "none",
-      },
+  const scoreResult = calculateScore({
+    medals: medalData,
+    wars,
+    combatTours: 0,
+    hadCombatCommand: false,
+    powHeroism: false,
+    multiServiceOrMultiWar: Boolean(result.multiServiceOrMultiWar),
+    submarineCommandEligible: true,
+    combatAchievements: {
+      type: (result.combatType as
+        | "none"
+        | "infantry"
+        | "armor"
+        | "artillery"
+        | "aviation"
+        | "airborne"
+        | "special_operations"
+        | "submarine"
+        | "surface"
+        | "amphibious"
+        | "reconnaissance"
+        | "air_defense"
+        | "engineering"
+        | "signal"
+        | "intelligence"
+        | "medical"
+        | "logistics"
+        | "chemical"
+        | "electronic_warfare"
+        | "cyber"
+        | "military_police"
+        | "ordnance"
+        | "sniper"
+        | "marine") || "none",
     },
-    input.scoringConfig || DEFAULT_SCORING_CONFIG
-  );
+  });
 
   const slug = await uniqueHeroSlug(String(result.name || "Unnamed Hero"));
 

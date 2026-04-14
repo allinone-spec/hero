@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
-import ScoringConfig from "@/lib/models/ScoringConfig";
 import { getSession } from "@/lib/auth";
-import {
-  calculateComparisonScore,
-  calculateScore,
-  mergeScoringConfig,
-  ScoringConfig as IScoringConfig,
-} from "@/lib/scoring-engine";
+import { calculateComparisonScore, calculateScore } from "@/lib/scoring-engine";
 
 export async function POST() {
   const session = await getSession();
@@ -17,9 +11,6 @@ export async function POST() {
   }
 
   await dbConnect();
-
-  const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-  const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
 
   const heroes = await Hero.find({}).populate("medals.medalType");
   let count = 0;
@@ -51,19 +42,16 @@ export async function POST() {
         valorDevices: m.valorDevices,
       }));
 
-    const result = calculateScore(
-      {
-        medals: medalData,
-        wars: hero.wars,
-        combatTours: hero.combatTours,
-        hadCombatCommand: hero.hadCombatCommand,
-        powHeroism: hero.powHeroism,
-        multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
-        submarineCommandEligible: hero.submarineCommandEligible !== false,
-        combatAchievements: hero.combatAchievements,
-      },
-      config
-    );
+    const result = calculateScore({
+      medals: medalData,
+      wars: hero.wars,
+      combatTours: hero.combatTours,
+      hadCombatCommand: hero.hadCombatCommand,
+      powHeroism: hero.powHeroism,
+      multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+      submarineCommandEligible: hero.submarineCommandEligible !== false,
+      combatAchievements: hero.combatAchievements,
+    });
 
     const comparisonScore = calculateComparisonScore(
       result.total,

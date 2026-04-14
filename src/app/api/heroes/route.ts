@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
-import ScoringConfig from "@/lib/models/ScoringConfig";
 import { requirePrivilege } from "@/lib/auth";
-import {
-  calculateComparisonScore,
-  calculateScore,
-  mergeScoringConfig,
-  ScoringConfig as IScoringConfig,
-} from "@/lib/scoring-engine";
+import { calculateComparisonScore, calculateScore } from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
 import { branchVariantsForQuery, normalizeBranch, normalizeWarsArray, warVariantsForQuery } from "@/lib/hero-taxonomy";
 
@@ -127,9 +121,6 @@ export async function POST(req: NextRequest) {
 
   // Calculate score from medals if medals are populated
   if (body.medals && body.medals.length > 0) {
-    const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-    const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
-
     interface PopulatedMedalType {
       name: string;
       category?: "valor" | "service" | "foreign" | "other";
@@ -157,19 +148,16 @@ export async function POST(req: NextRequest) {
         valorDevices: m.valorDevices,
       }));
 
-    const result = calculateScore(
-      {
-        medals: medalData,
-        wars: body.wars || [],
-        combatTours: body.combatTours || 0,
-        hadCombatCommand: body.hadCombatCommand || false,
-        powHeroism: body.powHeroism || false,
-        multiServiceOrMultiWar: body.multiServiceOrMultiWar || false,
-        submarineCommandEligible: body.submarineCommandEligible !== false,
-        combatAchievements: body.combatAchievements || { type: "none" },
-      },
-      config
-    );
+    const result = calculateScore({
+      medals: medalData,
+      wars: body.wars || [],
+      combatTours: body.combatTours || 0,
+      hadCombatCommand: body.hadCombatCommand || false,
+      powHeroism: body.powHeroism || false,
+      multiServiceOrMultiWar: body.multiServiceOrMultiWar || false,
+      submarineCommandEligible: body.submarineCommandEligible !== false,
+      combatAchievements: body.combatAchievements || { type: "none" },
+    });
 
     body.score = result.total;
     body.comparisonScore = calculateComparisonScore(

@@ -7,28 +7,6 @@ import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
-interface ScoringConfigForm {
-  valorDevicePoints: number;
-  theaterBonusPerWar: number;
-  combatLeadershipBonus: number;
-  powHeroismBonus: number;
-  woundsBonusPerHeart: number;
-  aviationKillThreshold: number;
-  aviationKillPtsPerKill: number;
-  aviationMissionPts: number;
-  aviationProbablePtsPer: number;
-  aviationDamagedPtsPer: number;
-  aviationFlightLeadershipBonus: number;
-  submarineShipThreshold: number;
-  submarineShipPtsPerShip: number;
-  submarineMissionPts: number;
-  submarineWarPatrolPtsPer: number;
-  surfaceEngagementPts: number;
-  surfaceMissionPts: number;
-  multiServiceBonusPct: number;
-  roundingBase: number;
-}
-
 interface MedalTypeRef {
   _id: string;
   name: string;
@@ -58,77 +36,18 @@ function catalogBongDisplay(mt: MedalTypeRef): number {
   return Math.max(mt.valorPoints ?? 0, mt.basePoints ?? 0);
 }
 
-const DEFAULTS: ScoringConfigForm = {
-  valorDevicePoints: 2,
-  theaterBonusPerWar: 5,
-  combatLeadershipBonus: 10,
-  powHeroismBonus: 15,
-  woundsBonusPerHeart: 5,
-  aviationKillThreshold: 5,
-  aviationKillPtsPerKill: 2,
-  aviationMissionPts: 25,
-  aviationProbablePtsPer: 0,
-  aviationDamagedPtsPer: 0,
-  aviationFlightLeadershipBonus: 0,
-  submarineShipThreshold: 3,
-  submarineShipPtsPerShip: 5,
-  submarineMissionPts: 25,
-  submarineWarPatrolPtsPer: 0,
-  surfaceEngagementPts: 5,
-  surfaceMissionPts: 10,
-  multiServiceBonusPct: 5,
-  roundingBase: 5,
-};
-
 const CATEGORY_COLORS: Record<string, string> = {
-  valor:   "#d4a843",
+  valor: "#d4a843",
   service: "#3b82f6",
   foreign: "#10b981",
-  other:   "#9ca3af",
+  other: "#9ca3af",
 };
-
-function RuleInput({
-  label,
-  description,
-  value,
-  onChange,
-  suffix = "pts",
-}: {
-  label: string;
-  description: string;
-  value: number;
-  onChange: (v: number) => void;
-  suffix?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3 border-b border-[var(--color-border)] last:border-0">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-          className="admin-input w-24 text-right"
-        />
-        <span className="text-xs text-[var(--color-text-muted)] w-8">{suffix}</span>
-      </div>
-    </div>
-  );
-}
 
 export default function AdminScoringPage() {
   const { can } = usePrivileges();
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [form, setForm] = useState<ScoringConfigForm>(DEFAULTS);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"" | "saved" | "error">("");
   const [recalcResult, setRecalcResult] = useState<string>("");
   const [medals, setMedals] = useState<MedalTypeRef[]>([]);
   const [medalsRefreshing, setMedalsRefreshing] = useState(false);
@@ -149,61 +68,22 @@ export default function AdminScoringPage() {
   };
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/scoring-config").then((r) => r.json()),
-      fetch(`/api/medal-types?t=${Date.now()}`, { cache: "no-store" }).then((r) => r.json()),
-    ]).then(([configData, medalData]) => {
-      setForm({
-        valorDevicePoints: configData.valorDevicePoints ?? DEFAULTS.valorDevicePoints,
-        theaterBonusPerWar: configData.theaterBonusPerWar ?? DEFAULTS.theaterBonusPerWar,
-        combatLeadershipBonus: configData.combatLeadershipBonus ?? DEFAULTS.combatLeadershipBonus,
-        powHeroismBonus: configData.powHeroismBonus ?? DEFAULTS.powHeroismBonus,
-        woundsBonusPerHeart: configData.woundsBonusPerHeart ?? DEFAULTS.woundsBonusPerHeart,
-        aviationKillThreshold: configData.aviationKillThreshold ?? DEFAULTS.aviationKillThreshold,
-        aviationKillPtsPerKill: configData.aviationKillPtsPerKill ?? DEFAULTS.aviationKillPtsPerKill,
-        aviationMissionPts: configData.aviationMissionPts ?? DEFAULTS.aviationMissionPts,
-        aviationProbablePtsPer: configData.aviationProbablePtsPer ?? DEFAULTS.aviationProbablePtsPer,
-        aviationDamagedPtsPer: configData.aviationDamagedPtsPer ?? DEFAULTS.aviationDamagedPtsPer,
-        aviationFlightLeadershipBonus:
-          configData.aviationFlightLeadershipBonus ?? DEFAULTS.aviationFlightLeadershipBonus,
-        submarineShipThreshold: configData.submarineShipThreshold ?? DEFAULTS.submarineShipThreshold,
-        submarineShipPtsPerShip: configData.submarineShipPtsPerShip ?? DEFAULTS.submarineShipPtsPerShip,
-        submarineMissionPts: configData.submarineMissionPts ?? DEFAULTS.submarineMissionPts,
-        submarineWarPatrolPtsPer: configData.submarineWarPatrolPtsPer ?? DEFAULTS.submarineWarPatrolPtsPer,
-        surfaceEngagementPts: configData.surfaceEngagementPts ?? DEFAULTS.surfaceEngagementPts,
-        surfaceMissionPts: configData.surfaceMissionPts ?? DEFAULTS.surfaceMissionPts,
-        multiServiceBonusPct: configData.multiServiceBonusPct ?? DEFAULTS.multiServiceBonusPct,
-        roundingBase: configData.roundingBase ?? DEFAULTS.roundingBase,
+    fetch(`/api/medal-types?t=${Date.now()}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((medalData) => {
+        if (Array.isArray(medalData)) {
+          setMedals(
+            medalData.sort((a: MedalTypeRef, b: MedalTypeRef) => a.precedenceOrder - b.precedenceOrder)
+          );
+        }
+        setLoading(false);
       });
-      if (Array.isArray(medalData)) {
-        setMedals(
-          medalData.sort((a: MedalTypeRef, b: MedalTypeRef) => a.precedenceOrder - b.precedenceOrder)
-        );
-      }
-      setLoading(false);
-    });
   }, []);
-
-  const set = (key: keyof ScoringConfigForm) => (v: number) =>
-    setForm((prev) => ({ ...prev, [key]: v }));
-
-  const handleSave = async () => {
-    setSaving(true);
-    setSaveStatus("");
-    const res = await fetch("/api/scoring-config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    setSaveStatus(res.ok ? "saved" : "error");
-    setTimeout(() => setSaveStatus(""), 3000);
-  };
 
   const handleRecalculate = async () => {
     const ok = await confirm({
       title: "Recalculate all scores",
-      message: "Recalculate scores for ALL heroes using the current rules? Make sure you save first.",
+      message: "Recalculate catalog heroic scores for every hero? Run this after medal import or catalog changes.",
       confirmLabel: "Recalculate",
     });
     if (!ok) return;
@@ -219,58 +99,13 @@ export default function AdminScoringPage() {
     }
   };
 
-  const handleReset = async () => {
-    const ok = await confirm({
-      title: "Reset scoring rules",
-      message: "Reset all rules to default values?",
-      danger: true,
-      confirmLabel: "Reset",
-    });
-    if (!ok) return;
-    setForm(DEFAULTS);
-  };
-
-  if (loading) return <AdminLoader label="Loading scoring config…" />;
+  if (loading) return <AdminLoader label="Loading medal catalog…" />;
 
   return (
     <div className="animate-fade-in-up space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-        <h1 className="text-2xl font-bold">USM-25 Scoring Rules</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleReset}
-            disabled={!can("/admin/scoring", "canEdit")}
-            className="btn-secondary text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Reset to Defaults
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !can("/admin/scoring", "canEdit")}
-            className="btn-primary text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <>
-                <LoadingSpinner size="sm" />
-                Saving…
-              </>
-            ) : (
-              "Save Rules"
-            )}
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold">USM-25 Scoring</h1>
       </div>
-
-      {saveStatus === "saved" && (
-        <div className="text-sm text-green-600 bg-green-500/10 border border-green-500/20 p-3 rounded animate-fade-in">
-          Rules saved successfully.
-        </div>
-      )}
-      {saveStatus === "error" && (
-        <div className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 p-3 rounded animate-fade-in">
-          Failed to save rules.
-        </div>
-      )}
 
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
         <h2 className="text-base font-semibold text-[var(--color-gold)] mb-2">Heroic matrix (summary)</h2>
@@ -297,12 +132,11 @@ export default function AdminScoringPage() {
             <a href="/scoring" className="text-[var(--color-gold)] hover:underline">
               Full methodology (public)
             </a>
-            {" — "}U.S. vs Commonwealth parity, V-device rules, and bonus modifiers.
+            {" — "}U.S. vs Commonwealth parity and V-device rules (catalog-only totals).
           </p>
         </div>
       </section>
 
-      {/* Medal Reference Grid */}
       {medals.length > 0 && (
         <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
@@ -343,7 +177,6 @@ export default function AdminScoringPage() {
                     borderColor={CATEGORY_COLORS[mt.category] || "#9ca3af"}
                   />
                 </div>
-                {/* Info */}
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold leading-tight truncate">{mt.name}</p>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -367,160 +200,10 @@ export default function AdminScoringPage() {
         </section>
       )}
 
-      {/* Base Scoring */}
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Base Scoring</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Flat bonuses applied to every hero.</p>
-        <RuleInput
-          label="Valor Device Points"
-          description="Points per V device on any medal"
-          value={form.valorDevicePoints}
-          onChange={set("valorDevicePoints")}
-        />
-        <RuleInput
-          label="Theater Bonus (per war)"
-          description="Points per distinct war or theater served"
-          value={form.theaterBonusPerWar}
-          onChange={set("theaterBonusPerWar")}
-        />
-        <RuleInput
-          label="Combat Leadership Bonus"
-          description="Flat bonus for unit-level command in combat"
-          value={form.combatLeadershipBonus}
-          onChange={set("combatLeadershipBonus")}
-        />
-        <RuleInput
-          label="POW / Heroism Bonus"
-          description="Flat bonus for extended captivity, escape, or leadership under torture"
-          value={form.powHeroismBonus}
-          onChange={set("powHeroismBonus")}
-        />
-        <RuleInput
-          label="Wounds Bonus (per additional Purple Heart)"
-          description="Points per Purple Heart beyond the first"
-          value={form.woundsBonusPerHeart}
-          onChange={set("woundsBonusPerHeart")}
-        />
-      </section>
-
-      {/* Aviation */}
-      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Aviation Modifiers</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Applied when a hero&apos;s combat achievement type is set to Aviation.</p>
-        <RuleInput
-          label="Kill Threshold"
-          description="Confirmed kills required before the bonus applies"
-          value={form.aviationKillThreshold}
-          onChange={set("aviationKillThreshold")}
-          suffix="kills"
-        />
-        <RuleInput
-          label="Points per Kill (beyond threshold)"
-          description="Points for each kill above the threshold"
-          value={form.aviationKillPtsPerKill}
-          onChange={set("aviationKillPtsPerKill")}
-        />
-        <RuleInput
-          label="Points per Defining Mission"
-          description="Points per historically defining aviation mission"
-          value={form.aviationMissionPts}
-          onChange={set("aviationMissionPts")}
-        />
-        <RuleInput
-          label="Points per Probable Kill"
-          description="Extra points per probable (unconfirmed) air victory — set 0 to disable"
-          value={form.aviationProbablePtsPer}
-          onChange={set("aviationProbablePtsPer")}
-        />
-        <RuleInput
-          label="Points per Damaged Aircraft"
-          description="Points per enemy aircraft damaged (ground/sea) — set 0 to disable"
-          value={form.aviationDamagedPtsPer}
-          onChange={set("aviationDamagedPtsPer")}
-        />
-        <RuleInput
-          label="Flight Leadership Bonus"
-          description="One-time bonus when squadron/wing leadership applies — set 0 to disable"
-          value={form.aviationFlightLeadershipBonus}
-          onChange={set("aviationFlightLeadershipBonus")}
-        />
-      </section>
-
-      {/* Submarine */}
-      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Submarine Modifiers</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Applied when a hero&apos;s combat achievement type is set to Submarine.</p>
-        <RuleInput
-          label="Ship Threshold"
-          description="Ships sunk required before the bonus applies"
-          value={form.submarineShipThreshold}
-          onChange={set("submarineShipThreshold")}
-          suffix="ships"
-        />
-        <RuleInput
-          label="Points per Ship (beyond threshold)"
-          description="Points for each ship sunk above the threshold"
-          value={form.submarineShipPtsPerShip}
-          onChange={set("submarineShipPtsPerShip")}
-        />
-        <RuleInput
-          label="Points per Extreme Risk Mission"
-          description="Points per record or extreme risk submarine mission"
-          value={form.submarineMissionPts}
-          onChange={set("submarineMissionPts")}
-        />
-        <RuleInput
-          label="Points per War Patrol"
-          description="Completed war patrols (all submarine crew) — set 0 to disable"
-          value={form.submarineWarPatrolPtsPer}
-          onChange={set("submarineWarPatrolPtsPer")}
-        />
-      </section>
-
-      {/* Surface */}
-      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Surface / Naval Modifiers</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Applied when a hero&apos;s combat achievement type is set to Surface/Naval.</p>
-        <RuleInput
-          label="Points per Major Engagement"
-          description="Points per major naval engagement"
-          value={form.surfaceEngagementPts}
-          onChange={set("surfaceEngagementPts")}
-        />
-        <RuleInput
-          label="Points per Conspicuous Bravery Mission"
-          description="Points per defining mission showing conspicuous bravery"
-          value={form.surfaceMissionPts}
-          onChange={set("surfaceMissionPts")}
-        />
-      </section>
-
-      {/* Global Modifiers */}
-      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Global Modifiers</h2>
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">Applied after all other bonuses are summed.</p>
-        <RuleInput
-          label="Multi-Service / Multi-War Bonus"
-          description="Percentage of subtotal added for multi-service or multi-war service"
-          value={form.multiServiceBonusPct}
-          onChange={set("multiServiceBonusPct")}
-          suffix="%"
-        />
-        <RuleInput
-          label="Rounding Base"
-          description="Final score is rounded to the nearest multiple of this value"
-          value={form.roundingBase}
-          onChange={set("roundingBase")}
-          suffix="pts"
-        />
-      </section>
-
-      {/* Recalculate */}
-      <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Recalculate All Heroes</h2>
+        <h2 className="text-base font-semibold text-[var(--color-gold)] mb-1">Recalculate all heroes</h2>
         <p className="text-xs text-[var(--color-text-muted)] mb-4">
-          After saving new rules, use this to recalculate every hero&apos;s score using the updated config.
-          Save your rules first before recalculating.
+          Recomputes each hero&apos;s score from the current medal catalog (no stored scoring rules).
         </p>
         <button
           onClick={handleRecalculate}
@@ -533,7 +216,7 @@ export default function AdminScoringPage() {
               Recalculating…
             </>
           ) : (
-            "Recalculate All Hero Scores"
+            "Recalculate all hero scores"
           )}
         </button>
         {recalcResult && (

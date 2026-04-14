@@ -64,19 +64,6 @@ export default function ScoringPage() {
             </div>
           </div>
         ))}
-
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-          <h2 className="text-lg font-semibold mb-3 text-[var(--color-gold)]">Catalog and engine</h2>
-          <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
-            Per-award <code className="text-xs">Bong_Score</code> and{" "}
-            <code className="text-xs">Valor_Tier</code> come from{" "}
-            <code className="text-xs">data/medal-inventory/Final_Medal_Sheet_Client.csv</code> (after
-            running <code className="text-xs">npx tsx scripts/sync-medal-inventory-csv.ts</code> when you
-            change rules). The scoring engine applies V-device rules for medals that require a valor device,
-            sums configurable bonuses, then rounds. Recalculate heroes after importing medals or changing
-            rules on <span className="text-[var(--color-text)]">/admin/scoring</span>.
-          </p>
-        </div>
       </div>
     </div>
   );

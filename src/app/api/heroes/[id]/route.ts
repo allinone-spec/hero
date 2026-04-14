@@ -4,17 +4,11 @@ import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
 import HeroImportBatch from "@/lib/models/HeroImportBatch";
 import MedalTypeModel from "@/lib/models/MedalType";
-import ScoringConfig from "@/lib/models/ScoringConfig";
 import CaretakerQueueItem from "@/lib/models/CaretakerQueueItem";
 import { assertHeroOwnerAccess } from "@/lib/hero-access";
 import { getSession, requirePrivilege } from "@/lib/auth";
 import { getSiteSession, OWNER_HERO_PATCH_KEYS } from "@/lib/site-auth";
-import {
-  calculateComparisonScore,
-  calculateScore,
-  mergeScoringConfig,
-  ScoringConfig as IScoringConfig,
-} from "@/lib/scoring-engine";
+import { calculateComparisonScore, calculateScore } from "@/lib/scoring-engine";
 import { logActivity } from "@/lib/activity-logger";
 import { deriveHeroMetadataTags } from "@/lib/derive-hero-metadata-tags";
 import { normalizeBranch, normalizeWarsArray } from "@/lib/hero-taxonomy";
@@ -100,8 +94,6 @@ export async function PUT(
     if (ownerMedals) {
       patch.medals = ownerMedals;
 
-      const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-      const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
       const medalTypeIds = ownerMedals.map((m) => m.medalType);
       const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<
         Array<{
@@ -136,19 +128,16 @@ export async function PUT(
           };
         });
 
-      const result = calculateScore(
-        {
-          medals: medalData,
-          wars: existing.wars,
-          combatTours: existing.combatTours,
-          hadCombatCommand: existing.hadCombatCommand,
-          powHeroism: existing.powHeroism,
-          multiServiceOrMultiWar: existing.multiServiceOrMultiWar,
-          submarineCommandEligible: existing.submarineCommandEligible !== false,
-          combatAchievements: existing.combatAchievements,
-        },
-        config
-      );
+      const result = calculateScore({
+        medals: medalData,
+        wars: existing.wars,
+        combatTours: existing.combatTours,
+        hadCombatCommand: existing.hadCombatCommand,
+        powHeroism: existing.powHeroism,
+        multiServiceOrMultiWar: existing.multiServiceOrMultiWar,
+        submarineCommandEligible: existing.submarineCommandEligible !== false,
+        combatAchievements: existing.combatAchievements,
+      });
 
       patch.score = result.total;
       patch.comparisonScore = calculateComparisonScore(
@@ -218,9 +207,6 @@ export async function PUT(
   if (body.recalculateScore) {
     delete body.recalculateScore;
 
-    const rawConfig = await ScoringConfig.findOne({ key: "default" }).lean();
-    const config: IScoringConfig = mergeScoringConfig(rawConfig as Partial<IScoringConfig> | null);
-
     const hero = await Hero.findById(id);
     if (!hero) {
       return NextResponse.json({ error: "Hero not found" }, { status: 404 });
@@ -255,19 +241,16 @@ export async function PUT(
     // Apply updates to hero for other fields needed in scoring
     Object.assign(hero, body);
 
-    const result = calculateScore(
-      {
-        medals: medalData,
-        wars: hero.wars,
-        combatTours: hero.combatTours,
-        hadCombatCommand: hero.hadCombatCommand,
-        powHeroism: hero.powHeroism,
-        multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
-        submarineCommandEligible: hero.submarineCommandEligible !== false,
-        combatAchievements: hero.combatAchievements,
-      },
-      config
-    );
+    const result = calculateScore({
+      medals: medalData,
+      wars: hero.wars,
+      combatTours: hero.combatTours,
+      hadCombatCommand: hero.hadCombatCommand,
+      powHeroism: hero.powHeroism,
+      multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+      submarineCommandEligible: hero.submarineCommandEligible !== false,
+      combatAchievements: hero.combatAchievements,
+    });
 
     body.score = result.total;
     body.comparisonScore = calculateComparisonScore(

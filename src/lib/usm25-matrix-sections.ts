@@ -113,36 +113,17 @@ export const USM25_MATRIX_SECTIONS: Usm25MatrixSection[] = [
     ],
   },
   {
-    title: "Bonuses and modifiers (configurable)",
+    title: "No profile-field modifiers",
     items: [
-      { label: "Extra valor devices", points: "+2 pts per additional V (default) after the first" },
-      { label: "Combat theaters", points: "+5 pts per distinct war/theater (default)" },
-      { label: "Combat leadership", points: "+10 pts when unit-level combat command applies (default)" },
-      { label: "POW / survival heroism", points: "+15 pts when flagged (default)" },
       {
-        label: "Additional Purple Hearts / wound stripes",
-        points: "+5 pts per instance after the first (default)",
+        label:
+          "The heroic score is the sum of catalog points for Valor_Tier 1–4 awards (with V-device rules where the catalog requires it). We do not add points for air or submarine kills, extra theaters, leadership flags, POW narrative, multi-service percentage, or duplicate wound instances beyond what the medals themselves already encode.",
       },
     ],
   },
   {
-    title: "Combat achievement modifiers (defaults)",
+    title: "Tie-breakers",
     items: [
-      {
-        label: "Aviation — ace threshold",
-        points: "+25 at 5 confirmed kills, then +2 per kill beyond 5",
-      },
-      {
-        label: "Submarine — ships sunk",
-        points: "+25 for first 3 sunk, +5 per ship beyond 3 when in command",
-      },
-      { label: "Surface / generic — engagements & missions", points: "+5 / +10 pts per line item (defaults)" },
-    ],
-  },
-  {
-    title: "Rounding and ties",
-    items: [
-      { label: "Final total", points: "Rounded to nearest 5 pts (default)" },
       { label: "Tie-breaker 1", points: "Highest single award" },
       { label: "Tie-breaker 2", points: "Total combat tours" },
       { label: "Tie-breaker 3", points: "Wounds sustained" },
