@@ -231,6 +231,7 @@ export async function POST() {
             valorPoints: (mt as { valorPoints?: number }).valorPoints ?? mt.basePoints,
             requiresValorDevice: (mt as { requiresValorDevice?: boolean }).requiresValorDevice ?? false,
             inherentlyValor: (mt as { inherentlyValor?: boolean }).inherentlyValor ?? false,
+            valorTier: (mt as { tier?: number }).tier,
             count: m.count,
             hasValor: m.hasValor,
             valorDevices: m.valorDevices,

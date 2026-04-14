@@ -346,7 +346,9 @@ export default function HeroDetailClient({
         <div className="relative text-center px-6 pt-8 pb-6 border-b border-[var(--color-border)]">
           {/* Score + Rank — top left */}
           <div className="absolute top-4 left-4 no-print flex flex-col items-start gap-1.5 max-w-[min(100%,14rem)]">
-            <span className="score-badge text-sm">{hero.score} pts</span>
+            <span className="score-badge text-sm" title="Live USM-25 total (same rules as breakdown below)">
+              {scoreTotal} pts
+            </span>
             <span className="text-xs font-semibold text-[var(--color-gold)]">
               #{rankPosition}
               {typeof totalPublishedHeroes === "number" ? ` of ${totalPublishedHeroes}` : ""} global

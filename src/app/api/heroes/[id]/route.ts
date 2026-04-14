@@ -113,6 +113,7 @@ export async function PUT(
           valorPoints?: number;
           requiresValorDevice?: boolean;
           inherentlyValor?: boolean;
+          tier?: number;
         }>
       >();
       const medalTypeMap = new Map(medalTypeDocs.map((mt) => [mt._id.toString(), mt]));
@@ -128,6 +129,7 @@ export async function PUT(
             valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
             requiresValorDevice: mt.requiresValorDevice ?? false,
             inherentlyValor: mt.inherentlyValor ?? false,
+            valorTier: mt.tier,
             count: m.count,
             hasValor: m.hasValor,
             valorDevices: m.valorDevices ?? 0,
@@ -228,7 +230,7 @@ export async function PUT(
     type BodyMedal = { medalType?: string; count: number; hasValor: boolean; valorDevices: number; deviceImages?: { url: string; deviceType: string; count: number }[] };
     const bodyMedals = ((body.medals ?? []) as BodyMedal[]).filter((m) => m.medalType);
     const medalTypeIds = bodyMedals.map((m) => m.medalType);
-    const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<Array<{ _id: { toString(): string }; name: string; category?: "valor" | "service" | "foreign" | "other"; countryCode?: string; basePoints: number; valorPoints?: number; requiresValorDevice?: boolean; inherentlyValor?: boolean }>>();
+    const medalTypeDocs = await MedalTypeModel.find({ _id: { $in: medalTypeIds } }).lean<Array<{ _id: { toString(): string }; name: string; category?: "valor" | "service" | "foreign" | "other"; countryCode?: string; basePoints: number; valorPoints?: number; requiresValorDevice?: boolean; inherentlyValor?: boolean; tier?: number }>>();
     const medalTypeMap = new Map(medalTypeDocs.map((mt) => [mt._id.toString(), mt]));
 
     const medalData = bodyMedals
@@ -243,6 +245,7 @@ export async function PUT(
           valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
           requiresValorDevice: mt.requiresValorDevice ?? false,
           inherentlyValor: mt.inherentlyValor ?? false,
+          valorTier: mt.tier,
           count: m.count,
           hasValor: m.hasValor,
           valorDevices: m.valorDevices ?? 0,

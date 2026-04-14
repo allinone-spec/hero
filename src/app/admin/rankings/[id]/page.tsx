@@ -40,6 +40,7 @@ export default async function AdminRankingsHeroPage({ params }: Props) {
     inherentlyValor?: boolean;
     category?: "valor" | "service" | "foreign" | "other";
     countryCode?: string;
+    tier?: number;
   }
   const medalData = hero.medals
     .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
@@ -51,6 +52,7 @@ export default async function AdminRankingsHeroPage({ params }: Props) {
       valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
       requiresValorDevice: m.medalType.requiresValorDevice ?? false,
       inherentlyValor: m.medalType.inherentlyValor ?? false,
+      valorTier: m.medalType.tier,
       count: m.count,
       hasValor: m.hasValor,
       valorDevices: m.valorDevices,

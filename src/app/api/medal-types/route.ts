@@ -12,12 +12,13 @@ export async function GET(req: NextRequest) {
   await dbConnect();
   const cc = req.nextUrl.searchParams.get("countryCode")?.trim().toUpperCase();
   const all = await MedalType.find({}).sort({ precedenceOrder: 1 }).lean();
+  const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } } as const;
   if (!cc) {
-    return NextResponse.json(all);
+    return NextResponse.json(all, noStore);
   }
   const primary = all.filter((m) => String(m.countryCode || "US").toUpperCase() === cc);
   const rest = all.filter((m) => String(m.countryCode || "US").toUpperCase() !== cc);
-  return NextResponse.json([...primary, ...rest]);
+  return NextResponse.json([...primary, ...rest], noStore);
 }
 
 export async function POST(req: NextRequest) {

@@ -64,6 +64,7 @@ export async function createHeroFromImportResult(input: {
       valorPoints?: number;
       requiresValorDevice?: boolean;
       inherentlyValor?: boolean;
+      tier?: number;
     }>
   >();
   const medalTypeMap = new Map(medalTypeDocs.map((mt) => [mt._id.toString(), mt]));
@@ -90,6 +91,7 @@ export async function createHeroFromImportResult(input: {
       valorPoints: mt.valorPoints ?? mt.basePoints ?? 0,
       requiresValorDevice: mt.requiresValorDevice ?? false,
       inherentlyValor: mt.inherentlyValor ?? false,
+      valorTier: mt.tier,
       count: m.count,
       hasValor: m.hasValor,
       valorDevices: m.valorDevices,

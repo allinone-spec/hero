@@ -33,6 +33,7 @@ export async function POST() {
       valorPoints?: number;
       requiresValorDevice?: boolean;
       inherentlyValor?: boolean;
+      tier?: number;
     }
     const medalData = hero.medals
       .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
@@ -44,6 +45,7 @@ export async function POST() {
         valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
         requiresValorDevice: m.medalType.requiresValorDevice ?? false,
         inherentlyValor: m.medalType.inherentlyValor ?? false,
+        valorTier: m.medalType.tier,
         count: m.count,
         hasValor: m.hasValor,
         valorDevices: m.valorDevices,

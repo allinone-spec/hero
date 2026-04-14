@@ -27,7 +27,21 @@ import { calculateScore, DEFAULT_SCORING_CONFIG } from "./scoring-engine";
 // basePoints    = Legacy/display points (for non-valor display contexts)
 // requiresValorDevice = Must have "V" device for valorPoints to apply
 // inherentlyValor = Medal is itself a valor award (no V device needed)
+// tier (in MEDAL_DEFS) = legacy display ordering band; use seedValorTierForScore() for Valor_Tier 1–5.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Maps legacy MEDAL_DEFS.tier (display ordering) to catalog Valor_Tier 1–5 for calculateScore. */
+export function seedValorTierForScore(mt: {
+  tier: number;
+  category: string;
+  valorPoints: number;
+}): number {
+  if (mt.category !== "valor" || !mt.valorPoints) return 5;
+  if (mt.tier <= 4) return mt.tier;
+  if (mt.tier <= 10) return 4;
+  return 5;
+}
+
 export const MEDAL_DEFS = [
   // ── TIER 1: Medal of Honor (100 pts) ──
   {
@@ -1314,6 +1328,7 @@ async function seed() {
         valorPoints: mt.valorPoints,
         requiresValorDevice: mt.requiresValorDevice,
         inherentlyValor: mt.inherentlyValor,
+        valorTier: seedValorTierForScore(mt),
         count: m.count,
         hasValor: m.hasValor,
         valorDevices: m.valorDevices,

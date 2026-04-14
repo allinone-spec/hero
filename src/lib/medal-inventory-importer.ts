@@ -1,7 +1,7 @@
 /**
  * Import medal catalog from `data/medal-inventory/Final_Medal_Sheet_Client.csv` into MedalType.
  *
- * Columns: Medal_ID, Medal_Name, Acronym, Slang, Service, Precedence, Category, Bong_Score,
+ * Columns: Medal_ID, Medal_Name, Acronym, Slang, Service, Precedence, Category, Bong_Score, Valor_Tier,
  * Ribbon_File_Direct_URL / Ribbon_Thumbnail_URL (ribbon art), Wiki_Link, Medal_Link (optional;
  * often Wikipedia article — not used as ribbon image). Legacy `ribbons.csv` layout is still
  * understood by {@link parseRibbonsInventoryCsv}. Legacy {@link parseMedalInventoryCsv} retains
@@ -10,12 +10,29 @@
 
 import fs from "fs";
 import path from "path";
+import { parseCsvLine } from "@/lib/csv-line";
 import { deriveShortNameFromMedalName } from "@/lib/medal-short-name";
 import { parseMedalDeviceRule } from "@/lib/medal-device-rules";
 import { normalizeWikimediaImageUrl } from "@/lib/wikimedia-url";
+import {
+  NON_HEROIC_VALOR_TIER,
+  resolveInventoryHeroicScoring,
+} from "@/lib/medal-inventory-scoring";
+import { inferMedalValorBehavior } from "@/lib/medal-valor-flags";
 
-/** Single source file for `import-medals` / admin medal inventory import. */
+/** Preferred client sheet after running `scripts/sync-medal-inventory-csv.ts` */
+export const MEDAL_INVENTORY_SYNCED_CSV_FILENAME = "_Final_Medal_Sheet_Client.synced.csv";
+/** Legacy / Excel export name (same schema once synced). */
 export const MEDAL_INVENTORY_CSV_FILENAME = "Final_Medal_Sheet_Client.csv";
+
+export function resolveMedalInventoryCsvPath(dir: string): string {
+  if (process.env.MEDAL_INVENTORY_CSV?.trim()) {
+    return path.join(dir, process.env.MEDAL_INVENTORY_CSV.trim());
+  }
+  const synced = path.join(dir, MEDAL_INVENTORY_SYNCED_CSV_FILENAME);
+  if (fs.existsSync(synced)) return synced;
+  return path.join(dir, MEDAL_INVENTORY_CSV_FILENAME);
+}
 
 export type ImportMedalRow = {
   medalId: string;
@@ -31,28 +48,9 @@ export type ImportMedalRow = {
   otherNames?: string[];
   ribbonImageUrl?: string;
   wikipediaUrl?: string;
+  /** 1–4 = heroic matrix; 5+ = no heroic points */
+  valorTier?: number;
 };
-
-function parseCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-    if (!inQuotes && c === ",") {
-      out.push(cur.trim());
-      cur = "";
-      continue;
-    }
-    cur += c;
-  }
-  out.push(cur.trim());
-  return out;
-}
 
 export function parseMedalInventoryCsv(content: string): ImportMedalRow[] {
   const lines = content.split(/\r?\n/).filter((l) => l.trim());
@@ -135,13 +133,6 @@ function cobaltOtherNamesFromRibbons(acronym: string, slang: string): string[] {
   return out;
 }
 
-function valorPointsFromBongScore(inventoryCategory: string, bong: number): number {
-  const u = inventoryCategory.toLowerCase();
-  if (u.includes("valor")) return bong;
-  if (u.includes("foreign")) return bong;
-  return 0;
-}
-
 /** Match AI / legacy strings to client-sheet MoH titles (and MOH acronym). */
 function medalOfHonorExtraOtherNames(medalName: string): string[] {
   const n = medalName.trim();
@@ -192,8 +183,29 @@ export function parseRibbonsInventoryCsv(content: string): ImportMedalRow[] {
     const service = g(["service"], cols);
     const category = g(["category"], cols);
     const bongRaw = g(["bong_score"], cols);
-    const bongParsed = bongRaw === "" ? 0 : parseInt(bongRaw, 10);
-    const bong = Number.isNaN(bongParsed) ? 0 : bongParsed;
+    const valorTierRaw = g(["valor_tier"], cols);
+    const deviceText = g(["device"], cols);
+
+    const computed = resolveInventoryHeroicScoring({
+      medalId,
+      medalName,
+      precedence: precedenceWeight,
+      category,
+    });
+
+    let bong = bongRaw === "" ? NaN : parseInt(bongRaw, 10);
+    if (!Number.isFinite(bong)) bong = computed.bong;
+
+    let valorTier = valorTierRaw === "" ? NaN : parseInt(valorTierRaw, 10);
+    if (!Number.isFinite(valorTier)) valorTier = computed.valorTier;
+    valorTier = Math.min(99, Math.max(1, valorTier));
+
+    const flags = inferMedalValorBehavior({
+      medalId,
+      medalName,
+      deviceText,
+      valorTier,
+    });
 
     const acronym = g(["acronym"], cols);
     const slang = g(["slang"], cols);
@@ -233,11 +245,12 @@ export function parseRibbonsInventoryCsv(content: string): ImportMedalRow[] {
       medalName,
       precedenceWeight,
       countryCode,
-      deviceLogic: "None",
-      vDeviceAllowed: false,
+      deviceLogic: deviceText || "None",
+      vDeviceAllowed: flags.vDeviceAllowed,
       inventoryCategory: category,
       basePoints: bong,
-      valorPoints: valorPointsFromBongScore(category, bong),
+      valorPoints: valorTier >= NON_HEROIC_VALOR_TIER ? 0 : bong,
+      valorTier,
       otherNames: otherNames.length ? otherNames : undefined,
       ribbonImageUrl: medalLink.trim() ? medalLink : undefined,
       wikipediaUrl: wikiLink || undefined,
@@ -298,9 +311,9 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
     return result;
   }
 
-  const full = path.join(dir, MEDAL_INVENTORY_CSV_FILENAME);
+  const full = resolveMedalInventoryCsvPath(dir);
   if (!fs.existsSync(full)) {
-    result.errors.push(`Missing ${MEDAL_INVENTORY_CSV_FILENAME} in ${dir}`);
+    result.errors.push(`Missing medal inventory CSV in ${dir} (expected ${MEDAL_INVENTORY_SYNCED_CSV_FILENAME} or ${MEDAL_INVENTORY_CSV_FILENAME})`);
     return result;
   }
 
@@ -345,6 +358,17 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
         inventoryCategory: row.inventoryCategory,
         medalName: row.medalName,
       });
+      const valorTier =
+        row.valorTier ??
+        existingById?.tier ??
+        existingByName?.tier ??
+        NON_HEROIC_VALOR_TIER;
+      const flags = inferMedalValorBehavior({
+        medalId: row.medalId,
+        medalName: row.medalName,
+        deviceText: row.deviceLogic === "None" ? "" : row.deviceLogic,
+        valorTier,
+      });
       const basePoints =
         row.basePoints ??
         existingById?.basePoints ??
@@ -354,7 +378,7 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
         row.valorPoints ??
         existingById?.valorPoints ??
         existingByName?.valorPoints ??
-        basePoints;
+        (valorTier >= NON_HEROIC_VALOR_TIER ? 0 : basePoints);
 
       const mergedOtherNames = (() => {
         const fromRow = row.otherNames;
@@ -380,16 +404,16 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
         category,
         basePoints,
         valorPoints,
-        requiresValorDevice: row.vDeviceAllowed,
-        inherentlyValor: category === "valor" && row.precedenceWeight <= 25,
-        tier: Math.min(99, Math.floor(row.precedenceWeight / 10)),
+        requiresValorDevice: flags.requiresValorDevice,
+        inherentlyValor: flags.inherentlyValor,
+        tier: valorTier,
         branch: "All",
         precedenceOrder: row.precedenceWeight,
         medalId: row.medalId,
         countryCode: row.countryCode,
         deviceLogic: row.deviceLogic,
         deviceRule,
-        vDeviceAllowed: row.vDeviceAllowed,
+        vDeviceAllowed: flags.vDeviceAllowed,
         inventoryCategory: row.inventoryCategory,
         ribbonColors:
           existingById?.ribbonColors?.length ? existingById.ribbonColors : ["#808080"],
@@ -405,13 +429,13 @@ export async function importMedalInventoryFromDir(dir: string): Promise<ImportRe
         countryCode: row.countryCode,
         deviceLogic: row.deviceLogic,
         deviceRule,
-        vDeviceAllowed: row.vDeviceAllowed,
+        vDeviceAllowed: flags.vDeviceAllowed,
         inventoryCategory: row.inventoryCategory,
-        requiresValorDevice: row.vDeviceAllowed,
+        requiresValorDevice: flags.requiresValorDevice,
         category,
         basePoints,
         valorPoints,
-        inherentlyValor: category === "valor" && row.precedenceWeight <= 25,
+        inherentlyValor: flags.inherentlyValor,
         tier: doc.tier,
         ribbonImageUrl,
         wikipediaUrl,

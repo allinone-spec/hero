@@ -1,9 +1,10 @@
 import { ScoreBreakdownItem, ScoreResult } from "@/types";
 import type { CombatSpecialty } from "@/lib/models/Hero";
 
-// ─── GLOBAL NORMALIZED VALOR LEVELS (see docs/master-scoring-logic.md) ───────
-// Gallantry levels 1–4 (100 / 75 / 50 / 25), British military orders (tier base 60),
-// Indian grade %, wound increments, foreign overrides, ace / submarine modifiers.
+// ─── Medal catalog scoring (USM-25 v1 — 1–100 heroic scale, CSV + Valor_Tier) ─
+// See `src/lib/medal-inventory-scoring.ts` and `data/medal-inventory/*.csv`.
+
+import { NON_HEROIC_VALOR_TIER } from "@/lib/medal-inventory-scoring";
 
 interface MedalForScoring {
   name: string;
@@ -13,149 +14,12 @@ interface MedalForScoring {
   countryCode?: string;
   requiresValorDevice: boolean;
   inherentlyValor: boolean;
+  /** 1–4 = heroic tiers; 5+ = no heroic points (service/campaign). */
+  valorTier?: number;
   count: number;
   hasValor: boolean;
   valorDevices: number;
 }
-
-type ForeignScoreRule = {
-  patterns: RegExp[];
-  basePoints: number;
-  gallantryBonusEligible?: boolean;
-};
-
-type MedalScoreOverrideRule = {
-  patterns: RegExp[];
-  points: number;
-  requiresGallantryFlag?: boolean;
-  detailIfMissingGallantryFlag?: string;
-};
-
-const FOREIGN_VALOUR_BONUS_POINTS = 15;
-/** Max points for a single foreign pattern match (MOH/VC/GC use CORE at 100; foreign tops out here). */
-const FOREIGN_PATTERN_SCORE_CAP = 100;
-
-/** Pattern-based foreign national awards (frequency-calibrated). See docs/master-scoring-logic.md §Foreign. */
-const FOREIGN_SCORE_RULES: ForeignScoreRule[] = [
-  // Foreign Level 1 — Top national awards: base 70 typical; VM 90 (rarity); +15 valour when eligible; cap FOREIGN_PATTERN_SCORE_CAP
-  {
-    patterns: [/^medal of valor\b.*philippines|^philippine medal of valor\b/],
-    basePoints: 70,
-    gallantryBonusEligible: true,
-  },
-  {
-    patterns: [/military william order|militaire willems-orde/],
-    basePoints: 70,
-    gallantryBonusEligible: true,
-  },
-  { patterns: [/virtuti militari/], basePoints: 90, gallantryBonusEligible: true },
-  {
-    patterns: [/legion d.?honneur.*grand.?croix|grand.?croix.*legion d.?honneur/],
-    basePoints: 70,
-    gallantryBonusEligible: true,
-  },
-  {
-    patterns: [/order of leopold.*grand cordon|grand cordon.*order of leopold/],
-    basePoints: 70,
-    gallantryBonusEligible: true,
-  },
-  // Note: Order of the Bath GCB is scored under BRITISH_ORDER_GRADE_RULES (UK military division), not here.
-
-  // Foreign Level 2 — First-tier gallantry (45–65)
-  { patterns: [/medaille militaire/], basePoints: 65, gallantryBonusEligible: true },
-  {
-    patterns: [/croix de guerre.*bronze palm|bronze palm.*croix de guerre/],
-    basePoints: 60,
-    gallantryBonusEligible: true,
-  },
-  {
-    patterns: [/croix de guerre.*(silver|gilt)\s*star|(silver|gilt)\s*star.*croix de guerre/],
-    basePoints: 50,
-    gallantryBonusEligible: true,
-  },
-  {
-    patterns: [/legion d.?honneur.*(officier|chevalier)|(officier|chevalier).*legion d.?honneur/],
-    basePoints: 45,
-    gallantryBonusEligible: true,
-  },
-  { patterns: [/order of the crown\b.*belgium|belgium.*order of the crown\b/], basePoints: 45, gallantryBonusEligible: true },
-
-  // Foreign Level 3 — Second-tier & service (25–40); no valour bonus on pure service rows
-  { patterns: [/luxembourg croix de guerre/], basePoints: 40, gallantryBonusEligible: true },
-  {
-    patterns: [/croix de guerre.*bronze star|bronze star.*croix de guerre/],
-    basePoints: 30,
-    gallantryBonusEligible: true,
-  },
-  {
-    patterns: [/vietnam gallantry cross.*palm|gallantry cross.*palm.*vietnam/],
-    basePoints: 25,
-    gallantryBonusEligible: true,
-  },
-  { patterns: [/nato meritorious service medal/], basePoints: 25, gallantryBonusEligible: false },
-  {
-    patterns: [/philippine (defense|defence) medal|philippine liberation medal/],
-    basePoints: 25,
-    gallantryBonusEligible: false,
-  },
-];
-
-const CORE_MEDAL_SCORE_RULES: MedalScoreOverrideRule[] = [
-  { patterns: [/medal of honor|\bmoh\b/], points: 100 },
-  { patterns: [/victoria cross|\bvc\b/], points: 100 },
-  { patterns: [/george cross|\bgc\b/], points: 100 },
-  { patterns: [/param vir chakra/], points: 100 },
-  { patterns: [/ashoka chakra/], points: 100 },
-
-  { patterns: [/distinguished service cross|\bdsc\b/], points: 75 },
-  { patterns: [/navy cross/], points: 75 },
-  { patterns: [/air force cross|\bafc\b/], points: 75 },
-  { patterns: [/distinguished service order|\bdso\b/], points: 75 },
-  { patterns: [/conspicuous gallantry cross|\bcgc\b/], points: 75 },
-  { patterns: [/\bmilitary cross\b|\bmc\b/], points: 75 },
-  { patterns: [/distinguished flying cross|\bdfc\b/], points: 75 },
-  { patterns: [/star of military valour|\bsmv\b/], points: 75 },
-  { patterns: [/star of gallantry|\bsg\b/], points: 75 },
-  { patterns: [/maha vir chakra/], points: 75 },
-  { patterns: [/kirti chakra/], points: 75 },
-
-  { patterns: [/silver star|\bss\b/], points: 50 },
-  /** US heroism medals (non-combat valor) — same tier as L3 / MM in master doc */
-  { patterns: [/soldier'?s medal/], points: 50 },
-  { patterns: [/navy and marine corps medal/], points: 50 },
-  { patterns: [/airman'?s medal/], points: 50 },
-  { patterns: [/coast guard medal/], points: 50 },
-  { patterns: [/\bmilitary medal\b|\bmm\b/], points: 50 },
-  { patterns: [/distinguished service medal|\bdsm\b/], points: 50 },
-  { patterns: [/distinguished flying medal|\bdfm\b/], points: 50 },
-  { patterns: [/\bair force medal\b|\bafm\b/], points: 50 },
-  { patterns: [/sea gallantry medal|\bsgm\b/], points: 50 },
-  { patterns: [/medal of military valour|\bmmv\b/], points: 50 },
-  { patterns: [/\bmedal for gallantry\b|\bmg\b/], points: 50 },
-  { patterns: [/vir chakra/], points: 50 },
-  { patterns: [/shaurya chakra/], points: 50 },
-
-  /** US order of merit — treated as ~MBE-tier anchor in master worked examples */
-  { patterns: [/\blegion of merit\b/], points: 24 },
-  /** French Légion Chevalier/Officier: scored via FOREIGN_SCORE_RULES (45 + optional valour bonus), not CORE */
-
-  { patterns: [/mention in despatches|\bmid\b/], points: 25 },
-  { patterns: [/queen.?s gallantry medal|\bqgm\b/], points: 25 },
-  { patterns: [/king.?s commendation for brave conduct|queen.?s commendation for brave conduct/], points: 25 },
-  { patterns: [/bronze star/], points: 25, requiresGallantryFlag: true, detailIfMissingGallantryFlag: 'Bronze Star scores only with "V"/gallantry flag' },
-  { patterns: [/commendation medal/], points: 25, requiresGallantryFlag: true, detailIfMissingGallantryFlag: 'Commendation Medal scores only with "V"/gallantry flag' },
-];
-
-const BRITISH_ORDER_GRADE_RULES: MedalScoreOverrideRule[] = [
-  { patterns: [/\bgbe\b|grand cross.*british empire/], points: 60, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "British Order military stripe/gallantry flag required" },
-  { patterns: [/\bkbe\b|\bdbe\b|knight commander.*british empire|dame commander.*british empire/], points: 48, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "British Order military stripe/gallantry flag required" },
-  { patterns: [/\bcbe\b|commander.*british empire/], points: 36, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "British Order military stripe/gallantry flag required" },
-  { patterns: [/\bobe\b|officer.*british empire/], points: 24, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "British Order military stripe/gallantry flag required" },
-  { patterns: [/\bmbe\b|member.*british empire/], points: 12, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "British Order military stripe/gallantry flag required" },
-  { patterns: [/order of the bath.*\bgcb\b|\bgcb\b.*order of the bath|\bgcmg\b|grand cross.*st michael/], points: 60, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "Military division/gallantry flag required" },
-  { patterns: [/order of the bath.*\bkcb\b|\bkcb\b.*order of the bath|\bkcmg\b|knight commander.*st michael/], points: 48, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "Military division/gallantry flag required" },
-  { patterns: [/order of the bath.*\bcb\b|\bcb\b.*order of the bath|\bcmg\b|companion.*st michael/], points: 36, requiresGallantryFlag: true, detailIfMissingGallantryFlag: "Military division/gallantry flag required" },
-];
 
 function normalizeMedalName(name: string): string {
   return name
@@ -163,36 +27,6 @@ function normalizeMedalName(name: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
-}
-
-function resolveForeignScoreOverride(medal: MedalForScoring): number | null {
-  const normalized = normalizeMedalName(medal.name);
-  const rule = FOREIGN_SCORE_RULES.find((r) => r.patterns.some((p) => p.test(normalized)));
-  if (!rule) return null;
-  const baseAdjusted = resolveIndianGradeAdjustedPoints(rule.basePoints, normalized);
-  const gallantryBonus =
-    rule.gallantryBonusEligible && medal.hasValor ? FOREIGN_VALOUR_BONUS_POINTS : 0;
-  return Math.min(FOREIGN_PATTERN_SCORE_CAP, baseAdjusted + gallantryBonus);
-}
-
-function resolveIndianGradeAdjustedPoints(baseLevelPoints: number, normalizedName: string): number {
-  if (/\bgold\b|1st class|first class/.test(normalizedName)) return baseLevelPoints;
-  if (/\bsilver\b|2nd class|second class/.test(normalizedName)) return Math.round(baseLevelPoints * 0.66);
-  if (/\bbronze\b|3rd class|third class/.test(normalizedName)) return Math.round(baseLevelPoints * 0.33);
-  return baseLevelPoints;
-}
-
-function resolveRulePoints(
-  medal: MedalForScoring,
-  normalizedName: string,
-  rules: MedalScoreOverrideRule[]
-): { points: number; note?: string } | null {
-  const match = rules.find((r) => r.patterns.some((p) => p.test(normalizedName)));
-  if (!match) return null;
-  if (match.requiresGallantryFlag && !medal.hasValor) {
-    return { points: 0, note: match.detailIfMissingGallantryFlag ?? "Gallantry flag required" };
-  }
-  return { points: resolveIndianGradeAdjustedPoints(match.points, normalizedName) };
 }
 
 interface HeroForScoring {
@@ -281,40 +115,13 @@ export function mergeScoringConfig(
 }
 
 /**
- * Resolves the heroism score for a single medal entry.
- *
- * CRITICAL V-DEVICE FILTER:
- * - If a medal is "inherently valor" (MOH, Crosses, Silver Star, Purple Heart,
- *   Soldier's/Navy/Airman's Medal), its valorPoints are always awarded.
- * - If a medal "requires valor device" (BSM, DFC, Air Medal, Commendation,
- *   Achievement), its valorPoints are ONLY awarded if hasValor is true.
- *   Otherwise, the medal scores ZERO on the Heroism Leaderboard.
+ * Resolves heroic points for one medal instance from catalog `Bong_Score` / `valorPoints`
+ * and `Valor_Tier` (tier ≥ 5 → 0 heroic points). V-device medals only score when `hasValor`.
  */
 function resolveMedalPoints(medal: MedalForScoring): number {
-  const normalized = normalizeMedalName(medal.name);
-
-  if (/purple heart|wound stripe/.test(normalized)) {
+  const t = medal.valorTier;
+  if (t == null || t < 1 || t >= NON_HEROIC_VALOR_TIER) {
     return 0;
-  }
-
-  const coreOverride = resolveRulePoints(medal, normalized, CORE_MEDAL_SCORE_RULES);
-  if (coreOverride) {
-    return coreOverride.points;
-  }
-
-  const britishOrderOverride = resolveRulePoints(medal, normalized, BRITISH_ORDER_GRADE_RULES);
-  if (britishOrderOverride) {
-    return britishOrderOverride.points;
-  }
-
-  /** Name-pattern foreign tiers (frequency-modulated) before catalog foreign basePoints */
-  const foreignOverride = resolveForeignScoreOverride(medal);
-  if (foreignOverride !== null) {
-    return foreignOverride;
-  }
-
-  if (medal.category === "foreign") {
-    return medal.basePoints + (medal.requiresValorDevice && medal.hasValor ? FOREIGN_VALOUR_BONUS_POINTS : 0);
   }
   if (medal.inherentlyValor) {
     return medal.valorPoints;
@@ -322,7 +129,6 @@ function resolveMedalPoints(medal: MedalForScoring): number {
   if (medal.requiresValorDevice) {
     return medal.hasValor ? medal.valorPoints : 0;
   }
-  // Non-heroism medals (service, foreign, etc.) use basePoints
   return medal.basePoints;
 }
 
@@ -355,9 +161,15 @@ export function calculateScore(
 
     let label: string;
     let detail: string;
-    if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints > 0) {
+    if (medal.valorTier == null || medal.valorTier < 1 || medal.valorTier >= NON_HEROIC_VALOR_TIER) {
+      label = `${medal.name}${countInLabel}`;
+      detail =
+        medal.valorTier != null && medal.valorTier >= NON_HEROIC_VALOR_TIER
+          ? "Not counted toward heroic score (Valor_Tier ≥ 5)"
+          : "Re-import medals or set Valor_Tier 1–4 for heroic catalog scoring";
+    } else if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints > 0) {
       label = `${medal.name} (no V device)${countInLabel}`;
-      detail = "Meritorious service — 0 pts on Heroism Leaderboard";
+      detail = "Meritorious service — 0 heroic pts (V device required for this award)";
     } else {
       label = `${medal.name}${vLabel}${countInLabel}`;
       if (medal.requiresValorDevice && !medal.hasValor && medal.valorPoints === 0) {
@@ -369,7 +181,7 @@ export function calculateScore(
       } else if (medal.requiresValorDevice && medal.hasValor && medal.valorPoints === 0) {
         detail = "V device recorded but valor line is 0 in catalog";
       } else {
-        detail = `0 pts on Heroism Leaderboard (${ptsPerMedal} × ${medal.count})`;
+        detail = `0 heroic pts (${ptsPerMedal} × ${medal.count})`;
       }
     }
     breakdown.push({ label, points: 0, detail });

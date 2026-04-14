@@ -12,7 +12,7 @@ export interface IMedalType {
   valorPoints: number;          // Points on the Heroism Leaderboard
   requiresValorDevice: boolean; // Must have "V" device for valor points
   inherentlyValor: boolean;     // Medal is inherently a valor award (no V needed)
-  tier: number;                 // Scoring tier (1=MOH, 2=Crosses, etc.)
+  tier: number;                 // Valor_Tier: 1–4 = heroic; 5+ = no heroic points (rack only)
   branch: string;               // "All", "Army", "Navy", "Marine Corps", etc.
   precedenceOrder: number;
   countryCode?: string;

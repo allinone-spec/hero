@@ -1,106 +1,151 @@
 /**
- * Public/admin copy for the USM-25 matrix — aligned with `scoring-engine.ts` and
- * `docs/master-scoring-logic.md` (Section 1 master; foreign tiered model; defaults from ScoringConfig).
+ * Public copy for the USM-25 heroic matrix (1–100 catalog scale, Valor_Tier 1–4).
+ * Aligns with `medal-inventory-scoring.ts`, client CSV `Bong_Score` / `Valor_Tier`, and `scoring-engine.ts`.
  */
-export const USM25_MATRIX_SECTIONS = [
+export type Usm25MatrixItem = { label: string; points?: string };
+export type Usm25MatrixSection = { title: string; items: Usm25MatrixItem[] };
+
+export const USM25_MATRIX_SECTIONS: Usm25MatrixSection[] = [
   {
-    title: "1. Base Medal Values",
+    title: "Comparing careers fairly",
     items: [
       {
         label:
-          "Medal of Honor, Victoria Cross, George Cross (and coded Indian level-1 gallantry)",
-        points: "100 pts per instance",
+          "Comparing the military careers of different service members across different nations, eras, and branches is a complex challenge. Military traditions vary wildly; some nations issue a high volume of individual ribbons, while others issue fewer medals but rely heavily on clasps and devices.",
       },
       {
         label:
-          "Level 2 — Service Crosses (DSC, Navy Cross, Air Force Cross), DFC, MC, DSO, CGC, etc.",
-        points: "75 pts per instance",
-      },
-      {
-        label: "Level 3 — Silver Star, Military Medal, DSM, Vir Chakra, etc.",
-        points: "50 pts per instance (Silver Star always 50)",
-      },
-      {
-        label:
-          "Level 4 — Bronze Star / Commendation Medal (with V or gallantry), MiD, QGM, etc.",
-        points: "25 pts per instance when valor applies",
-      },
-      { label: "Legion of Merit", points: "24 pts" },
-      {
-        label: "Purple Heart & wound stripes",
-        points: "0 pts first instance; +5 per additional (wound bonus)",
-      },
-      {
-        label:
-          "Foreign gallantry & national orders (not flat 100 for every #1)",
-        points:
-          "Tiered bases (~70 typical top tier); +15 when gallantry-flagged; 100 cap on foreign patterns; Virtuti Militari 90 base; Légion Grand-Croix 70; gold/silver/bronze or 1st/2nd/3rd class → 100% / 66% / 33% of pattern base",
-      },
-      {
-        label: "Other medals",
-        points: "Catalog basePoints when no engine pattern matches",
+          "Simply counting the total number of medals on a soldier's chest does not accurately reflect their level of sacrifice, valor, or historical impact. To solve this, Medals N Bongs utilizes a proprietary, mathematically balanced scoring system designed to evaluate United States and British Commonwealth service records on an equal, objective playing field.",
       },
     ],
   },
   {
-    title: "2. Bonuses and Multipliers",
+    title: "The core rule: we only score heroism",
     items: [
-      { label: "Multiple awards", points: "Full value × count per instance" },
-      { label: "Valor devices (config)", points: "+2 pts per V device (default)" },
-      { label: "Combat theater", points: "+5 pts per distinct war/theater (default)" },
       {
-        label: "Combat leadership",
-        points: "+10 pts for unit-level command in combat (default)",
+        label:
+          "The most important distinction in our system is what we choose not to score. Standard service ribbons, training completion awards, and general campaign medals (often referred to as “attendance medals”) receive zero points in our ranking matrix. While these medals tell the story of where a soldier went, they do not measure individual gallantry.",
       },
       {
-        label: "Survival / POW heroism",
-        points: "+15 pts when POW heroism flag applies (default)",
-      },
-      {
-        label: "Wounds bonus",
-        points: "+5 pts per additional Purple Heart / wound stripe after the first (default)",
+        label:
+          "Our scoring system is strictly activated by documented acts of heroism, combat valor, and supreme gallantry. Only awards with Valor_Tier 1–4 in the catalog (Bong_Score on a 1–100 heroic scale) contribute; Valor_Tier 5+ medals still appear on the ribbon rack but score 0 toward the heroic rank.",
       },
     ],
   },
   {
-    title: "3. Combat Achievement Modifier (defaults)",
+    title: "The problem with linear scoring",
+    items: [
+      {
+        label:
+          "Even when only looking at heroic awards, a linear scoring system (for example assigning 10 points for a lower-tier valor award and 50 for a supreme award) is flawed. Volume can overtake apex valor — for example, several lower-tier combat citations could mathematically outrank a Victoria Cross or Medal of Honor. That misrepresents apex decorations.",
+      },
+    ],
+  },
+  {
+    title: "The logarithmic approach (the 1–100 scale)",
+    items: [
+      {
+        label:
+          "To ensure that extreme acts of valor are appropriately weighted, we apply a logarithmic curve to our scoring matrix, culminating in a standardized 1 to 100 point scale. As tiers of heroic medals rise, catalog points increase on a steep curve, not sequentially.",
+      },
+      {
+        label:
+          "On the curve from entry-level heroism up to apex awards: baseline heroic citations (for example Mention in Despatches or a Commendation with a “V” device) sit at the shallow part of the curve. In the catalog these map to Valor_Tier 4 with lower Bong_Score values.",
+      },
+      {
+        label:
+          "Mid-curve awards for distinct and prolonged combat valor (for example the Silver Star or the Military Cross) use Valor_Tier 3 in the catalog — the curve steepens sharply.",
+      },
+      {
+        label:
+          "Apex awards (Victoria Cross, U.S. Medal of Honor, and peers) use Valor_Tier 1 in the catalog at the top of the 1–100 scale — 100 points for MoH / VC family; George Cross at 95 for supreme gallantry not necessarily in the face of the enemy.",
+      },
+      {
+        label:
+          "Why the gap? Since 1856 the Victoria Cross has been awarded only about 1,350 times; the U.S. Medal of Honor a little over 3,500 times since the Civil War — statistical anomalies compared to tens of millions who served. A logarithmic model keeps lower-tier volume from eclipsing Tier 1.",
+      },
+      {
+        label:
+          "Early database iterations used a large point matrix; we compressed the same ratios into this precise 1–100 scale for a cleaner interface.",
+      },
+    ],
+  },
+  {
+    title: "Cross-nation parity: U.S. vs Commonwealth",
+    items: [
+      {
+        label:
+          "The U.S. often awards more distinct valor citations; Commonwealth forces may use bars and fewer ribbons for similar conduct. Our curve weights Commonwealth gallantry awards and bars so a single high-tier CW award is not drowned out by U.S. citation volume — whether you are looking at a highly decorated U.S. soldier or a legendary Commonwealth operator, the rank reflects heroism, not ribbon count alone.",
+      },
+    ],
+  },
+  {
+    title: "Medals N Bongs: tiered valor scoring (catalog)",
+    items: [
+      {
+        label:
+          "Developer note: The Bong_Score column in the master client CSV is the catalog point value. Only medals in Valor_Tier 1–4 trigger heroic scoring. Valor_Tier 5 or higher (or non-heroic categories) score 0 heroic points while still displaying on the rack.",
+      },
+      {
+        label:
+          "Tier 1 — Apex: U.S. Medal of Honor (Army, Navy, Air Force); Commonwealth VC family; Ashoka Chakra (military); Param Vir Chakra; Malta George Cross anniversary; George Cross (95 pts in catalog).",
+        points: "100 pts (Tier 1 apex decorations)",
+      },
+      {
+        label:
+          "Tier 2 — Supreme gallantry: U.S. Air Force Cross, Distinguished Service Cross, Navy Cross, Coast Guard Cross; Commonwealth CGC, UK AFC, Australian DSC; DSO when for gallantry; Albert Medal (historical).",
+        points: "≈75–85 pts band in catalog",
+      },
+      {
+        label:
+          "Tier 3 — Significant combat valor: Silver Star, Military Cross, UK / U.S. DFC (U.S. DFC with “V”), UK DSC (naval), DCM, CGM, Star of Gallantry, and other listed gallantry decorations in this band.",
+        points: "≈45–60 pts band in catalog",
+      },
+      {
+        label:
+          "Tier 4 — Baseline valor: Bronze Star and Air Medal with “V” only; Purple Heart; commendation medals with “V”; Queen’s/King’s Gallantry; Mention in Despatches; UK Military Medal, DFM, UK DSM (historical context); Commendation for Gallantry / Bravery.",
+        points: "≈15–35 pts band in catalog",
+      },
+      {
+        label: "Tier 5 — Service, campaign, training, and general merit",
+        points: "0 heroic pts — rack display only",
+      },
+    ],
+  },
+  {
+    title: "Bonuses and modifiers (configurable)",
+    items: [
+      { label: "Extra valor devices", points: "+2 pts per additional V (default) after the first" },
+      { label: "Combat theaters", points: "+5 pts per distinct war/theater (default)" },
+      { label: "Combat leadership", points: "+10 pts when unit-level combat command applies (default)" },
+      { label: "POW / survival heroism", points: "+15 pts when flagged (default)" },
+      {
+        label: "Additional Purple Hearts / wound stripes",
+        points: "+5 pts per instance after the first (default)",
+      },
+    ],
+  },
+  {
+    title: "Combat achievement modifiers (defaults)",
     items: [
       {
         label: "Aviation — ace threshold",
-        points:
-          "+25 at 5 confirmed kills, then +2 per kill beyond 5 (defaults; defining-missions multiplier not applied to aviation ace line)",
+        points: "+25 at 5 confirmed kills, then +2 per kill beyond 5",
       },
       {
-        label: "Submarine — ship sink threshold",
-        points:
-          "+25 for first 3 ships sunk, +5 per ship beyond 3 when in command; extreme-risk missions ×25 pts each (defaults)",
+        label: "Submarine — ships sunk",
+        points: "+25 for first 3 sunk, +5 per ship beyond 3 when in command",
       },
-      {
-        label: "Surface / generic — major engagements",
-        points: "+5 pts per engagement (default)",
-      },
-      {
-        label: "Surface / generic — defining missions & conspicuous bravery",
-        points: "+10 pts per mission (default)",
-      },
+      { label: "Surface / generic — engagements & missions", points: "+5 / +10 pts per line item (defaults)" },
     ],
   },
   {
-    title: "4. Cumulative Recognition",
+    title: "Rounding and ties",
     items: [
-      {
-        label: "Multi-service or multi-war",
-        points: "+5% of subtotal before rounding (default)",
-      },
-    ],
-  },
-  {
-    title: "5. Ranking Rules",
-    items: [
-      { label: "Totals", points: "Rounded to nearest 5 pts (default)" },
+      { label: "Final total", points: "Rounded to nearest 5 pts (default)" },
       { label: "Tie-breaker 1", points: "Highest single award" },
       { label: "Tie-breaker 2", points: "Total combat tours" },
       { label: "Tie-breaker 3", points: "Wounds sustained" },
     ],
   },
-] as const;
+];

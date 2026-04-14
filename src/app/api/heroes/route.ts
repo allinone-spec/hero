@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
       valorPoints?: number;
       requiresValorDevice?: boolean;
       inherentlyValor?: boolean;
+      tier?: number;
     }
     const populated = await Hero.populate(body, { path: "medals.medalType" });
     const medalData = populated.medals
@@ -150,6 +151,7 @@ export async function POST(req: NextRequest) {
         valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
         requiresValorDevice: m.medalType.requiresValorDevice ?? false,
         inherentlyValor: m.medalType.inherentlyValor ?? false,
+        valorTier: m.medalType.tier,
         count: m.count,
         hasValor: m.hasValor,
         valorDevices: m.valorDevices,

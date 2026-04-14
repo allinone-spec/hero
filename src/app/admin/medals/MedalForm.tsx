@@ -310,13 +310,23 @@ export default function MedalForm({
           />
         </div>
         <div>
-          <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tier</label>
+          <label className="text-xs text-[var(--color-text-muted)] mb-1 block">
+            Valor_Tier (VT)
+          </label>
+          <p className="text-[10px] text-[var(--color-text-muted)] mb-1.5 leading-snug">
+            VT matches the catalog <code className="text-[10px]">Valor_Tier</code> /{" "}
+            <code className="text-[10px]">Bong_Score</code> sheet:{" "}
+            <strong>1–4</strong> = heroic ranking points; <strong>5</strong> = ribbon rack only (0 heroic pts);{" "}
+            <strong>99</strong> = legacy / not synced. Prefer editing the master CSV + import; change here only for exceptions.
+          </p>
           <input
             type="number"
             min={1}
+            max={99}
             value={values.tier}
-            onChange={(e) => onChange({ ...values, tier: parseInt(e.target.value) || 99 })}
+            onChange={(e) => onChange({ ...values, tier: parseInt(e.target.value, 10) || 99 })}
             className="admin-input"
+            aria-label="Valor_Tier (VT)"
           />
         </div>
         <div>

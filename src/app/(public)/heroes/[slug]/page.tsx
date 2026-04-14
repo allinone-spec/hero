@@ -1,8 +1,13 @@
 import { notFound } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import Hero from "@/lib/models/Hero";
+import ScoringConfig from "@/lib/models/ScoringConfig";
 import "@/lib/models/MedalType";
-import { calculateScore } from "@/lib/scoring-engine";
+import {
+  calculateScore,
+  mergeScoringConfig,
+  type ScoringConfig as ScoringConfigShape,
+} from "@/lib/scoring-engine";
 import { getContextualRanksForHero } from "@/lib/contextual-ranks";
 import HeroDetailClient from "./HeroDetailClient";
 import type { Metadata } from "next";
@@ -59,9 +64,14 @@ export default async function HeroPage({ params, searchParams }: Props) {
         ? { href: "/rankings" as const, label: "< Back to Rankings" as const }
         : { href: "/rankings" as const, label: "< Back to Heroes" as const };
 
-  const hero = await Hero.findOne({ slug, published: true }).populate("medals.medalType").lean();
+  const [hero, rawScoringConfig] = await Promise.all([
+    Hero.findOne({ slug, published: true }).populate("medals.medalType").lean(),
+    ScoringConfig.findOne({ key: "default" }).lean(),
+  ]);
 
   if (!hero) notFound();
+
+  const scoringConfig = mergeScoringConfig(rawScoringConfig as Partial<ScoringConfigShape> | null);
 
   const [rankCount, totalPublished, contextualRanks] = await Promise.all([
     Hero.countDocuments({ published: true, score: { $gt: hero.score } }).then((c) => c + 1),
@@ -84,6 +94,7 @@ export default async function HeroPage({ params, searchParams }: Props) {
     inherentlyValor?: boolean;
     category?: "valor" | "service" | "foreign" | "other";
     countryCode?: string;
+    tier?: number;
   }
   const medalData = hero.medals
     .filter((m: { medalType: PopulatedMedalType | null }) => m.medalType)
@@ -95,21 +106,25 @@ export default async function HeroPage({ params, searchParams }: Props) {
       valorPoints: m.medalType.valorPoints ?? m.medalType.basePoints,
       requiresValorDevice: m.medalType.requiresValorDevice ?? false,
       inherentlyValor: m.medalType.inherentlyValor ?? false,
+      valorTier: m.medalType.tier,
       count: m.count,
       hasValor: m.hasValor,
       valorDevices: m.valorDevices,
     }));
 
-  const scoreResult = calculateScore({
-    medals: medalData,
-    wars: hero.wars,
-    combatTours: hero.combatTours,
-    hadCombatCommand: hero.hadCombatCommand,
-    powHeroism: hero.powHeroism,
-    multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
-    submarineCommandEligible: hero.submarineCommandEligible !== false,
-    combatAchievements: hero.combatAchievements || { type: "none" },
-  });
+  const scoreResult = calculateScore(
+    {
+      medals: medalData,
+      wars: hero.wars,
+      combatTours: hero.combatTours,
+      hadCombatCommand: hero.hadCombatCommand,
+      powHeroism: hero.powHeroism,
+      multiServiceOrMultiWar: hero.multiServiceOrMultiWar,
+      submarineCommandEligible: hero.submarineCommandEligible !== false,
+      combatAchievements: hero.combatAchievements || { type: "none" },
+    },
+    scoringConfig
+  );
 
   const serialized = JSON.parse(JSON.stringify(hero));
 

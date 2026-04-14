@@ -10,6 +10,7 @@
     "lint": "next lint",
     "seed": "npx tsx src/lib/seed.ts",
     "import-medals": "npx tsx scripts/import-medal-inventory.ts",
+    "sync-medal-csv": "npx tsx scripts/sync-medal-inventory-csv.ts",
     "clear-medals": "npx tsx scripts/clear-medals.ts --yes",
     "validate:foreign-medals": "npx tsx scripts/validate-foreign-medal-scoring.ts",
     "validate:medal-catalog": "npx tsx scripts/validate-medal-catalog.ts",
