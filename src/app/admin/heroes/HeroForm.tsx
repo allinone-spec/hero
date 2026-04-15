@@ -14,6 +14,8 @@ import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { HERO_METADATA_TAGS, normalizeMetadataTags } from "@/lib/metadata-tags";
 import { normalizeAwardText } from "@/lib/medal-normalization";
 import { deriveShortNameFromMedalName, medalShortLabelForDisplay } from "@/lib/medal-short-name";
+import RankCombobox from "@/components/heroes/RankCombobox";
+import { isMedalEligibleForHeroCountry } from "@/lib/medal-eligibility";
 import { buildRibbonRackMedals } from "@/lib/rack-engine";
 import type { RackMedalEntryLike } from "@/lib/rack-engine";
 
@@ -490,6 +492,17 @@ const BRANCHES = [
   "Indian Air Force",
 ];
 
+function countryCodeFromBranch(branch: string): HeroFormData["countryCode"] {
+  const b = String(branch || "").toLowerCase();
+  if (b.includes("australian")) return "AU";
+  if (b.includes("canadian")) return "CA";
+  if (b.includes("new zealand")) return "NZ";
+  if (b.includes("south african")) return "ZA";
+  if (b.includes("indian")) return "IN";
+  if (b.includes("british") || b.includes("royal navy") || b.includes("royal marines") || b.includes("royal air force")) return "UK";
+  return "US";
+}
+
 type WikiStatus = "idle" | "loading" | "success" | "error";
 
 /** All known Wikipedia device image URLs */
@@ -731,6 +744,7 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
   const [showAddMedal, setShowAddMedal] = useState(false);
   const [addMedalSearch, setAddMedalSearch] = useState("");
   const [addMedalId, setAddMedalId] = useState("");
+  const [showForeignMedals, setShowForeignMedals] = useState(false);
   // Add Device state — selectedRibbonIdx is the index in wikiRibbonCells
   const [selectedRibbonIdx, setSelectedRibbonIdx] = useState<number | null>(null);
   const [showAddDevice, setShowAddDevice] = useState(false);
@@ -832,6 +846,19 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
 
   const set = <K extends keyof HeroFormData>(key: K, value: HeroFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const medalTypesEligible = useMemo(
+    () =>
+      medalTypes.filter((t) =>
+        isMedalEligibleForHeroCountry(
+          t.countryCode,
+          form.countryCode || "US",
+          showForeignMedals,
+          t.inventoryCategory,
+        ),
+      ),
+    [medalTypes, form.countryCode, showForeignMedals],
+  );
 
   useEffect(() => {
     fetch("/api/medal-types")
@@ -1749,7 +1776,7 @@ function normalizeCombatType(input: unknown): CombatType {
                           <div className="w-56">
                             <MedalSelect
                               value=""
-                              medalTypes={medalTypes}
+                              medalTypes={medalTypesEligible}
                               onChange={(id) => handleMergeSelect(i, id)}
                             />
                           </div>
@@ -1829,12 +1856,11 @@ function normalizeCombatType(input: unknown): CombatType {
               <label className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">
                 Rank <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <RankCombobox
                 value={form.rank}
-                onChange={(e) => set("rank", e.target.value)}
+                onChange={(v) => set("rank", v)}
                 className="admin-input"
-                placeholder="e.g. Second Lieutenant"
+                placeholder="Type to search (e.g. Corporal, Captain)"
                 required
               />
             </div>
@@ -1844,7 +1870,14 @@ function normalizeCombatType(input: unknown): CombatType {
               </label>
               <select
                 value={form.branch}
-                onChange={(e) => set("branch", e.target.value)}
+                onChange={(e) => {
+                  const nextBranch = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    branch: nextBranch,
+                    countryCode: countryCodeFromBranch(nextBranch),
+                  }));
+                }}
                 className="admin-input"
               >
                 {BRANCHES.map((b) => (
@@ -1890,12 +1923,22 @@ function normalizeCombatType(input: unknown): CombatType {
 
       {/* ── § 2 Awards & Medals ─────────────────────────────── */}
       <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-3 sm:p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
           <SectionHeader
             title="Awards & Medals"
             sub="All saved medals (imported or manual) appear in the grid below. Add, reorder, merge, or remove ribbons here."
           />
-          <div className="relative">
+          <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+            <label className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] cursor-pointer select-none order-2 sm:order-1">
+              <input
+                type="checkbox"
+                className="rounded border-[var(--color-border)]"
+                checked={showForeignMedals}
+                onChange={(e) => setShowForeignMedals(e.target.checked)}
+              />
+              Show foreign awards (default: host country only)
+            </label>
+            <div className="relative order-1 sm:order-2 self-end">
             <button
               type="button"
               onClick={() => { setShowAddMedal((v) => !v); setAddMedalSearch(""); setAddMedalId(""); }}
@@ -1909,13 +1952,13 @@ function normalizeCombatType(input: unknown): CombatType {
                   type="text"
                   value={addMedalSearch}
                   onChange={(e) => { setAddMedalSearch(e.target.value); setAddMedalId(""); }}
-                  placeholder="Search or enter new medal name..."
+                  placeholder="Search medals from the allowed catalog..."
                   className="admin-input text-sm w-full"
                   autoFocus
                 />
                 {/* Filtered medal list from DB */}
                 <div className="max-h-56 overflow-y-auto space-y-0.5">
-                  {medalTypes
+                  {medalTypesEligible
                     .filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase()) || t.shortName.toLowerCase().includes(addMedalSearch.toLowerCase()))
                     .map((t) => (
                       <button
@@ -1940,58 +1983,58 @@ function normalizeCombatType(input: unknown): CombatType {
                         <span className="truncate">{t.name}</span>
                       </button>
                     ))}
-                  {medalTypes.filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase()) || t.shortName.toLowerCase().includes(addMedalSearch.toLowerCase())).length === 0 && addMedalSearch && (
-                    <p className="text-sm text-[var(--color-text-muted)] px-2 py-1">No match — will create as new medal</p>
+                  {medalTypesEligible.filter((t) => !addMedalSearch || t.name.toLowerCase().includes(addMedalSearch.toLowerCase()) || t.shortName.toLowerCase().includes(addMedalSearch.toLowerCase())).length === 0 && addMedalSearch && (
+                    <p className="text-sm text-[var(--color-text-muted)] px-2 py-1">No match in this filtered catalog — enable foreign awards or adjust search.</p>
                   )}
                 </div>
                 <div className="flex justify-end gap-2 pt-1 border-t border-[var(--color-border)]">
                   <button type="button" onClick={() => setShowAddMedal(false)} className="px-3 py-1.5 text-sm rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] border border-[var(--color-border)]">Cancel</button>
                   <button
                     type="button"
-                    disabled={!addMedalSearch.trim()}
+                    disabled={!addMedalId}
                     onClick={() => {
-                      const selected = addMedalId ? medalTypes.find((t) => t._id === addMedalId) : null;
+                      const selected = addMedalId ? medalTypesEligible.find((t) => t._id === addMedalId) : null;
+                      if (!selected) return;
                       const newCell: WikiRibbonCellData = {
                         ribbonUrl: selected?.ribbonImageUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='35'%3E%3Crect width='90' height='35' fill='%23ddd'/%3E%3C/svg%3E",
                         deviceUrls: [],
-                        name: selected?.name || addMedalSearch.trim(),
-                        _id: selected?._id || "",
+                        name: selected.name,
+                        _id: selected._id,
                         type: "ribbon",
                       };
                       setWikiRibbonCells((prev) => [...prev, newCell]);
-                      if (selected?._id) {
-                        setForm((prev) => {
-                          if (prev.medals.some((mm) => String(mm.medalType) === String(selected._id))) {
-                            return prev;
-                          }
-                          return {
-                            ...prev,
-                            medals: [
-                              ...prev.medals,
-                              {
-                                medalType: selected._id,
-                                count: 1,
-                                hasValor: false,
-                                valorDevices: 0,
-                                arrowheads: 0,
-                                deviceImages: [],
-                                wikiRibbonUrl: selected.ribbonImageUrl || "",
-                              },
-                            ],
-                          };
-                        });
-                      }
+                      setForm((prev) => {
+                        if (prev.medals.some((mm) => String(mm.medalType) === String(selected._id))) {
+                          return prev;
+                        }
+                        return {
+                          ...prev,
+                          medals: [
+                            ...prev.medals,
+                            {
+                              medalType: selected._id,
+                              count: 1,
+                              hasValor: false,
+                              valorDevices: 0,
+                              arrowheads: 0,
+                              deviceImages: [],
+                              wikiRibbonUrl: selected.ribbonImageUrl || "",
+                            },
+                          ],
+                        };
+                      });
                       setShowAddMedal(false);
                       setAddMedalSearch("");
                       setAddMedalId("");
                     }}
-                    className="px-3 py-1.5 text-sm rounded bg-[var(--color-gold)] text-black font-medium hover:bg-[var(--color-gold-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-primary text-sm px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     OK
                   </button>
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -2527,9 +2570,9 @@ function normalizeCombatType(input: unknown): CombatType {
                               <div className="w-56">
                                 <MedalSelect
                                   value=""
-                                  medalTypes={medalTypes}
+                                  medalTypes={medalTypesEligible}
                                   onChange={(targetId) => {
-                                    const target = medalTypes.find((t) => t._id === targetId);
+                                    const target = medalTypesEligible.find((t) => t._id === targetId);
                                     if (!target) return;
                                     setMergeConfirm({ cellIdx, targetId, targetName: target.name });
                                   }}

@@ -17,6 +17,27 @@ export const USM25_MATRIX_SECTIONS: Usm25MatrixSection[] = [
     ],
   },
   {
+    title: "Design rationale: how the logarithmic matrix was reasoned out",
+    items: [
+      {
+        label:
+          "We started from a simple observation: military archives mix incomparable signals — long U.S. ribbon stacks beside lean Commonwealth gallantry rows, multiple wound awards beside single apex citations, and campaign “attendance” ribbons beside one deliberate act of courage. Any leaderboard that treats those signals as interchangeable counts will lie quietly but confidently about who did what. So the first design decision was subtraction: strip everything that is not documented individual heroism from the competitive score, keep it on the rack for context, and only then ask how remaining heroic items should combine.",
+      },
+      {
+        label:
+          "The second decision was to reject naive linear addition for valor. A linear system rewards volume: several mid-tier citations can mathematically eclipse a Victoria Cross or Medal of Honor, which contradicts how institutions and history actually weight apex gallantry. We therefore modeled heroism on a steep curve — small increments at the baseline valor band, much larger increments as citations approach national/strategic significance, and a capped 1–100 catalog scale so the UI stays legible while preserving the ratios implied by the older, wider point experiments.",
+      },
+      {
+        label:
+          "The third decision was cross-national parity without pretending nations issue medals the same way. Commonwealth forces often consolidate recognition into bars and clasps; U.S. practice often enumerates distinct devices and ribbons. The logarithmic matrix is paired with explicit tier rules (Valor_Tier 1–4) so one high-tier Commonwealth award is not drowned by U.S. citation volume, while still allowing sustained, documented valor in lower tiers to accumulate meaningfully. Purple Heart is treated as wounded-in-action recognition (not gallantry) under USM-25.2 — rack-visible, leaderboard-neutral — so wound counts cannot outrank apex decorations.",
+      },
+      {
+        label:
+          "Finally, we compressed years of spreadsheet iteration into the client-visible Bong_Score column: the same ratios the team argued over in committee, now expressed as a single catalog number per medal. The public sections below document how those tiers map to examples; the engine simply enforces the contract: tiers 1–4 score, tier 5+ displays, and ties break on explicit rules rather than hidden multipliers.",
+      },
+    ],
+  },
+  {
     title: "Comparing careers fairly",
     items: [
       {

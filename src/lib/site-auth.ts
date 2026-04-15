@@ -69,4 +69,4 @@ export function clearSiteUserCookie(response: NextResponse) {
 }
 
 /** String fields a hero owner may PATCH on their adopted hero (medals handled separately). */
-export const OWNER_HERO_PATCH_KEYS = ["biography", "avatarUrl"] as const;
+export const OWNER_HERO_PATCH_KEYS = ["biography", "avatarUrl", "rank"] as const;

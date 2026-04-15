@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import { MedalDisplayThumbRow } from "@/components/medals/MedalDisplayThumb";
+import MedalWikiModal, { type MedalModalData } from "@/components/medals/MedalWikiModal";
 import { usePrivileges } from "@/contexts/PrivilegeContext";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { heroicCatalogScoreCaption } from "@/lib/medal-heroic-catalog-display";
+import { USM25_MATRIX_SECTIONS } from "@/lib/usm25-matrix-sections";
 
 interface MedalTypeRef {
   _id: string;
@@ -36,6 +39,35 @@ function catalogBongDisplay(mt: MedalTypeRef): number {
   return Math.max(mt.valorPoints ?? 0, mt.basePoints ?? 0);
 }
 
+function apiMedalJsonToModal(d: Record<string, unknown>): MedalModalData {
+  const tierRaw = d.tier;
+  const tier = typeof tierRaw === "number" ? tierRaw : Number(tierRaw);
+  const basePoints = Number(d.basePoints) || 0;
+  const valorPoints = Number(d.valorPoints ?? d.basePoints) || 0;
+  return {
+    medalId: String(d._id ?? ""),
+    name: String(d.name ?? "Medal"),
+    wikiSummary: typeof d.wikiSummary === "string" ? d.wikiSummary : undefined,
+    history: typeof d.history === "string" ? d.history : undefined,
+    awardCriteria: typeof d.awardCriteria === "string" ? d.awardCriteria : undefined,
+    imageUrl: typeof d.imageUrl === "string" ? d.imageUrl : undefined,
+    ribbonImageUrl: typeof d.ribbonImageUrl === "string" ? d.ribbonImageUrl : undefined,
+    description: typeof d.description === "string" ? d.description : undefined,
+    wikipediaUrl: typeof d.wikipediaUrl === "string" ? d.wikipediaUrl : undefined,
+    appearance: typeof d.appearance === "string" ? d.appearance : undefined,
+    established: typeof d.established === "string" ? d.established : undefined,
+    heroicScoreCaption: heroicCatalogScoreCaption({
+      valorTier: Number.isFinite(tier) ? tier : undefined,
+      basePoints,
+      valorPoints,
+      requiresValorDevice: Boolean(d.requiresValorDevice),
+      inherentlyValor: Boolean(d.inherentlyValor),
+      hasValor: false,
+      count: 1,
+    }),
+  };
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   valor: "#d4a843",
   service: "#3b82f6",
@@ -51,6 +83,8 @@ export default function AdminScoringPage() {
   const [recalcResult, setRecalcResult] = useState<string>("");
   const [medals, setMedals] = useState<MedalTypeRef[]>([]);
   const [medalsRefreshing, setMedalsRefreshing] = useState(false);
+  const [modalMedal, setModalMedal] = useState<MedalModalData | null>(null);
+  const [modalLoadingId, setModalLoadingId] = useState<string | null>(null);
 
   const loadMedalCatalog = async () => {
     setMedalsRefreshing(true);
@@ -80,6 +114,18 @@ export default function AdminScoringPage() {
       });
   }, []);
 
+  async function openMedalModal(medalId: string) {
+    setModalLoadingId(medalId);
+    try {
+      const r = await fetch(`/api/medal-types/${medalId}`, { cache: "no-store" });
+      if (!r.ok) return;
+      const d = (await r.json()) as Record<string, unknown>;
+      setModalMedal(apiMedalJsonToModal(d));
+    } finally {
+      setModalLoadingId(null);
+    }
+  }
+
   const handleRecalculate = async () => {
     const ok = await confirm({
       title: "Recalculate all scores",
@@ -103,6 +149,7 @@ export default function AdminScoringPage() {
 
   return (
     <div className="animate-fade-in-up space-y-6">
+      <MedalWikiModal medal={modalMedal} onClose={() => setModalMedal(null)} />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
         <h1 className="text-2xl font-bold">USM-25.2 Scoring</h1>
       </div>
@@ -143,6 +190,37 @@ export default function AdminScoringPage() {
         </div>
       </section>
 
+      <details className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 group">
+        <summary className="text-base font-semibold text-[var(--color-gold)] cursor-pointer list-none flex items-center justify-between gap-2">
+          <span>Full methodology (same narrative as public /scoring)</span>
+          <span className="text-xs font-normal text-[var(--color-text-muted)] group-open:hidden">Expand</span>
+          <span className="text-xs font-normal text-[var(--color-text-muted)] hidden group-open:inline">Collapse</span>
+        </summary>
+        <p className="text-xs text-[var(--color-text-muted)] mt-2 mb-4">
+          <a href="/scoring" className="text-[var(--color-gold)] hover:underline">
+            Open public scoring page
+          </a>{" "}
+          for the same content in print-friendly layout.
+        </p>
+        <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1 border-t border-[var(--color-border)] pt-4">
+          {USM25_MATRIX_SECTIONS.map((section) => (
+            <div key={section.title}>
+              <h3 className="text-sm font-semibold text-[var(--color-gold)] mb-2">{section.title}</h3>
+              <ul className="space-y-2 text-xs text-[var(--color-text-muted)] leading-relaxed list-disc pl-4">
+                {section.items.map((item, idx) => (
+                  <li key={idx} className="marker:text-[var(--color-gold)]/70">
+                    <span className="text-[var(--color-text)]">{item.label}</span>
+                    {item.points ? (
+                      <span className="block sm:inline sm:ml-2 text-[var(--color-gold)] font-semibold">{item.points}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </details>
+
       {medals.length > 0 && (
         <section className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
@@ -167,9 +245,12 @@ export default function AdminScoringPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
             {medals.map((mt, i) => (
-              <div
+              <button
                 key={mt._id}
-                className="flex items-center gap-3 p-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] animate-fade-in-up"
+                type="button"
+                onClick={() => openMedalModal(mt._id)}
+                disabled={Boolean(modalLoadingId)}
+                className="flex items-center gap-3 p-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] animate-fade-in-up text-left w-full hover:border-[var(--color-gold)]/40 hover:bg-[var(--color-surface-hover)]/30 transition-colors disabled:opacity-60"
                 style={{ animationDelay: `${i * 0.04}s` }}
               >
                 <div className="shadow-md rounded-lg shrink-0">
@@ -196,11 +277,11 @@ export default function AdminScoringPage() {
                       {mt.category}
                     </span>
                     <span className="score-badge text-[10px] px-1.5 py-0" title="Valor_Tier + catalog Bong_Score">
-                      {formatValorTierLabel(mt.tier)} · {catalogBongDisplay(mt)} pts
+                      {modalLoadingId === mt._id ? "…" : `${formatValorTierLabel(mt.tier)} · ${catalogBongDisplay(mt)} pts`}
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </section>

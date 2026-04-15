@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   await dbConnect();
   const hero = await Hero.findOne({ slug })
-    .select("_id slug name branch countryCode rackGap ribbonMaxPerRow biography avatarUrl ownerUserId adoptionExpiry published medals")
+    .select("_id slug name rank branch countryCode rackGap ribbonMaxPerRow biography avatarUrl ownerUserId adoptionExpiry published medals")
     .populate({
       path: "medals.medalType",
       select:
@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
     _id: hero._id.toString(),
     slug: hero.slug,
     name: hero.name,
+    rank: hero.rank || "",
     branch: hero.branch || "",
     countryCode: hero.countryCode || "US",
     rackGap: hero.rackGap ?? 2,

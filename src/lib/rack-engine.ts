@@ -1,6 +1,9 @@
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 import { parseMedalDeviceRule } from "@/lib/medal-device-rules";
 import { RIBBON_GAP } from "@/components/ribbon-rack/ribbon-data";
+import {
+  normalizeMedalCountryCode,
+} from "@/lib/medal-eligibility";
 
 export interface RackDeviceImage {
   url: string;
@@ -26,6 +29,11 @@ export interface RackMedalTypeLike {
   wikipediaUrl?: string;
   appearance?: string;
   established?: string;
+  tier?: number;
+  basePoints?: number;
+  valorPoints?: number;
+  requiresValorDevice?: boolean;
+  inherentlyValor?: boolean;
 }
 
 export interface RackMedalEntryLike {
@@ -61,6 +69,11 @@ export interface RackRenderMedal {
   wikipediaUrl?: string;
   appearance?: string;
   established?: string;
+  valorTier?: number;
+  basePoints?: number;
+  valorPoints?: number;
+  requiresValorDevice?: boolean;
+  inherentlyValor?: boolean;
 }
 
 export interface RibbonRackProfile {
@@ -95,25 +108,33 @@ export function getRibbonRackProfile(countryCode?: string | null): RibbonRackPro
   }
 }
 
-function getMedalNationalPriority(
+/**
+ * Rack order: (0) medals from the hero’s own country, (1) other Commonwealth catalog countries,
+ * (2) all other foreign awards — then precedence within each band. This keeps a host-nation gallantry
+ * ribbon ahead of a higher-precedence foreign decoration on the same rack.
+ */
+function nationalRackGroup(
   medalCountryCode: string | undefined,
   nationalCountryCode: string | undefined,
+  inventoryCategory?: string,
 ): number {
-  const medalCC = String(medalCountryCode || "").toUpperCase();
-  const nationalCC = String(nationalCountryCode || "").toUpperCase();
+  const medalCC = normalizeMedalCountryCode(medalCountryCode);
+  const nationalCC = normalizeMedalCountryCode(nationalCountryCode);
   if (!nationalCC) return 0;
-  if (!medalCC || medalCC === nationalCC) return 0;
-  return 1;
+  if (String(inventoryCategory || "").toLowerCase() === "foreign") return 2;
+  if (!medalCC) return 2;
+  if (medalCC === nationalCC) return 0;
+  return 2;
 }
 
 /** Shared by ribbon rack SVG and hero award lists — keep ordering identical. */
 export function compareMedalForRackOrder(
-  a: { precedenceOrder: number; name: string; countryCode?: string },
-  b: { precedenceOrder: number; name: string; countryCode?: string },
+  a: { precedenceOrder: number; name: string; countryCode?: string; inventoryCategory?: string },
+  b: { precedenceOrder: number; name: string; countryCode?: string; inventoryCategory?: string },
   nationalCountryCode?: string,
 ): number {
-  const aNationalPriority = getMedalNationalPriority(a.countryCode, nationalCountryCode);
-  const bNationalPriority = getMedalNationalPriority(b.countryCode, nationalCountryCode);
+  const aNationalPriority = nationalRackGroup(a.countryCode, nationalCountryCode, a.inventoryCategory);
+  const bNationalPriority = nationalRackGroup(b.countryCode, nationalCountryCode, b.inventoryCategory);
   if (aNationalPriority !== bNationalPriority) return aNationalPriority - bNationalPriority;
   if (a.precedenceOrder !== b.precedenceOrder) return a.precedenceOrder - b.precedenceOrder;
   if ((a.countryCode || "") !== (b.countryCode || "")) {
@@ -123,7 +144,7 @@ export function compareMedalForRackOrder(
 }
 
 export function sortRackMedals<
-  T extends { precedenceOrder: number; name: string; countryCode?: string }
+  T extends { precedenceOrder: number; name: string; countryCode?: string; inventoryCategory?: string }
 >(medals: T[], options?: { nationalCountryCode?: string }): T[] {
   return [...medals].sort((a, b) =>
     compareMedalForRackOrder(a, b, options?.nationalCountryCode),
@@ -146,11 +167,13 @@ export function sortHeroMedalEntries<T extends RackMedalEntryLike>(
         precedenceOrder: ma.precedenceOrder,
         name: ma.name,
         countryCode: ma.countryCode,
+        inventoryCategory: ma.inventoryCategory,
       },
       {
         precedenceOrder: mb.precedenceOrder,
         name: mb.name,
         countryCode: mb.countryCode,
+        inventoryCategory: mb.inventoryCategory,
       },
       options?.nationalCountryCode,
     );
@@ -196,6 +219,11 @@ export function buildRibbonRackMedals(
         wikipediaUrl: medalType.wikipediaUrl,
         appearance: medalType.appearance,
         established: medalType.established,
+        valorTier: medalType.tier,
+        basePoints: medalType.basePoints ?? 0,
+        valorPoints: medalType.valorPoints ?? medalType.basePoints ?? 0,
+        requiresValorDevice: Boolean(medalType.requiresValorDevice),
+        inherentlyValor: Boolean(medalType.inherentlyValor),
       } satisfies RackRenderMedal;
     });
 

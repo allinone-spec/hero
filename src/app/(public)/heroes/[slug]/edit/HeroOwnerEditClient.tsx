@@ -7,7 +7,9 @@ import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import { AdminLoader } from "@/components/ui/AdminLoader";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import ImageUpload from "@/components/ui/ImageUpload";
+import RankCombobox from "@/components/heroes/RankCombobox";
 import { describeMedalDevices, getMedalDeviceFamilyLabel } from "@/lib/medal-device-rules";
+import { isMedalEligibleForHeroCountry } from "@/lib/medal-eligibility";
 import { buildRibbonRackMedals, sortHeroMedalEntries } from "@/lib/rack-engine";
 import type { MedalDeviceRule } from "@/lib/medal-device-rules";
 
@@ -126,6 +128,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [branch, setBranch] = useState("");
+  const [rank, setRank] = useState("");
   const [countryCode, setCountryCode] = useState("US");
   const [biography, setBiography] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -134,6 +137,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
   const [catalog, setCatalog] = useState<MedalOption[]>([]);
   const [selectedMedalId, setSelectedMedalId] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showForeignMedals, setShowForeignMedals] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +148,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         const res = await fetch(`/api/site/hero-for-edit?slug=${encodeURIComponent(slug)}`);
         const data = await res.json();
         const cc = (data.countryCode || "US").toString().trim().toUpperCase() || "US";
-        const medalsRes = await fetch(`/api/medal-types?countryCode=${encodeURIComponent(cc)}`, {
+        const medalsRes = await fetch("/api/medal-types", {
           cache: "no-store",
         });
         const medalData = medalsRes.ok ? await medalsRes.json() : [];
@@ -160,7 +164,8 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         setId(data._id);
         setName(data.name || "");
         setBranch(data.branch || "");
-        setCountryCode(data.countryCode || "US");
+        setRank(typeof data.rank === "string" ? data.rank : "");
+        setCountryCode(cc);
         setBiography(data.biography || "");
         setAvatarUrl(data.avatarUrl || "");
         setPublished(Boolean(data.published));
@@ -185,10 +190,23 @@ export default function HeroOwnerEditClient({ slug }: Props) {
       }),
     [branch, countryCode, medals],
   );
+
+  const catalogForPicker = useMemo(
+    () =>
+      catalog.filter((m) =>
+        isMedalEligibleForHeroCountry(
+          m.countryCode,
+          countryCode || "US",
+          showForeignMedals,
+          m.inventoryCategory,
+        ),
+      ),
+    [catalog, countryCode, showForeignMedals],
+  );
   function addMedal() {
     setSaveSuccess(false);
     if (!selectedMedalId) return;
-    const match = catalog.find((m) => m._id === selectedMedalId);
+    const match = catalogForPicker.find((m) => m._id === selectedMedalId);
     if (!match) return;
     setMedals((prev) => {
       const existing = prev.find((m) => m.medalType._id === match._id);
@@ -240,6 +258,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         body: JSON.stringify({
           biography,
           avatarUrl,
+          rank,
           medals: medals.map((m) => ({
             medalType: m.medalType._id,
             count: m.count,
@@ -259,6 +278,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
       setMedals(medalsFromServerPayload(data.medals));
       if (typeof data.biography === "string") setBiography(data.biography);
       if (typeof data.avatarUrl === "string") setAvatarUrl(data.avatarUrl);
+      if (typeof data.rank === "string") setRank(data.rank);
       setSaveSuccess(true);
       router.refresh();
     } catch {
@@ -307,10 +327,10 @@ export default function HeroOwnerEditClient({ slug }: Props) {
         </Link>
         <h1 className="text-2xl font-bold text-[var(--color-text)] mt-2">Edit tribute: {name}</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          You can update the short biography, portrait, and medal list. The medal dropdown lists{" "}
-          <strong>{countryCode}</strong> inventory first, then other countries. The rack preview updates immediately
-          from the same precedence engine as the public page; saving also refreshes tags (e.g. double MOH / multiple
-          Purple Hearts) from your medal rows.
+          You can update rank (with autocomplete), short biography, portrait, and medal list. By default the medal
+          picker only lists{" "}
+          <strong>{countryCode}</strong> catalog awards only; enable &quot;Show foreign awards&quot; for edge
+          cases. The rack preview uses the same precedence engine as the public page.
           {!published && " This hero is not published yet; the public page may be unavailable."}
         </p>
       </div>
@@ -329,6 +349,22 @@ export default function HeroOwnerEditClient({ slug }: Props) {
             </Link>
           </div>
         )}
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Rank</label>
+          <RankCombobox
+            value={rank}
+            onChange={(v) => {
+              setSaveSuccess(false);
+              setRank(v);
+            }}
+            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-text)]"
+            placeholder="Type to search (e.g. Corporal, Captain)"
+          />
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+            Suggestions use the same US + Commonwealth rank list as admin. Display name and branch are set by staff;
+            you can correct rank spelling here.
+          </p>
+        </div>
         <div>
           <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Biography</label>
           <textarea
@@ -377,14 +413,29 @@ export default function HeroOwnerEditClient({ slug }: Props) {
               Add rows, set how many times this award appears, and toggle the <strong className="text-[var(--color-text)]">V</strong> device when
               earned with valor. The rack preview below matches the public page.
             </p>
+            <label className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="rounded border-[var(--color-border)]"
+                checked={showForeignMedals}
+                onChange={(e) => {
+                  setSaveSuccess(false);
+                  setShowForeignMedals(e.target.checked);
+                  setSelectedMedalId("");
+                }}
+              />
+              Show foreign awards (default: host country only)
+            </label>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
               <select
                 value={selectedMedalId}
                 onChange={(e) => setSelectedMedalId(e.target.value)}
                 className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm text-[var(--color-text)] focus:border-[var(--color-gold)]/50 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/20"
               >
-                <option value="">Choose medal ({countryCode} first, then others)…</option>
-                {catalog.map((medal) => (
+                <option value="">
+                  {showForeignMedals ? "Choose medal (full catalog)…" : `Choose medal (${countryCode} only)…`}
+                </option>
+                {catalogForPicker.map((medal) => (
                   <option key={medal._id} value={medal._id}>
                     {medal.name}
                   </option>

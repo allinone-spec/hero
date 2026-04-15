@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import MedalWikiModal from "@/components/medals/MedalWikiModal";
+import MedalWikiModal, { type MedalModalData } from "@/components/medals/MedalWikiModal";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
 import RankInsignia from "@/components/heroes/RankInsignia";
 import { describeMedalDevices, type MedalDeviceRule } from "@/lib/medal-device-rules";
+import { heroicCatalogScoreCaption } from "@/lib/medal-heroic-catalog-display";
 import { buildRibbonRackMedals, sortHeroMedalEntries, type RackRenderMedal } from "@/lib/rack-engine";
 import { ScoreBreakdownItem } from "@/types";
 import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
@@ -48,6 +49,10 @@ interface HeroDetail {
       wikipediaUrl?: string;
       appearance?: string;
       established?: string;
+      tier?: number;
+      valorPoints?: number;
+      requiresValorDevice?: boolean;
+      inherentlyValor?: boolean;
     };
     count: number;
     hasValor: boolean;
@@ -77,6 +82,31 @@ interface Props {
 
 const profileBackNavClass =
   "text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1";
+
+function rackMedalToModal(m: RackRenderMedal): MedalModalData {
+  return {
+    medalId: m.medalId,
+    name: m.name,
+    wikiSummary: m.wikiSummary,
+    history: m.history,
+    awardCriteria: m.awardCriteria,
+    imageUrl: m.imageUrl,
+    ribbonImageUrl: m.ribbonImageUrl,
+    description: m.description,
+    wikipediaUrl: m.wikipediaUrl,
+    appearance: m.appearance,
+    established: m.established,
+    heroicScoreCaption: heroicCatalogScoreCaption({
+      valorTier: m.valorTier,
+      basePoints: m.basePoints ?? 0,
+      valorPoints: m.valorPoints ?? 0,
+      requiresValorDevice: m.requiresValorDevice ?? false,
+      inherentlyValor: m.inherentlyValor ?? false,
+      hasValor: m.hasValor,
+      count: m.count,
+    }),
+  };
+}
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -300,7 +330,7 @@ export default function HeroDetailClient({
   profileBackHref,
   profileBackLabel,
 }: Props) {
-  const [selectedMedal, setSelectedMedal] = useState<RackRenderMedal | null>(null);
+  const [selectedMedal, setSelectedMedal] = useState<MedalModalData | null>(null);
 
   const sortedMedals = sortHeroMedalEntries([...hero.medals], {
     nationalCountryCode: hero.countryCode,
@@ -468,7 +498,7 @@ export default function HeroDetailClient({
                     rowLayout="rankListPyramid"
                     countryCode={hero.countryCode}
                     scale={3}
-                    onRibbonClick={setSelectedMedal}
+                    onRibbonClick={(m) => setSelectedMedal(rackMedalToModal(m as RackRenderMedal))}
                   />
                 </div>
               </div>

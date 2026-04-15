@@ -41,6 +41,11 @@ export interface RibbonMedal {
   appearance?: string;
   established?: string;
   inventoryCategory?: string;
+  valorTier?: number;
+  basePoints?: number;
+  valorPoints?: number;
+  requiresValorDevice?: boolean;
+  inherentlyValor?: boolean;
 }
 
 interface RibbonRackProps {
@@ -692,8 +697,10 @@ export default function RibbonRack({
     return null;
   }
 
-  const inferredCountryCode =
-    countryCode || withColors.find((m) => m.countryCode)?.countryCode || "US";
+  /** Never infer nationality from the first ribbon — that mis-orders host vs. foreign for multinational racks. */
+  const inferredCountryCode = String(countryCode || "US")
+    .trim()
+    .toUpperCase() || "US";
   const profile = getRibbonRackProfile(inferredCountryCode);
   const resolvedMaxPerRow =
     rowLayout === "rankListPyramid"
