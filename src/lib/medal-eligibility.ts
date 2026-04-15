@@ -34,13 +34,24 @@ export function isMedalEligibleForHeroCountry(
   medalCountryCode: string | undefined,
   heroCountryCode: string,
   showForeign: boolean,
-  inventoryCategory?: string
+  inventoryCategory?: string,
+  medalTier?: number | null,
 ): boolean {
-  if (showForeign) return true;
-  if (String(inventoryCategory || "").toLowerCase() === "foreign") return false;
   const m = normalizeMedalCountryCode(medalCountryCode);
   const h = normalizeMedalCountryCode(heroCountryCode);
-  if (!m) return false;
-  if (m === h) return true;
-  return false;
+  if (!m || !h) return false;
+
+  const isHostCountryAward = m === h;
+  if (!showForeign) return isHostCountryAward;
+
+  if (isHostCountryAward) return true;
+
+  // Foreign toggle only allows foreign gallantry lines (tiers 1-4).
+  const t = typeof medalTier === "number" ? medalTier : Number(medalTier);
+  if (!Number.isFinite(t)) return false;
+  if (t < 1 || t > 4) return false;
+
+  const category = String(inventoryCategory || "").toLowerCase();
+  if (category === "service" || category === "other") return false;
+  return true;
 }

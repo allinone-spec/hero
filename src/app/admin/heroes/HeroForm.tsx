@@ -24,6 +24,7 @@ interface MedalTypeOption {
   name: string;
   shortName: string;
   basePoints: number;
+  tier?: number;
   precedenceOrder: number;
   ribbonColors: string[];
   ribbonImageUrl?: string;
@@ -855,6 +856,7 @@ export default function HeroForm({ initialData, isEdit = false, importWikiUrl }:
           form.countryCode || "US",
           showForeignMedals,
           t.inventoryCategory,
+          t.tier,
         ),
       ),
     [medalTypes, form.countryCode, showForeignMedals],
@@ -1667,6 +1669,38 @@ function normalizeCombatType(input: unknown): CombatType {
     });
   }, [wikiRibbonCells, medalTypes, wikiMedalNames, form.branch, form.countryCode, form.medals]);
 
+  /** Unified preview list: same order as the scoring ribbon rack (not wiki row / input order). */
+  const wikiRibbonListCellIndices = useMemo(() => {
+    const hasRibbon = (i: number) => {
+      const c = wikiRibbonCells[i];
+      return Boolean(c?.ribbonUrl && !isBlankImageUrl(c.ribbonUrl));
+    };
+    const used = new Set<number>();
+    const ordered: number[] = [];
+
+    for (const m of rackScoringPreviewMedals) {
+      const mid = m.medalId;
+      if (!mid) continue;
+      const idx = wikiRibbonCells.findIndex(
+        (c, i) =>
+          !used.has(i) &&
+          hasRibbon(i) &&
+          c.type !== "other" &&
+          Boolean(c._id) &&
+          String(c._id) === String(mid),
+      );
+      if (idx !== -1) {
+        used.add(idx);
+        ordered.push(idx);
+      }
+    }
+
+    for (let i = 0; i < wikiRibbonCells.length; i++) {
+      if (!used.has(i) && hasRibbon(i)) ordered.push(i);
+    }
+    return ordered;
+  }, [wikiRibbonCells, rackScoringPreviewMedals]);
+
   // Build ribbon rack preview from wikiRibbonRack data.
   // "other" items (badges, tabs, insignia) go above ribbons with actual sizes.
   // "ribbon" items use standard ribbon dimensions in the RibbonRack component.
@@ -2436,16 +2470,14 @@ function normalizeCombatType(input: unknown): CombatType {
 
             {/* Unified item list below rack: all items with thumbnail + name/dropdown/input + actions */}
             <div className="mt-3 space-y-2">
-              {wikiRibbonCells
-                .filter((c) => c.ribbonUrl && !isBlankImageUrl(c.ribbonUrl))
-                .map((cell, i) => {
-                  const cellIdx = wikiRibbonCells.indexOf(cell);
+              {wikiRibbonListCellIndices.map((cellIdx) => {
+                  const cell = wikiRibbonCells[cellIdx];
                   const isOther = cell.type === "other";
                   const dbMedal = cell._id ? medalTypes.find((t) => t._id === cell._id) : null;
                   const displayName = dbMedal?.name || cell.name;
                   return (
                     <div
-                      key={`item-label-${i}`}
+                      key={`item-label-${cellIdx}`}
                       role={!isOther ? "button" : undefined}
                       tabIndex={!isOther ? 0 : undefined}
                       className={`flex items-center gap-3 rounded-lg px-1 py-0.5 -mx-1 transition-colors ${

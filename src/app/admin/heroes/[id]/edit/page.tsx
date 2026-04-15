@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AdminLoader } from "@/components/ui/AdminLoader";
@@ -59,11 +60,27 @@ export default function EditHeroPage() {
   }
 
   if (!hero || hero.error) {
-    return <div className="text-red-400">Hero not found.</div>;
+    return (
+      <div className="w-full">
+        <Link
+          href="/admin/heroes"
+          className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1 mb-4"
+        >
+          &lt; Heroes
+        </Link>
+        <div className="text-red-400">Hero not found.</div>
+      </div>
+    );
   }
 
   return (
     <div className="w-full">
+      <Link
+        href="/admin/heroes"
+        className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-gold)] inline-flex items-center gap-1 mb-4"
+      >
+        &lt; Heroes
+      </Link>
       <h1 className="text-2xl font-bold mb-6">Edit: {hero.name}</h1>
       <HeroForm initialData={hero} isEdit />
     </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import MedalWikiModal, { type MedalModalData } from "@/components/medals/MedalWikiModal";
 import RibbonRack from "@/components/ribbon-rack/RibbonRack";
 import ScoreBreakdown from "@/components/scoring/ScoreBreakdown";
@@ -15,7 +15,7 @@ import { SafeWikimediaImg } from "@/components/ui/SafeWikimediaImg";
 
 /* ── Types ──────────────────────────────────────────────────────────────────── */
 
-interface HeroDetail {
+export interface HeroDetail {
   _id: string;
   name: string;
   slug: string;
@@ -78,6 +78,10 @@ interface Props {
   contextualRanks?: { label: string; rank: number; total: number }[];
   profileBackHref: string;
   profileBackLabel: string;
+  /** When set, replaces the profile back link in the top bar (e.g. admin Back + Edit). */
+  navLeadingOverride?: ReactNode;
+  /** Hide the Support & adopt checkout panel (e.g. admin preview). */
+  hideSupportAdoptPanel?: boolean;
 }
 
 const profileBackNavClass =
@@ -329,6 +333,8 @@ export default function HeroDetailClient({
   contextualRanks,
   profileBackHref,
   profileBackLabel,
+  navLeadingOverride,
+  hideSupportAdoptPanel,
 }: Props) {
   const [selectedMedal, setSelectedMedal] = useState<MedalModalData | null>(null);
 
@@ -354,9 +360,11 @@ export default function HeroDetailClient({
       </Suspense>
       {/* Navigation — hidden in print */}
       <div className="no-print mb-6 flex items-center justify-between">
-        <Link href={profileBackHref} className={profileBackNavClass}>
-          {profileBackLabel}
-        </Link>
+        {navLeadingOverride ?? (
+          <Link href={profileBackHref} className={profileBackNavClass}>
+            {profileBackLabel}
+          </Link>
+        )}
         <button
           onClick={() => window.print()}
           className="btn-secondary text-sm inline-flex items-center gap-1.5"
@@ -523,12 +531,14 @@ export default function HeroDetailClient({
 
       {/* ── Score Breakdown (web only) ──────────────────────────────────────── */}
       <div className="no-print mt-8">
-        <SupportAdoptPanel
-          heroId={hero._id}
-          ownerUserId={hero.ownerUserId}
-          adoptionExpiry={hero.adoptionExpiry}
-          heroSlug={hero.slug}
-        />
+        {!hideSupportAdoptPanel && (
+          <SupportAdoptPanel
+            heroId={hero._id}
+            ownerUserId={hero.ownerUserId}
+            adoptionExpiry={hero.adoptionExpiry}
+            heroSlug={hero.slug}
+          />
+        )}
         <ScoreBreakdown breakdown={scoreBreakdown} total={scoreTotal} />
       </div>
 

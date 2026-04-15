@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { MILITARY_RANKS } from "@/lib/military-ranks";
+import { MILITARY_RANKS, rankMatchesQuery } from "@/lib/military-ranks";
 
 type Props = {
   id?: string;
@@ -21,7 +21,7 @@ export default function RankCombobox({ id, value, onChange, className, required,
   const needle = value.trim().toLowerCase();
   const suggestions = useMemo(() => {
     if (!needle) return MILITARY_RANKS.slice(0, 45);
-    return MILITARY_RANKS.filter((r) => r.toLowerCase().includes(needle)).slice(0, 60);
+    return MILITARY_RANKS.filter((r) => rankMatchesQuery(r, needle)).slice(0, 60);
   }, [needle]);
 
   useEffect(() => {

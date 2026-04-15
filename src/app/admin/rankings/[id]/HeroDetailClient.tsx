@@ -108,6 +108,12 @@ export default function HeroDetailClient({
         </Link>
         <div className="flex items-center gap-3">
           <Link
+            href={`/heroes/${hero.slug}?from=rankings`}
+            className="btn-secondary text-sm py-1.5 px-4"
+          >
+            View Public Profile
+          </Link>
+          <Link
             href={`/admin/heroes/${hero._id}/edit`}
             className="btn-primary text-sm py-1.5 px-4"
           >

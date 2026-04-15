@@ -57,6 +57,7 @@ interface MedalOption {
   _id: string;
   name: string;
   shortName?: string;
+  tier?: number;
   precedenceOrder: number;
   ribbonColors?: string[];
   ribbonImageUrl?: string;
@@ -199,6 +200,7 @@ export default function HeroOwnerEditClient({ slug }: Props) {
           countryCode || "US",
           showForeignMedals,
           m.inventoryCategory,
+          m.tier,
         ),
       ),
     [catalog, countryCode, showForeignMedals],
